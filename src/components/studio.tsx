@@ -18,7 +18,7 @@ function makeTabs(lang: Lang): Array<{ id: Tab; label: string; icon: React.React
     { id: "chat", label: lang === "en" ? "Chat" : "聊天", icon: <Bot size={17} /> },
     { id: "providers", label: lang === "en" ? "Providers" : "模型", icon: <KeyRound size={17} /> },
     { id: "guard", label: "Guard", icon: <ShieldCheck size={17} /> },
-    { id: "compare", label: lang === "en" ? "Compare" : "对比", icon: <SplitSquareHorizontal size={17} /> },
+    { id: "compare", label: lang === "en" ? "Matrix" : "矩阵", icon: <SplitSquareHorizontal size={17} /> },
     { id: "archive", label: lang === "en" ? "Archive" : "存档", icon: <FolderClock size={17} /> },
     { id: "context", label: lang === "en" ? "Agent Pack" : "Agent 包", icon: <Boxes size={17} /> }
   ];
@@ -68,7 +68,7 @@ export function Studio() {
             <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
               <h1 className="text-2xl font-semibold tracking-tight text-slate-950 md:text-3xl">TokenFence Studio</h1>
               <p className="max-w-4xl text-sm leading-6 text-slate-600">
-                {lang === "en" ? "A local AI workspace for model routing, prompt safety, archives, comparison, and agent context packs." : "一个本地优先的 AI 工作台，支持模型路由、Prompt 安全、本地存档、模型对比和 Agent 上下文包。"}
+                {lang === "en" ? "A local AI workspace for prompt safety, model routing, Model Matrix, archives, and agent context packs." : "一个本地优先的 AI 工作台，支持 Prompt 安全、模型路由、Model Matrix、本地存档和 Agent 上下文包。"}
               </p>
             </div>
           </div>

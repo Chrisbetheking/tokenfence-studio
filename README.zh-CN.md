@@ -5,16 +5,17 @@
 </p>
 
 <p align="center">
-  <strong>面向大语言模型的本地优先 AI 工作台与意图路由器</strong>
+  <strong>面向大语言模型的本地优先 Prompt 安全、模型路由与多模型编排工作台</strong>
 </p>
 
 <p align="center">
-  多模型路由 · Prompt 安全 · 上下文压缩 · Agent-ready 工作流
+  Prompt Guard · Model Matrix · 文件级模型路由 · 上下文压缩 · Agent-ready 工作流
 </p>
 
 <p align="center">
   <a href="./README.md">English</a> ·
-  <a href="mailto:your@email.com">Email</a>
+  <a href="./docs/changelog/README.md">更新日志</a> ·
+  <a href="https://github.com/Chrisbetheking/tokenfence-studio">GitHub</a>
 </p>
 
 ---
@@ -23,299 +24,369 @@
 
 **TokenFence Studio** 是一个本地优先的 AI 工作台，定位在用户与大语言模型之间。
 
-它不只是一个普通的 ChatGPT 风格网页壳子，而是一个面向多模型、多任务和安全调用场景的 **Intent Router / Prompt Safety Layer**。在用户的 Prompt 被发送给模型之前，TokenFence Studio 会先分析意图、检测敏感信息、压缩上下文，并根据任务类型路由到合适的模型或工作流。
+它不是一个普通的 ChatGPT 风格网页壳子，而是一个 **Prompt 发送前的安全检查层、意图路由层和多模型编排层**。
+
+在 Prompt 或文件内容被发送给模型之前，TokenFence Studio 会先进行本地预处理：
+
+```text
+原始 Prompt / 文件
+   ↓
+Prompt Guard
+   ↓
+敏感信息检测与脱敏
+   ↓
+意图识别
+   ↓
+上下文压缩
+   ↓
+模型 / 文件路由
+   ↓
+最终 Prompt 预览
+   ↓
+云端模型或本地模型
+```
 
 项目目标很直接：
 
-- 减少不必要的 token 消耗
 - 降低敏感信息外泄风险
+- 减少不必要的 token 消耗
 - 让多模型调用更可控
-- 让 AI 工作流更适合 Agent、MCP、Claude Code、Codex 等开发工具
+- 让不同任务、不同文件使用更合适的模型
+- 为 Agent、MCP、Claude Code、Codex 等工作流准备更干净的上下文
 
 ---
 
-## 核心特性
+## 它和普通 AI Chat UI 有什么不同？
 
-### 多模型接入
+大多数 AI 工具关注的是“怎么调用模型”。
 
-TokenFence Studio 计划支持多种模型提供方与本地模型运行环境：
+TokenFence Studio 更关注的是：**Prompt 到达模型之前应该发生什么**。
 
-- OpenAI
-- Claude
-- Gemini
-- DeepSeek
-- OpenRouter
-- Ollama
-- LM Studio
-- Local model providers
+它会尝试回答这些问题：
 
-用户可以在统一界面中配置、切换和管理不同模型，适合研究、开发、翻译、写作和自动化工作流。
+- 这个 Prompt 能不能安全发送？
+- 里面有没有 API Key、Token、邮箱、数据库连接等敏感信息？
+- 上下文能不能压缩？
+- 这个任务更适合哪个模型？
+- 某个文件应该给云端模型、本地模型，还是代码模型处理？
+- 同一个任务能不能同时跑多个模型做对比？
+
+所以它更像是一个 **Pre-LLM Safety & Orchestration Layer**，而不是普通聊天界面。
+
+---
+
+## 截图
+
+### Chat Workspace
+
+![Chat Workspace](./docs/images/chat.png)
+
+### Provider Management
+
+![Providers](./docs/images/providers.png)
 
 ### Prompt Guard
 
-在 Prompt 发送到模型之前，系统会检测潜在敏感内容，例如：
-
-- 邮箱地址
-- 手机号
-- API Key
-- Token / Secret
-- 身份证号
-- 数据库连接字符串
-- 内部路径或私有配置
-
-检测到风险后，可以提示用户确认，或自动进行脱敏处理。
-
-### Redaction Engine
-
-敏感内容可以被替换为结构化占位符，例如：
-
-```txt
-my email is user@example.com
-```
-
-会被转换为：
-
-```txt
-my email is [EMAIL_1]
-```
-
-这样可以在尽量保留语义的同时，降低真实隐私数据被发送到外部模型的风险。
-
-### Intent Engine
-
-TokenFence Studio 会尝试理解用户请求的意图，并将任务分类，例如：
-
-- 翻译
-- 代码生成
-- 代码解释
-- 摘要
-- 简历优化
-- 论文辅助
-- 会议纪要
-- 天气查询
-- 文件处理
-- Agent 工具调用
-
-不同意图可以绑定不同模型、不同 prompt 模板、不同工具链和不同安全策略。
-
-### Context Compression
-
-长对话或长文档会消耗大量 token。TokenFence Studio 可以在保留核心信息的前提下压缩上下文，让模型获得更高信噪比的输入。
-
-目标不是简单截断内容，而是尽量保留：
-
-- 用户真实意图
-- 关键约束
-- 任务背景
-- 已完成步骤
-- 文件结构
-- 重要变量和路径
-
-### Agent-ready Workflow
-
-TokenFence Studio 适合与 Claude Code、Codex、OpenHands、MCP Server 等工具组合使用。它可以把项目上下文整理成更适合 Agent 消化的 Context Pack，减少重复解释项目背景的成本。
+![Prompt Guard](./docs/images/guard.png)
 
 ---
 
-## 为什么需要 TokenFence Studio？
+## 核心功能
 
-现在很多 AI 工具都是直接把用户输入发送给模型。
+### Prompt Guard
 
-这会带来几个问题：
+在 Prompt 发送给模型之前，先进行本地安全扫描。
 
-1. 用户可能不小心泄露 API Key、邮箱、手机号或内部配置。
-2. 长上下文会造成大量 token 浪费。
-3. 不同任务其实适合不同模型，但用户往往需要手动切换。
-4. Agent 工具需要结构化上下文，而不是杂乱的聊天记录。
-5. 企业或个人开发者需要更透明、可控、本地优先的 AI 调用入口。
+当前可以检测常见敏感信息，例如：
 
-TokenFence Studio 的核心思想是：
+- API Key
+- 邮箱地址
+- 手机号
+- 数据库连接字符串
+- Access Token
+- Secret 赋值
+- 中文个人身份信息
+- 常见凭证泄露模式
 
-> 不要把原始 Prompt 直接交给模型。先理解它、保护它、压缩它，再路由它。
+### Redaction Engine
+
+将敏感内容替换成结构化占位符，在尽量保留语义的同时降低泄露风险。
+
+```text
+john@example.com → [EMAIL_1]
+sk-xxxxxxx       → [OPENAI_KEY_1]
+```
+
+### Policy Profiles
+
+支持不同安全策略：
+
+- **Strict privacy**：更严格，优先本地模型或脱敏内容
+- **Balanced**：默认模式，在安全和流畅之间平衡
+- **Fast**：低风险内容减少处理步骤
+- **Developer**：展示更多中间信息，方便调试
+
+### Model Matrix
+
+支持一次性使用多个模型，或者让不同文件选择不同模型。
+
+当前能力包括：
+
+- 同一个 Prompt 同时发送给多个模型
+- 对比不同模型的回答、耗时、token 使用和风险状态
+- 粘贴多个文件内容并分别处理
+- 每个文件可以手动指定不同模型
+- 文件可以标记为 public、private 或 secret
+- 高风险或 secret 文件会倾向推荐本地模型
+
+### 文件级模型路由
+
+不同文件可以使用不同模型。
+
+示例：
+
+| 文件 | 推荐路由 |
+|---|---|
+| `src/app/page.tsx` | 代码能力更强的模型 |
+| `README.md` | 文档 / 写作模型 |
+| `error.log` | 长上下文模型 |
+| `.env` 或私密配置 | 本地模型优先 |
+
+这个功能适合代码项目分析、文档整理、日志排查和多文件任务拆解。
+
+### 多 Provider 支持
+
+TokenFence Studio 支持海外、国内、聚合平台和本地模型运行环境。
+
+当前 Provider 预设包括：
+
+- OpenAI
+- Anthropic Claude
+- Google Gemini
+- DeepSeek
+- 字节火山方舟 / Doubao
+- 阿里云百炼 / Qwen
+- 百度千帆
+- Kimi / Moonshot
+- 智谱 GLM
+- MiniMax
+- SiliconFlow
+- OpenRouter
+- Groq
+- Together AI
+- 302.AI
+- ModelScope
+- Ollama
+- LM Studio
+- 自定义 OpenAI-compatible endpoint
+
+用户自带 API Key，不绑定单一厂商。
+
+### Context Compression
+
+对长 Prompt、长对话或长文件进行压缩，在尽量保留用户真实意图、关键约束和任务背景的同时减少 token 消耗。
+
+### Local Archive
+
+本地保存脱敏后的运行记录，默认不依赖云端数据库。
+
+### Agent Context Packs
+
+将项目背景、关键文件、需求和任务目标整理成更适合 AI 编程工具和 Agent 工作流使用的上下文包。
+
+适合：
+
+- Claude Code
+- Codex
+- MCP-based agents
+- OpenHands-style workflows
+
+---
+
+## 计划中：Search Grounding 联网搜索增强
+
+联网搜索会作为后续模块加入。
+
+设计目标不是简单“让模型上网”，而是让 TokenFence 先判断是否需要实时信息，再安全地准备搜索 query、获取来源，并把搜索结果作为可引用上下文注入模型。
+
+计划支持：
+
+- Brave Search
+- Tavily
+- Gemini Grounding with Google Search
+- Kimi Web Search
+- 通过 SERP Provider 接入百度搜索
+- 自定义搜索 Provider
+
+搜索模块也会受安全策略控制：
+
+- 禁止把密钥和隐私内容直接拿去搜索
+- 对搜索 query 进行脱敏
+- 支持 Global / China / Auto 区域选择
+- 回答前展示来源信息
 
 ---
 
 ## 架构概览
 
-```txt
-User Prompt
-    │
-    ▼
-Prompt Guard
-    │
-    ▼
-Redaction Engine
-    │
-    ▼
+```text
+用户输入 / 文件内容
+        │
+        ▼
 Intent Engine
-    │
-    ├── Translation
-    ├── Code
-    ├── Research
-    ├── Resume
-    ├── Meeting
-    └── Agent Task
-    │
-    ▼
-Context Compression
-    │
-    ▼
-Model Router
-    │
-    ├── OpenAI
-    ├── Claude
-    ├── Gemini
-    ├── DeepSeek
-    ├── OpenRouter
-    ├── Ollama
-    └── LM Studio
-    │
-    ▼
-AI Response
+        │
+        ▼
+Prompt Guard
+        ├── Scanner
+        ├── Redactor
+        ├── Risk Engine
+        └── Compressor
+        │
+        ▼
+Model Matrix / Router
+        ├── Prompt 级多模型执行
+        ├── 文件级模型路由
+        ├── 敏感文件本地模型优先
+        └── 未来支持 Judge Model / Fallback
+        │
+        ▼
+Provider Layer
+        ├── 海外模型平台
+        ├── 国内模型平台
+        ├── 聚合路由平台
+        └── 本地模型
+        │
+        ▼
+回答 / 对比 / 存档
 ```
 
 ---
 
 ## 快速开始
 
-### 1. 克隆项目
-
 ```bash
 git clone https://github.com/Chrisbetheking/tokenfence-studio.git
 cd tokenfence-studio
-```
-
-### 2. 安装依赖
-
-```bash
 npm install
+npm run dev
 ```
 
-### 3. 配置环境变量
+访问：
 
-复制环境变量示例文件：
-
-```bash
-cp .env.example .env.local
+```text
+http://localhost:3000
 ```
 
-然后根据需要填写模型 API Key：
+### API Key 配置
+
+可以在 Provider 设置页面保存 API Key，也可以手动创建 `.env.local` 文件。
+
+常见环境变量：
 
 ```env
 OPENAI_API_KEY=
 ANTHROPIC_API_KEY=
 GEMINI_API_KEY=
 DEEPSEEK_API_KEY=
+VOLCENGINE_API_KEY=
+DASHSCOPE_API_KEY=
+QIANFAN_API_KEY=
+MOONSHOT_API_KEY=
+ZHIPU_API_KEY=
+MINIMAX_API_KEY=
+SILICONFLOW_API_KEY=
 OPENROUTER_API_KEY=
+GROQ_API_KEY=
+TOGETHER_API_KEY=
+THREE_ZERO_TWO_API_KEY=
+MODELSCOPE_API_KEY=
 ```
 
-如果只使用 Ollama 或 LM Studio，本地模型可以不填写云端 API Key。
-
-### 4. 启动开发环境
-
-```bash
-npm run dev
-```
-
-默认访问：
-
-```txt
-http://localhost:3000
-```
+如果只使用 Ollama 或 LM Studio，本地模型可以不配置云端 API Key。
 
 ---
 
 ## 项目结构
 
-```txt
-tokenfence-studio/
-├── cli/                    # 命令行工具
-├── docs/                   # 文档与图片资源
-│   └── images/
-│       └── banner.png       # README 顶部横幅图
-├── examples/               # 示例配置与示例工作流
-├── mcp/                    # MCP 相关能力
-├── src/                    # 核心源码
-├── tests/                  # 测试文件
-├── .gitignore
-├── LICENSE
-├── README.md
-├── README.zh-CN.md
-├── package.json
-├── next.config.mjs
-├── tailwind.config.ts
-└── tsconfig.json
+```text
+src/
+ ├── app/
+ ├── components/
+ ├── lib/
+ │   ├── core/
+ │   ├── providers/
+ │   ├── skills/
+ │   └── vault/
+ └── api/
+
+mcp/
+cli/
+docs/
+examples/
 ```
-
----
-
-## 使用场景
-
-### 个人 AI 工作台
-
-集中管理多个模型，在一个界面里完成翻译、写作、代码、摘要和研究任务。
-
-### 隐私保护入口
-
-在 Prompt 发送给云端模型前进行敏感信息检测和脱敏，降低泄露风险。
-
-### 多模型实验平台
-
-同一个任务可以路由到不同模型，方便比较质量、速度和成本。
-
-### Agent 上下文整理器
-
-把项目结构、需求、任务目标和关键文件整理成 Context Pack，供 Claude Code、Codex 或其他 Agent 工具使用。
 
 ---
 
 ## 路线图
 
-- [ ] ChatGPT 风格聊天界面
-- [ ] 多模型 Provider 配置
-- [ ] Prompt Guard 敏感信息检测
-- [ ] Redaction Engine 脱敏引擎
-- [ ] Intent Engine 意图识别
-- [ ] Context Compression 上下文压缩
-- [ ] Model Router 模型路由
-- [ ] 本地聊天记录管理
-- [ ] 文件上传与解析
-- [ ] 图片上传与视觉模型调用
-- [ ] Context Pack 导出
-- [ ] MCP 工具接入
-- [ ] CLI 支持
-- [ ] 插件 / Skill 系统
+### 当前原型已包含
+
+- [x] Chat 工作台
+- [x] Provider 设置
+- [x] Prompt Guard
+- [x] Redaction Engine
+- [x] Context Compression
+- [x] Policy Profiles
+- [x] Model Matrix 多模型对比
+- [x] 文件级模型路由原型
+- [x] 本地 Archive
+- [x] Agent Context Pack 原型
+
+### 计划中
+
+- [ ] Search Grounding 联网搜索路由
+- [ ] Judge Model 合并多模型输出
+- [ ] Provider 自动兜底链路
+- [ ] 成本与延迟预算路由
+- [ ] Model Matrix 真实文件上传解析
+- [ ] 搜索来源引用面板
+- [ ] MCP Marketplace
+- [ ] VS Code Extension
+- [ ] Browser Extension
+- [ ] Local Vector Search
+- [ ] Team Workspace
 
 ---
 
-## 开发状态
+## 更新日志
 
-该项目仍处于早期开发阶段，当前重点是完成基础界面、模型配置、Prompt 安全层和意图路由能力。
-
-欢迎提交 issue、建议和 pull request。
+最近更新与开发记录见：[Update Log](./docs/changelog/README.md)。
 
 ---
 
 ## 贡献方式
 
-你可以通过以下方式参与：
+欢迎提交 issue、建议和 pull request。
 
-1. 提交 bug report
-2. 提出新功能建议
-3. 改进 README 或文档
-4. 添加新的 Provider 适配
-5. 优化 Prompt Guard 规则
-6. 提供 Agent / MCP 使用案例
+目前比较需要的贡献方向：
 
----
-
-## License
-
-本项目基于 MIT License 开源。
+- 新 Provider 适配
+- 更好的敏感信息检测规则
+- Search Grounding 集成
+- 文件路由策略
+- 多模型对比工作流
+- Agent / MCP 使用案例
 
 ---
 
 ## Author
 
-Created by **Chrisbetheking**.
+Created by **ChrisWang**.
 
+Building practical AI infrastructure.
+
+---
+
+## License
+
+MIT License

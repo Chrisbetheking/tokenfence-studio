@@ -104,8 +104,8 @@ export function ProviderSettings({ onSaved }: { onSaved?: () => void }) {
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
-      <Panel title="Providers">
+    <div className="grid h-full min-h-0 gap-5 overflow-y-auto pr-1 scrollbar-thin lg:grid-cols-[320px_minmax(0,1fr)] lg:overflow-hidden">
+      <Panel title="Providers" className="min-h-0 overflow-y-auto scrollbar-thin lg:h-full">
         {Object.entries(byGroup).map(([group, providers]) => (
           <div key={group} className="mb-5 last:mb-0">
             <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">{groups[group as keyof typeof groups] || group}</div>
@@ -134,6 +134,7 @@ export function ProviderSettings({ onSaved }: { onSaved?: () => void }) {
       </Panel>
 
       <Panel
+        className="min-h-0 overflow-y-auto scrollbar-thin lg:h-full"
         title={provider?.label || "Provider"}
         right={saved?.hasKey || provider?.needsKey === false ? <Badge tone="green">configured</Badge> : <Badge tone="amber">needs key</Badge>}
       >

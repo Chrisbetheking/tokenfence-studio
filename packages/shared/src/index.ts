@@ -12,4 +12,20 @@ export {
   resolveStoragePath,
   validatePath,
 } from './storage';
+export {
+  getDefaultFallbackChain,
+  recommendFallbackProviders,
+} from './fallback';
+export {
+  estimateCost,
+  recommendBudgetRoute,
+  getAllBudgetEstimates,
+} from './budget';
+export {
+  createCitationPanel,
+  filterRelevantSources,
+  formatCitationBlock,
+  createMockSources,
+} from './citation';
+export type { CitationSource, CitationPanel } from './citation';
 export type { ArchiveEntry, GuardResult, StoragePaths } from './types';

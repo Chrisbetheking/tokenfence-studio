@@ -115,20 +115,75 @@ export function detectFileType(fileName: string, mimeType?: string): FileTypeInf
 }
 
 export function getDefaultFileRoutingRules(): FileRoutingRule[] {
-  return FILE_TYPE_MAP.map((info, i) => ({
-    id: `rule-${i}`,
-    fileCategory: info.category,
-    provider: info.recommendedModel.split('-')[0] === 'gpt'
+  const WORKFLOW_MAP: Record<string, { reason: string; workflow: string }> = {
+    pdf: {
+      reason: 'PDFs often contain long-form text; Claude excels at document analysis',
+      workflow: 'Extract text -> clean noise -> chunk -> route to long-context model',
+    },
+    document: {
+      reason: 'Documents need careful reading and structure preservation',
+      workflow: 'Parse -> clean -> scan for sensitive data -> route for analysis',
+    },
+    spreadsheet: {
+      reason: 'Tabular data benefits from GPT-4o structured reasoning',
+      workflow: 'Parse sheets -> extract key data -> route for structured analysis',
+    },
+    presentation: {
+      reason: 'Presentations mix text and structure; GPT-4o handles well',
+      workflow: 'Extract slides -> preserve order -> route for summary',
+    },
+    image: {
+      reason: 'Images need multimodal processing; Gemini excels here',
+      workflow: 'OCR if needed -> describe visual content -> route extracted text',
+    },
+    code: {
+      reason: 'Code review and generation benefits from GPT-4o coding strength',
+      workflow: 'Detect language -> scan for secrets -> route with coding instructions',
+    },
+    markdown: {
+      reason: 'Markdown documentation benefits from Claude nuanced reading',
+      workflow: 'Parse structure -> preserve headings -> route for documentation tasks',
+    },
+    log: {
+      reason: 'Logs can be very long; GPT-4o handles large context',
+      workflow: 'Truncate if too long -> extract errors -> route with context window',
+    },
+    data: {
+      reason: 'JSON/XML data benefits from GPT-4o structured analysis',
+      workflow: 'Validate format -> extract schema -> route for data tasks',
+    },
+    archive: {
+      reason: 'Archives need extraction before analysis',
+      workflow: 'Extract contents -> process individual files -> route each separately',
+    },
+    unknown: {
+      reason: 'Unknown file type; default to general-purpose model',
+      workflow: 'Attempt text extraction -> scan for secrets -> route to general model',
+    },
+  };
+
+  return FILE_TYPE_MAP.map((info, i) => {
+    const provider = info.recommendedModel.startsWith('gpt')
       ? 'OpenAI'
       : info.recommendedModel.includes('claude')
         ? 'Claude'
         : info.recommendedModel.includes('gemini')
           ? 'Gemini'
-          : 'OpenAI',
-    model: info.recommendedModel,
-    enabled: info.category !== 'unknown',
-    description: `Route ${info.label.toLowerCase()} files to ${info.recommendedModel}`,
-  }));
+          : 'OpenAI';
+
+    const meta = WORKFLOW_MAP[info.category] || WORKFLOW_MAP.unknown;
+
+    return {
+      id: 'rule-' + i,
+      fileCategory: info.category,
+      provider,
+      model: info.recommendedModel,
+      enabled: info.category !== 'unknown',
+      description: 'Route ' + info.label.toLowerCase() + ' files to ' + info.recommendedModel,
+      reason: meta.reason,
+      workflow: meta.workflow,
+    };
+  });
 }
 
 export function recommendModelForFile(

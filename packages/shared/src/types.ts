@@ -95,6 +95,8 @@ export interface FileRoutingRule {
   model: string;
   enabled: boolean;
   description: string;
+  reason: string;
+  workflow: string;
 }
 
 export const TASK_TYPE_LABELS: Record<TaskType, string> = {
@@ -121,4 +123,69 @@ export const RISK_ORDER: RiskLevel[] = ['safe', 'low', 'medium', 'high'];
 
 export function riskLabel(level: RiskLevel): string {
   return level.charAt(0).toUpperCase() + level.slice(1);
+}
+
+
+// --- Fallback Chain Types ---
+
+export interface FallbackStep {
+  order: number;
+  provider: string;
+  model: string;
+  reason: string;
+}
+
+export interface FallbackChain {
+  id: string;
+  label: string;
+  steps: FallbackStep[];
+}
+
+// --- Budget Router Types ---
+
+export interface BudgetEstimate {
+  provider: string;
+  model: string;
+  estimatedTokens: number;
+  estimatedCost: number;
+  estimatedLatencyMs: number;
+  tier: number; // 0=free/local, 1=budget, 2=standard, 3=premium
+}
+
+export interface BudgetRoute {
+  priority: 'cost' | 'speed' | 'balanced';
+  estimates: BudgetEstimate[];
+  recommended: BudgetEstimate;
+  alternates: BudgetEstimate[];
+}
+
+// --- Citation Types ---
+
+export interface CitationSource {
+  id: string;
+  title: string;
+  url?: string;
+  snippet: string;
+  relevance: number;
+  retrievedAt: number;
+}
+
+export interface CitationPanel {
+  query: string;
+  sources: CitationSource[];
+  generatedAt: number;
+  groundedResponse?: string;
+}
+
+// --- File Routing Rule (extended) ---
+
+export interface FileRoutingRule {
+  id: string;
+  fileCategory: FileCategory;
+  provider: string;
+  model: string;
+  enabled: boolean;
+  description: string;
+  reason: string;
+  workflow: string;
 }

@@ -8,6 +8,7 @@ Instead of putting every detail into the main README, each update has its own no
 
 | Date | Version / Stage | Summary | Details |
 |---|---|---|---|
+| 2026-06-11 | README Roadmap + Release Polish | Fixed monorepo structure in README, reorganized roadmap, added fallback/budget/citation shared logic. | [View details](./2026-06-11-readme-roadmap-and-release-polish.md) |
 | 2026-06-08 | v0.3.0 / Document Intelligence Pipeline | Added the Docs page, document parsing pipeline, cleaning, risk scanning, RAG-ready chunks, export preview, examples, and README updates. | [View details](./2026-06-08-document-intelligence-pipeline.md) |
 | 2026-06-02 | v0.2.0 / Model Matrix | Added Model Matrix, file-level model routing prototype, more global and China-based provider presets, and README updates. | [View details](./2026-06-02-model-matrix-and-provider-presets.md) |
 | 2026-06-01 | v0.1.0 / Initial Pre-flight Workflow | Added the first pre-flight prompt safety workflow, including scanning, redaction, policy profiles, routing suggestions, and final prompt preview. | [View details](./2026-06-01-initial-preflight-workflow.md) |

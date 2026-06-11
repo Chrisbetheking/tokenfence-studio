@@ -28,20 +28,13 @@ It is not trying to be just another chat UI. The main idea is to build a small p
 
 ```text
 Raw prompt / uploaded files
-   ↓
-Document Intelligence Pipeline
-   ↓
-Prompt Guard + Redaction
-   ↓
-Intent detection
-   ↓
-Context compression
-   ↓
-Model Matrix / file-level routing
-   ↓
-Final prompt preview
-   ↓
-LLM provider or local model
+   �?Document Intelligence Pipeline
+   �?Prompt Guard + Redaction
+   �?Intent detection
+   �?Context compression
+   �?Model Matrix / file-level routing
+   �?Final prompt preview
+   �?LLM provider or local model
 ```
 
 The goal is to make LLM usage a bit safer, cleaner, and easier to debug.
@@ -66,15 +59,15 @@ That makes TokenFence closer to a **pre-LLM safety and orchestration layer** tha
 
 ---
 
-## Screenshots to add
+## Preview
 
-The project is still moving quickly. Recommended screenshots for the README / LinkedIn:
+Screenshots will be added as the UI stabilizes. Suggested capture points:
 
-1. `docs/images/chat.png` - Chat workspace with pre-flight safety report.
-2. `docs/images/guard.png` - Prompt Guard and final prompt preview.
-3. `docs/images/model-matrix.png` - Model Matrix with multiple models and file-level routing.
-4. `docs/images/document-pipeline.png` - Document Pipeline report and chunks export.
-5. `docs/images/providers.png` - Provider settings with global, China-based, router, and local models.
+- Chat workspace with pre-flight safety report
+- Prompt Guard and final prompt preview
+- Model Matrix with multi-model comparison and file-level routing
+- Document Pipeline report and chunks export
+- Provider settings with global, China-based, router, and local models
 
 ---
 
@@ -91,8 +84,8 @@ Current detection rules cover common sensitive data patterns such as API keys, e
 Replace detected sensitive values with safe placeholders while keeping the task understandable.
 
 ```text
-john@example.com → [EMAIL_1]
-sk-xxxxxxx       → [OPENAI_KEY_1]
+john@example.com �?[EMAIL_1]
+sk-xxxxxxx       �?[OPENAI_KEY_1]
 ```
 
 ### Document Intelligence Pipeline
@@ -103,14 +96,14 @@ It is designed to turn uploaded or pasted files into clean, safe, model-ready co
 
 ```text
 File Upload
-  → PDF / DOCX / Image / Log / Markdown / Code parsing
-  → PDF / DOCX text extraction or image OCR
-  → Noise cleaning
-  → Sensitive data scanning
-  → Redaction-aware risk report
-  → RAG-ready chunk generation
-  → File-level model routing
-  → Export as Markdown / JSON
+  �?PDF / DOCX / Image / Log / Markdown / Code parsing
+  �?PDF / DOCX text extraction or image OCR
+  �?Noise cleaning
+  �?Sensitive data scanning
+  �?Redaction-aware risk report
+  �?RAG-ready chunk generation
+  �?File-level model routing
+  �?Export as Markdown / JSON
 ```
 
 Current prototype capabilities:
@@ -238,57 +231,63 @@ Search will be controlled by the same safety layer:
 
 ```text
 User input / uploaded files
-        │
-        ▼
-Document Intelligence Pipeline
+        �?        �?Document Intelligence Pipeline
         ├── Parser
         ├── Cleaner
         ├── Chunker
         └── Metadata builder
-        │
-        ▼
-Prompt Guard
+        �?        �?Prompt Guard
         ├── Scanner
         ├── Redactor
         ├── Risk Engine
         └── Compressor
-        │
-        ▼
-Model Matrix / Router
+        �?        �?Model Matrix / Router
         ├── Prompt-level multi-model run
         ├── File-level model routing
         ├── Local model preference for sensitive files
         └── Future judge model / fallback chain
-        │
-        ▼
-Provider Layer
+        �?        �?Provider Layer
         ├── Global providers
         ├── China-based providers
         ├── Router providers
         └── Local providers
-        │
-        ▼
-Response / comparison / archive / exported context
+        �?        �?Response / comparison / archive / exported context
 ```
 
 ---
 
 ## Quick Start
 
+### Web Workspace
+
 ```bash
 git clone https://github.com/Chrisbetheking/tokenfence-studio.git
 cd tokenfence-studio
+npm install --legacy-peer-deps
+npm run dev
+```
+
+Open `http://localhost:3000`.
+
+### Android Mobile Lite
+
+```bash
+cd apps/android
+npm install
+npm run start
+```
+
+Scan the QR code with Expo Go, or connect an Android device / emulator.
+
+### Desktop App
+
+```bash
+cd apps/desktop
 npm install
 npm run dev
 ```
 
-Open:
-
-```text
-http://localhost:3000
-```
-
-### API Keys
+Requires Rust and Tauri CLI. See [docs/RELEASES.md](./docs/RELEASES.md) for pre-built downloads.### API Keys
 
 Create a `.env.local` file or save keys in the Provider settings page.
 
@@ -317,68 +316,83 @@ If you only use Ollama or LM Studio, cloud API keys are optional.
 
 ## Project Structure
 
-```text
-src/
- ├── app/
- │   └── api/
- │       ├── chat/
- │       ├── compare/
- │       ├── documents/
- │       └── guard/
- ├── components/
- │   ├── chat-desk.tsx
- │   ├── compare-desk.tsx
- │   ├── document-pipeline-desk.tsx
- │   └── guard-desk.tsx
- └── lib/
-     ├── core/
-     ├── document/
-     ├── providers/
-     ├── skills/
-     └── vault/
+This repository is organized as a cross-platform monorepo:
 
-mcp/
-cli/
-docs/
-examples/
+```text
+tokenfence-studio/
+├── apps/
+�?  ├── web/             # Next.js web workspace (full TokenFence Studio)
+�?  ├── android/         # Expo React Native Android Mobile Lite
+�?  └── desktop/         # Tauri desktop wrapper (Windows + macOS)
+├── packages/
+�?  └── shared/          # Shared TypeScript logic (guard, providers, routing)
+├── docs/
+�?  ├── changelog/       # Per-update development notes
+�?  └── images/          # Banner and screenshots
+├── examples/             # Sample documents for testing
+├── cli/                  # CLI tooling (planned)
+├── mcp/                  # MCP integrations (planned)
+├── .github/
+�?  └── workflows/       # CI/CD (release, lint)
+├── package.json          # Root workspace config
+├── tsconfig.base.json    # Shared TypeScript base config
+└── README.md
 ```
 
+| Package | Description |
+|---|---|
+| `apps/web` | Full Next.js web workspace with Chat, Guard, Document Pipeline, Model Matrix, Provider Settings, Archive, and Agent Packs |
+| `apps/android` | Android Mobile Lite app built with Expo / React Native �� prompt scanning, model routing, sanitized local archive |
+| `apps/desktop` | Tauri desktop wrapper for Windows and macOS |
+| `packages/shared` | Pure TypeScript logic reused across platforms �� guard scanning, provider presets, file routing, storage helpers |
 ---
 
-## Roadmap
+## Project Status
 
-### Current prototype
+### Available Now
 
-- [x] Chat workspace
-- [x] Provider settings
-- [x] Prompt Guard
-- [x] Redaction engine
-- [x] Context compression
-- [x] Policy profiles
-- [x] Model Matrix for multi-model comparison
-- [x] File-level model routing prototype
-- [x] Document Intelligence Pipeline prototype
-- [x] Local archive
-- [x] Agent context pack prototype
+- Responsive Web Workspace (Chat, Guard, Document Pipeline, Model Matrix, Provider Settings, Archive, Agent Packs)
+- Android Mobile Lite App (prompt scanning, model routing, sanitized local archive)
+- Tauri Desktop Wrapper (Windows + macOS)
+- Multi-provider Settings (global, China-based, router, and local models)
+- Prompt Guard with sensitive data scanning
+- Redaction Engine with structured placeholders
+- Policy Profiles for risk-level control
+- Context Compression
+- Model Matrix for multi-model comparison
+- File-level Model Routing
+- Document Intelligence Pipeline
+  - PDF text extraction (text-based PDFs)
+  - DOCX raw text extraction
+  - Local image OCR through Tesseract.js
+  - Noise cleaning and chunk generation
+- Local Sanitized Archive
+- Agent Context Pack prototype
+- Shared TypeScript Logic Package (`packages/shared`)
+- GitHub Releases CI/CD Workflow
+
+### Experimental / In Progress
+
+- Provider Fallback Chains
+- Cost and Latency Budget Router
+- Source Citation Panel (prototype)
+- Desktop Storage Path Selection
+- File-type Model Routing Rules
+- Android Storage / Export Workflow
+- Release Artifact Automation
 
 ### Planned
 
-- [x] PDF text extraction for text-based PDFs
-- [x] DOCX raw text extraction
-- [x] Local image OCR through Tesseract.js
-- [ ] Scanned-PDF page OCR with PDF-to-image rendering
-- [ ] Layout-aware parsing for complex PDFs and tables
-- [ ] Search Grounding router
-- [ ] Judge model for merging multi-model outputs
-- [ ] Provider fallback chains
-- [ ] Cost and latency budget router
-- [ ] Source citation panel
-- [ ] MCP marketplace
-- [ ] VS Code extension
-- [ ] Browser extension
-- [ ] Local vector search
-- [ ] Team workspace
-
+- Scanned-PDF Page OCR with PDF-to-image rendering
+- Layout-aware Parsing for Complex PDFs and Tables
+- Search Grounding Router
+- Judge Model for Merging Multi-model Outputs
+- MCP Marketplace
+- VS Code Extension
+- Browser Extension
+- Local Vector Search
+- Team Workspace
+- Plugin / Skill Marketplace
 ---
 
 ## Update Log

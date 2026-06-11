@@ -1,0 +1,18 @@
+[package]
+name = "tokenfence-studio"
+version = "0.1.0"
+description = "TokenFence Studio Desktop App"
+authors = ["TokenFence"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["dialog-all"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

@@ -1,0 +1,101 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  web-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+      - run: npm ci --legacy-peer-deps
+      - run: npm run typecheck
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: apps/web/out
+
+  desktop-windows:
+    needs: web-build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: npm ci --legacy-peer-deps
+      - name: Build Tauri
+        run: |
+          cd apps/desktop
+          npm install
+          npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-windows
+          path: apps/desktop/src-tauri/target/release/bundle/
+
+  desktop-macos:
+    needs: web-build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: npm ci --legacy-peer-deps
+      - name: Build Tauri
+        run: |
+          cd apps/desktop
+          npm install
+          npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-macos
+          path: apps/desktop/src-tauri/target/release/bundle/
+
+  android-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci --legacy-peer-deps
+      - name: Build Android APK
+        working-directory: apps/android
+        run: npx eas build --platform android --profile preview-apk --non-interactive
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: apps/android/build/
+
+  release:
+    needs: [desktop-windows, desktop-macos, android-apk]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ github.ref_name }}
+          files: |
+            desktop-windows/**/*
+            desktop-macos/**/*
+            android-apk/**/*
+          draft: false
+          prerelease: false

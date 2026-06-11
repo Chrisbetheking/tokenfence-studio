@@ -1,0 +1,20 @@
+Sprint planning notes
+
+Client contact: li.ming@example.com, 13800008888
+Temporary key: sk-demo-1234567890abcdefghijklmnopqrst
+Database: postgres://admin:demo@10.1.2.3:5432/app
+
+We need a local AI workspace. Users choose a provider, pick a model, paste their own API key, and start chatting. Before each request leaves the machine, the prompt should be scanned, redacted, compressed, and archived locally.
+
+MVP:
+- provider settings page
+- chat page
+- prompt guard
+- local archive
+- model compare
+- agent context pack
+
+Later:
+- better token pricing table
+- encrypted key storage
+- desktop wrapper

@@ -1,0 +1,37 @@
+{
+  "cli": {
+    "version": ">= 13.0.0"
+  },
+  "build": {
+    "preview-apk": {
+      "android": {
+        "buildType": "apk"
+      },
+      "distribution": "internal"
+    },
+    "production-aab": {
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "distribution": "store"
+    },
+    "ios-simulator": {
+      "ios": {
+        "simulator": true
+      },
+      "distribution": "internal"
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "track": "internal"
+      },
+      "ios": {
+        "appleId": null,
+        "ascAppId": null,
+        "appleTeamId": null
+      }
+    }
+  }
+}

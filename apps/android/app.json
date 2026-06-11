@@ -1,0 +1,1 @@
+{"expo":{"name":"TokenFence Mobile Lite","slug":"tokenfence-mobile","version":"0.1.0","orientation":"portrait","icon":"./assets/icon.png","userInterfaceStyle":"light","platforms":["android"],"android":{"package":"com.tokenfence.mobile","adaptiveIcon":{"backgroundColor":"#3b82f6"}},"plugins":[]}}

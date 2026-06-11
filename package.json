@@ -1,0 +1,31 @@
+{
+  "name": "tokenfence-studio",
+  "version": "0.3.1",
+  "private": true,
+  "description": "Local-first AI workspace with prompt safety, built-in document parsing, OCR, model routing, local archive, and agent bridges. Now with Android mobile and desktop app support.",
+  "scripts": {
+    "dev": "npm --workspace apps/web run dev",
+    "build": "npm --workspace apps/web run build",
+    "start": "npm --workspace apps/web run start",
+    "typecheck": "npm --workspace apps/web run typecheck && npm --workspace packages/shared run typecheck && npm --workspace apps/android run typecheck",
+    "tokenfence": "npm --workspace apps/web run tokenfence",
+    "mcp": "npm --workspace apps/web run mcp",
+    "android:start": "npm --workspace apps/android run start",
+    "android:typecheck": "npm --workspace apps/android run typecheck",
+    "android": "npm --workspace apps/android run android",
+    "desktop:dev": "npm --workspace apps/desktop run dev",
+    "desktop:build": "npm --workspace apps/desktop run build"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=18 <=22",
+    "npm": ">=9"
+  },
+  "overrides": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  }
+}

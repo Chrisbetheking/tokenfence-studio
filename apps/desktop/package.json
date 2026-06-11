@@ -1,0 +1,16 @@
+{
+  "name": "@tokenfence/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "typecheck": "echo desktop-no-ts-check"
+  },
+  "dependencies": {
+    "@tokenfence/shared": "*"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  }
+}

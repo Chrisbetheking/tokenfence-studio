@@ -15,13 +15,11 @@
         "backgroundColor": "#3b82f6"
       }
     },
-    "plugins": [
-      "expo-clipboard"
-    ],
+    "plugins": [],
     "owner": "kevin_wong0712",
     "extra": {
       "eas": {
-        "projectId": "41637c30-61e1-4e33-9672-b23743550ddb"
+        "projectId": "ea10ce3a-faf2-4578-a141-45991d17c7fc"
       }
     },
     "ios": {

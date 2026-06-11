@@ -33,13 +33,7 @@ jobs:
           cache: 'npm'
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - run: npm ci --legacy-peer-deps
-      - name: Create output directory
-        run: mkdir -p apps/web/out
-        shell: bash
-      - uses: actions/download-artifact@v4
-        with:
-          name: web-build
-          path: apps/web/out
+      - run: npm run build
       - name: Build Tauri
         shell: bash
         run: |
@@ -62,14 +56,8 @@ jobs:
           cache: 'npm'
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - run: npm ci --legacy-peer-deps
-      - name: Create output directory
-        run: mkdir -p apps/web/out
-      - uses: actions/download-artifact@v4
-        with:
-          name: web-build
-          path: apps/web/out
+      - run: npm run build
       - name: Build Tauri
-        shell: bash
         run: |
           cd apps/desktop
           npm install
@@ -80,7 +68,6 @@ jobs:
           path: apps/desktop/src-tauri/target/release/bundle/
 
   android-apk:
-    needs: [web-build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -92,15 +79,16 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
       - run: npm ci --legacy-peer-deps
-      - name: Verify EAS setup
+      - name: Build Android via EAS
         working-directory: apps/android
-        run: |
-          npx eas build:configure --platform android 2>/dev/null || true
-          npx eas build --platform android --profile preview-apk --non-interactive --no-wait
+        run: npx eas build --platform android --profile preview-apk --non-interactive --no-wait --json 2>&1 | tee eas-output.txt
+      - name: Check EAS output
+        working-directory: apps/android
+        run: cat eas-output.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: android-apk
-          path: apps/android/build/
+          name: android-apk-build-log
+          path: apps/android/eas-output.txt
 
   release:
     needs: [desktop-windows, desktop-macos, android-apk]
@@ -116,6 +104,5 @@ jobs:
           files: |
             desktop-windows/**/*
             desktop-macos/**/*
-            android-apk/**/*
           draft: false
           prerelease: false

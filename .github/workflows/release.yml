@@ -37,12 +37,10 @@ jobs:
       - run: npm run build
       - name: Install Tauri CLI
         run: npm install -g @tauri-apps/cli@latest
-      - name: Build Tauri
+      - name: Build Tauri (Windows)
         shell: bash
-        run: |
-          cd apps/desktop
-          npm install
-          npx tauri build 2>&1 || echo "Tauri build skipped - see docs/RELEASES.md"
+        working-directory: apps/desktop
+        run: npx tauri build
       - uses: actions/upload-artifact@v4
         if: success()
         with:
@@ -64,11 +62,9 @@ jobs:
       - run: npm run build
       - name: Install Tauri CLI
         run: npm install -g @tauri-apps/cli@latest
-      - name: Build Tauri
-        run: |
-          cd apps/desktop
-          npm install
-          npx tauri build 2>&1 || echo "Tauri build skipped - see docs/RELEASES.md"
+      - name: Build Tauri (macOS)
+        working-directory: apps/desktop
+        run: npx tauri build
       - uses: actions/upload-artifact@v4
         if: success()
         with:
@@ -87,13 +83,9 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
       - run: npm ci --legacy-peer-deps
-      - name: Submit EAS build
+      - name: Submit EAS Android Build
         working-directory: apps/android
-        run: npx eas build --platform android --profile preview-apk --non-interactive --no-wait 2>&1 | tee eas-output.txt || true
-      - uses: actions/upload-artifact@v4
-        with:
-          name: android-eas-log
-          path: apps/android/eas-output.txt
+        run: npx eas build --platform android --profile preview-apk --non-interactive --wait
 
   release:
     needs: [desktop-windows, desktop-macos, android-apk]
@@ -103,7 +95,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         continue-on-error: true
-      - name: Create Release
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: Release ${{ github.ref_name }}

@@ -9,12 +9,12 @@
 </p>
 
 <p align="center">
-  Prompt Guard · Document Pipeline · Model Matrix · File-level routing · Agent-ready workflows
+  Prompt Guard | Document Pipeline | Model Matrix | File-level routing | Agent-ready workflows
 </p>
 
 <p align="center">
-  <a href="./README.zh-CN.md">中文</a> ·
-  <a href="./docs/changelog/README.md">Update Log</a> ·
+  <a href="./README.zh-CN.md">Chinese</a> |
+  <a href="./docs/changelog/README.md">Update Log</a> |
   <a href="https://github.com/Chrisbetheking/tokenfence-studio">GitHub</a>
 </p>
 
@@ -22,22 +22,22 @@
 
 ## Overview
 
-**TokenFence Studio** is an early-stage local-first AI workspace that sits between users and large language models.
+**TokenFence Studio** is a local-first AI workspace that sits between users and large language models.
 
 It is not trying to be just another chat UI. The main idea is to build a small pre-LLM layer that can inspect, clean, protect, chunk, and route user input before it reaches a model.
 
-```text
+```
 Raw prompt / uploaded files
-   �?Document Intelligence Pipeline
-   �?Prompt Guard + Redaction
-   �?Intent detection
-   �?Context compression
-   �?Model Matrix / file-level routing
-   �?Final prompt preview
-   �?LLM provider or local model
+    -> Document Intelligence Pipeline
+    -> Prompt Guard + Redaction
+    -> Intent detection
+    -> Context compression
+    -> Model Matrix / file-level routing
+    -> Final prompt preview
+    -> LLM provider or local model
 ```
 
-The goal is to make LLM usage a bit safer, cleaner, and easier to debug.
+The goal is to make LLM usage safer, cleaner, and easier to debug.
 
 ---
 
@@ -61,198 +61,60 @@ That makes TokenFence closer to a **pre-LLM safety and orchestration layer** tha
 
 ## Preview
 
-Screenshots will be added as the UI stabilizes. Suggested capture points:
-
-- Chat workspace with pre-flight safety report
-- Prompt Guard and final prompt preview
-- Model Matrix with multi-model comparison and file-level routing
-- Document Pipeline report and chunks export
-- Provider settings with global, China-based, router, and local models
+UI screenshots will be added after the next stable release.
 
 ---
 
 ## Core Features
 
 ### Prompt Guard
-
-Scan prompts locally before they are sent to a model.
-
-Current detection rules cover common sensitive data patterns such as API keys, emails, phone numbers, database URLs, access tokens, secret assignments, Chinese personal identifiers, and credential-like leaks.
+Scan prompts locally before they are sent to a model. Detects API keys, emails, phone numbers, database URLs, access tokens, secret assignments, Chinese personal identifiers, and credential-like leaks.
 
 ### Redaction Engine
-
 Replace detected sensitive values with safe placeholders while keeping the task understandable.
 
-```text
-john@example.com �?[EMAIL_1]
-sk-xxxxxxx       �?[OPENAI_KEY_1]
-```
-
 ### Document Intelligence Pipeline
-
-TokenFence now has a first document-processing workflow.
-
-It is designed to turn uploaded or pasted files into clean, safe, model-ready context:
-
-```text
-File Upload
-  �?PDF / DOCX / Image / Log / Markdown / Code parsing
-  �?PDF / DOCX text extraction or image OCR
-  �?Noise cleaning
-  �?Sensitive data scanning
-  �?Redaction-aware risk report
-  �?RAG-ready chunk generation
-  �?File-level model routing
-  �?Export as Markdown / JSON
-```
-
-Current prototype capabilities:
-
-- Extract text from text-like files, logs, Markdown, JSON, and code files.
-- PDF text extraction through a dedicated server-side parser.
-- DOCX text extraction through a dedicated DOCX parser.
-- Local image OCR through Tesseract.js before model execution.
-- Remove common noise such as blank lines, page numbers, repeated page headers, repeated footers, and duplicated paragraphs.
-- Generate `chunks.json` with file name, section, chunk id, risk level, token estimate, and suggested route.
-- Export cleaned Markdown for RAG, agent workflows, or manual review.
+Turn uploaded or pasted files into clean, safe, model-ready context:
+- PDF text extraction (text-based PDFs)
+- DOCX raw text extraction
+- Local image OCR through Tesseract.js
+- Noise cleaning and RAG-ready chunk generation
+- Export as Markdown / JSON
 
 ### Model Matrix
-
-Run one task across multiple models, or assign different files to different models.
-
-Current capabilities include:
-
-- Send the same prompt to multiple selected models.
-- Compare responses, latency, token usage, and risk status.
-- Paste or process multiple files and route each file separately.
-- Choose a model per file.
-- Mark files as public, private, or secret.
-- Route high-risk or secret-like files toward local models.
+Send the same prompt to multiple models, compare responses, latency, token usage, and risk status. Route each file separately when processing multiple files.
 
 ### File-level Model Routing
-
-Different files may need different routes.
-
-| File | Recommended route |
-|---|---|
-| `src/app/page.tsx` | Coding-friendly model |
-| `README.md` | Writing / documentation model |
-| `error.log` | Long-context model |
-| `.env` or secret config | Local model only |
-| `report.pdf` | Long-context model after cleaning/chunking |
-| `sample-image.png` | Local OCR first, then route extracted text |
+Different files get different models based on type and risk. Coding files go to coding models, secrets go to local models, long documents get long-context models.
 
 ### Multi-provider Support
+Supports global, China-based, router, and local providers. Bring your own API key. No vendor lock-in.
 
-TokenFence Studio supports global, China-based, router, and local providers through native or OpenAI-compatible adapters.
-
-Current presets include:
-
-- OpenAI
-- Anthropic Claude
-- Google Gemini
-- DeepSeek
-- Volcengine Ark / Doubao
-- Alibaba Cloud Bailian / Qwen
-- Baidu Qianfan
-- Kimi / Moonshot
-- Zhipu GLM
-- MiniMax
-- SiliconFlow
-- OpenRouter
-- Groq
-- Together AI
-- 302.AI
-- ModelScope
-- Ollama
-- LM Studio
-- Custom OpenAI-compatible endpoint
-
-Bring your own API key. No vendor lock-in.
+Current presets: OpenAI, Anthropic Claude, Google Gemini, DeepSeek, Volcengine/Doubao, Alibaba/Qwen, Baidu Qianfan, Kimi/Moonshot, Zhipu GLM, MiniMax, SiliconFlow, OpenRouter, Groq, Together AI, 302.AI, ModelScope, Ollama, LM Studio, and custom OpenAI-compatible endpoints.
 
 ### Context Compression
-
-Compress long prompts or document context while keeping the user goal, constraints, file structure, and important details.
+Compress long prompts or document context while keeping the user goal, constraints, and important details.
 
 ### Local Archive
-
-Store sanitized runs locally. No cloud database is required by default.
+Store sanitized runs locally. No cloud database required.
 
 ### Agent Context Packs
+Prepare reusable context bundles for AI coding and agent workflows.
 
-Prepare reusable context bundles for AI coding and agent workflows such as Claude Code, Codex, MCP-based agents, and OpenHands-style workflows.
-
----
-
-## Examples
-
-Example assets are included under:
-
-```text
-examples/document-intelligence/
-├── README.md
-├── sample.pdf
-├── sample.docx
-├── sample-image.png
-├── before-cleaning.txt
-├── after-cleaning.md
-└── chunks.json
-```
-
-These are intentionally small. They are meant to show the expected input/output shape rather than act as benchmark data.
+### Shared TypeScript Package
+Cross-platform logic in `packages/shared` -- guard scanning, provider presets, file routing, fallback chains, budget routing, citation panel.
 
 ---
 
-## Planned: Search Grounding
+## Platform Support
 
-Search grounding is planned as a future module.
-
-The idea is to let TokenFence decide whether a request needs live web information, safely prepare the search query, retrieve sources, and inject grounded context before model execution.
-
-Planned search providers / modes:
-
-- Brave Search
-- Tavily
-- Gemini Grounding with Google Search
-- Kimi Web Search
-- Baidu search via SERP provider
-- Custom search provider
-
-Search will be controlled by the same safety layer:
-
-- Block searching secrets
-- Redact private search queries
-- Choose Global / China / Auto region
-- Show sources before final answer generation
-
----
-
-## Architecture
-
-```text
-User input / uploaded files
-        �?        �?Document Intelligence Pipeline
-        ├── Parser
-        ├── Cleaner
-        ├── Chunker
-        └── Metadata builder
-        �?        �?Prompt Guard
-        ├── Scanner
-        ├── Redactor
-        ├── Risk Engine
-        └── Compressor
-        �?        �?Model Matrix / Router
-        ├── Prompt-level multi-model run
-        ├── File-level model routing
-        ├── Local model preference for sensitive files
-        └── Future judge model / fallback chain
-        �?        �?Provider Layer
-        ├── Global providers
-        ├── China-based providers
-        ├── Router providers
-        └── Local providers
-        �?        �?Response / comparison / archive / exported context
-```
+| Platform | Status | Notes |
+|---|---|---|
+| Web | Available now | Full Next.js workspace |
+| Android | Available now | Expo React Native Mobile Lite. APK release automation being fixed. |
+| Windows Desktop | Experimental | Tauri wrapper, packaging in progress |
+| macOS Desktop | Experimental | Tauri wrapper, packaging in progress |
+| iOS | Self-build only | Users sign with their own Apple Developer account |
 
 ---
 
@@ -287,7 +149,9 @@ npm install
 npm run dev
 ```
 
-Requires Rust and Tauri CLI. See [docs/RELEASES.md](./docs/RELEASES.md) for pre-built downloads.### API Keys
+Requires Rust and Tauri CLI. See [docs/RELEASES.md](./docs/RELEASES.md).
+
+### API Keys
 
 Create a `.env.local` file or save keys in the Provider settings page.
 
@@ -318,33 +182,33 @@ If you only use Ollama or LM Studio, cloud API keys are optional.
 
 This repository is organized as a cross-platform monorepo:
 
-```text
+```
 tokenfence-studio/
-├── apps/
-�?  ├── web/             # Next.js web workspace (full TokenFence Studio)
-�?  ├── android/         # Expo React Native Android Mobile Lite
-�?  └── desktop/         # Tauri desktop wrapper (Windows + macOS)
-├── packages/
-�?  └── shared/          # Shared TypeScript logic (guard, providers, routing)
-├── docs/
-�?  ├── changelog/       # Per-update development notes
-�?  └── images/          # Banner and screenshots
-├── examples/             # Sample documents for testing
-├── cli/                  # CLI tooling (planned)
-├── mcp/                  # MCP integrations (planned)
-├── .github/
-�?  └── workflows/       # CI/CD (release, lint)
-├── package.json          # Root workspace config
-├── tsconfig.base.json    # Shared TypeScript base config
-└── README.md
+  apps/
+    web/          Next.js web workspace (full TokenFence Studio)
+    android/      Expo React Native Android Mobile Lite
+    desktop/      Tauri desktop wrapper (Windows + macOS)
+  packages/
+    shared/       Shared TypeScript logic (guard, providers, routing)
+  docs/
+    changelog/    Per-update development notes
+    images/       Banner and screenshots
+  examples/       Sample documents for testing
+  cli/            CLI tooling (planned)
+  mcp/            MCP integrations (planned)
+  .github/
+    workflows/    CI/CD (release, lint)
+  package.json    Root workspace config
+  tsconfig.base.json
 ```
 
 | Package | Description |
 |---|---|
 | `apps/web` | Full Next.js web workspace with Chat, Guard, Document Pipeline, Model Matrix, Provider Settings, Archive, and Agent Packs |
-| `apps/android` | Android Mobile Lite app built with Expo / React Native �� prompt scanning, model routing, sanitized local archive |
-| `apps/desktop` | Tauri desktop wrapper for Windows and macOS |
-| `packages/shared` | Pure TypeScript logic reused across platforms �� guard scanning, provider presets, file routing, storage helpers |
+| `apps/android` | Android Mobile Lite app built with Expo / React Native -- prompt scanning, model routing, sanitized local archive |
+| `apps/desktop` | Tauri desktop wrapper for Windows and macOS (experimental) |
+| `packages/shared` | Pure TypeScript logic reused across platforms -- guard scanning, provider presets, file routing, storage helpers |
+
 ---
 
 ## Project Status
@@ -353,7 +217,7 @@ tokenfence-studio/
 
 - Responsive Web Workspace (Chat, Guard, Document Pipeline, Model Matrix, Provider Settings, Archive, Agent Packs)
 - Android Mobile Lite App (prompt scanning, model routing, sanitized local archive)
-- Tauri Desktop Wrapper (Windows + macOS)
+- Tauri Desktop Wrapper (Windows + macOS, experimental)
 - Multi-provider Settings (global, China-based, router, and local models)
 - Prompt Guard with sensitive data scanning
 - Redaction Engine with structured placeholders
@@ -361,11 +225,7 @@ tokenfence-studio/
 - Context Compression
 - Model Matrix for multi-model comparison
 - File-level Model Routing
-- Document Intelligence Pipeline
-  - PDF text extraction (text-based PDFs)
-  - DOCX raw text extraction
-  - Local image OCR through Tesseract.js
-  - Noise cleaning and chunk generation
+- Document Intelligence Pipeline (PDF text extraction, DOCX parsing, local image OCR, noise cleaning, chunk generation)
 - Local Sanitized Archive
 - Agent Context Pack prototype
 - Shared TypeScript Logic Package (`packages/shared`)
@@ -393,6 +253,57 @@ tokenfence-studio/
 - Local Vector Search
 - Team Workspace
 - Plugin / Skill Marketplace
+
+---
+
+## Architecture
+
+```
+User input / uploaded files
+         |
+         v
+Document Intelligence Pipeline
+         |-- Parser
+         |-- Cleaner
+         |-- Chunker
+         |-- Metadata builder
+         |
+         v
+Prompt Guard
+         |-- Scanner
+         |-- Redactor
+         |-- Risk Engine
+         |-- Compressor
+         |
+         v
+Model Matrix / Router
+         |-- Prompt-level multi-model run
+         |-- File-level model routing
+         |-- Local model preference for sensitive files
+         |-- Future judge model / fallback chain
+         |
+         v
+Provider Layer
+         |-- Global providers
+         |-- China-based providers
+         |-- Router providers
+         |-- Local providers
+         |
+         v
+Response / comparison / archive / exported context
+```
+
+---
+
+## Releases
+
+- **v0.3.6** release page exists on GitHub
+- **Desktop binaries** (Windows/macOS) are experimental -- Tauri packaging is still being fixed
+- **Android APK** automation via EAS is being fixed -- APK not yet downloadable from GitHub Releases
+- **Stable public release** will follow after the next tag once builds are verified
+
+See [docs/RELEASES.md](./docs/RELEASES.md) for current release status and troubleshooting.
+
 ---
 
 ## Update Log
@@ -406,7 +317,6 @@ Recent updates and development notes are available in the [Update Log](./docs/ch
 Issues and pull requests are welcome.
 
 Ideas that are especially helpful:
-
 - Better document parsers
 - Scanned-PDF OCR and vision model integrations
 - New provider adapters

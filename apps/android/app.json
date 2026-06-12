@@ -6,16 +6,16 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "platforms": [
-      "android"
-    ],
+    "platforms": ["android"],
     "android": {
       "package": "com.tokenfence.mobile",
       "adaptiveIcon": {
         "backgroundColor": "#3b82f6"
       }
     },
-    "plugins": [],
+    "plugins": [
+      "expo-build-properties"
+    ],
     "owner": "kevin_wong0712",
     "extra": {
       "eas": {

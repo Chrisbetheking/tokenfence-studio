@@ -7,7 +7,7 @@ import { TASK_TYPE_LABELS } from '@shared/types';
 import { colors } from '../theme/colors';
 import { spacing, radius } from '../theme/spacing';
 
-const CURRENT_VERSION = 'v0.4.0-dev';
+const CURRENT_VERSION = 'v0.5.0-dev';
 
 type Nav = NativeStackNavigationProp<{ Home: undefined; Guard: { prompt: string } }, 'Home'>;
 
@@ -113,6 +113,66 @@ export function HomeScreen() {
           </View>
         </TouchableOpacity>
       </View>
+      {/* ── v0.5.0 Experimental cards ── */}
+      <View style={styles.sectionSpacing}>
+        <Text style={styles.sectionTitle}>Experimental</Text>
+
+        <TouchableOpacity style={styles.card}>
+          <View style={styles.cardRow}>
+            <View style={[styles.statusDot, styles.statusDotAmber]} />
+            <View style={styles.cardTextWrap}>
+              <Text style={styles.cardTitle}>Agent Lab</Text>
+              <Text style={styles.cardSubtitle}>Local agent task workspace (experimental)</Text>
+            </View>
+            <Text style={styles.cardArrow}>→</Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.card}>
+          <View style={styles.cardRow}>
+            <View style={[styles.statusDot, styles.statusDotAmber]} />
+            <View style={styles.cardTextWrap}>
+              <Text style={styles.cardTitle}>Plugin Store</Text>
+              <Text style={styles.cardSubtitle}>Browse and install plugins (MVP)</Text>
+            </View>
+            <Text style={styles.cardArrow}>→</Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.card}>
+          <View style={styles.cardRow}>
+            <View style={[styles.statusDot, styles.statusDotAmber]} />
+            <View style={styles.cardTextWrap}>
+              <Text style={styles.cardTitle}>Output Generation</Text>
+              <Text style={styles.cardSubtitle}>Export to MD, HTML, JSON, PDF (MVP)</Text>
+            </View>
+            <Text style={styles.cardArrow}>→</Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.card}>
+          <View style={styles.cardRow}>
+            <View style={[styles.statusDot, styles.statusDotAmber]} />
+            <View style={styles.cardTextWrap}>
+              <Text style={styles.cardTitle}>Mind Map Generator</Text>
+              <Text style={styles.cardSubtitle}>Mermaid mind maps from output</Text>
+            </View>
+            <Text style={styles.cardArrow}>→</Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.card}>
+          <View style={styles.cardRow}>
+            <View style={[styles.statusDot, styles.statusDotAmber]} />
+            <View style={styles.cardTextWrap}>
+              <Text style={styles.cardTitle}>Model Routing</Text>
+              <Text style={styles.cardSubtitle}>Auto-routing with fallback chains</Text>
+            </View>
+            <Text style={styles.cardArrow}>→</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+
 
       {/* ── Release version card ── */}
       <View style={styles.releaseCard}>

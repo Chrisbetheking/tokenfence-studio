@@ -12,12 +12,17 @@ import { GuardDesk } from "./guard-desk";
 import { CompareDesk } from "./compare-desk";
 import { ArchiveView } from "./archive-view";
 import { ContextPackView } from "./context-pack-view";
+import { AgentLab } from "./agent-lab";
+import { PluginStore } from "./plugin-store";
+import { OutputGen } from "./output-gen";
+import { ComputerUseDesk } from "./computer-use-desk";
+import { RoutingDesk } from "./routing-desk";
 import { DocumentPipelineDesk } from "./document-pipeline-desk";
 
-type Tab = "chat" | "providers" | "guard" | "compare" | "documents" | "archive" | "context";
+type Tab = "chat" | "providers" | "guard" | "compare" | "documents" | "archive" | "context" | "agent" | "plugins" | "output" | "computer-use" | "routing";
 type Lang = "en" | "zh";
 
-const version = "v0.4.0-dev";
+const version = "v0.5.0-dev";
 const safetyMode = "on";
 
 const navItems: Array<{ id: Tab; labelEn: string; labelZh: string; icon: React.ReactNode }> = [
@@ -62,6 +67,11 @@ export function Studio() {
     if (tab === "compare") return <CompareDesk readyKey={providersReady} />;
     if (tab === "documents") return <DocumentPipelineDesk />;
     if (tab === "archive") return <ArchiveView />;
+    if (tab === "agent") return <AgentLab />;
+    if (tab === "plugins") return <PluginStore />;
+    if (tab === "output") return <OutputGen />;
+    if (tab === "computer-use") return <ComputerUseDesk />;
+    if (tab === "routing") return <RoutingDesk />;
     if (tab === "context") return <ContextPackView />;
     return <ChatDesk readyKey={providersReady} lang={lang} />;
   }, [tab, providersReady, lang]);

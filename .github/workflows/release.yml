@@ -55,15 +55,7 @@ jobs:
         working-directory: apps/android
         id: eas-info
         run: |
-          BUILD_URL=$(python3 -c "
-import json
-with open('eas-build.json') as f:
-    d = json.load(f)
-url = d.get('buildUrl', d.get('artifacts', {}).get('buildUrl', ''))
-if not url:
-    url = 'https://expo.dev/accounts/kevin_wong0712/projects/tokenfence-mobile/builds'
-print(url)
-" 2>/dev/null || echo "https://expo.dev/accounts/kevin_wong0712/projects/tokenfence-mobile/builds")
+          BUILD_URL=$(python3 -c "import json,sys; d=json.load(open('eas-build.json')); print(d.get('buildUrl', d.get('artifacts',{}).get('buildUrl','https://expo.dev/accounts/kevin_wong0712/projects/tokenfence-mobile/builds')))" 2>/dev/null || echo "https://expo.dev/accounts/kevin_wong0712/projects/tokenfence-mobile/builds")
           echo "build_url=$BUILD_URL" >> $GITHUB_OUTPUT
           echo "EAS Build URL: $BUILD_URL"
       - name: Create build info artifact

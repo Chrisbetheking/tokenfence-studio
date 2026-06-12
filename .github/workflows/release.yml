@@ -55,7 +55,7 @@ jobs:
         working-directory: apps/android
         id: eas-artifact
         run: |
-          ARTIFACT_URL=$(python3 -c "import json; d=json.load(open('eas-build.json')); print(d.get('artifacts',{}).get('buildUrl',''))" 2>/dev/null)
+          ARTIFACT_URL=$(python3 -c "import json; d=json.load(open('eas-build.json')); d=d[0] if isinstance(d,list) else d; print(d.get('artifacts',{}).get('buildUrl',''))" 2>/dev/null)
           if [ -z "$ARTIFACT_URL" ]; then
             echo "ERROR: No APK artifact URL found in EAS build output"
             echo "Raw eas-build.json:"

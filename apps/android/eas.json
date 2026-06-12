@@ -7,7 +7,11 @@
       "android": {
         "buildType": "apk"
       },
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EAS_BUILD_DISABLE_NPM_CACHE": "1",
+        "EAS_BUILD_DISABLE_MAVEN_CACHE": "1"
+      }
     },
     "production-aab": {
       "android": {

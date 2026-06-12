@@ -17,10 +17,68 @@ jobs:
       - run: npm ci --legacy-peer-deps
       - run: npm run typecheck
       - run: npm run build
+      - name: Package web build
+        run: |
+          cd apps/web
+          if [ -d ".next" ]; then
+            tar -czf ../web-build.tar.gz .next
+          fi
       - uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: web-build
-          path: apps/web/out
+          path: apps/web-build.tar.gz
+
+  android-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+          eas-cache: false
+          packager: npm
+      - run: npm ci --legacy-peer-deps
+      - name: Build Android APK via EAS
+        working-directory: apps/android
+        run: |
+          npx eas-cli build --platform android --profile preview-apk --non-interactive --wait --json > eas-build.json
+          echo "EAS build completed. Output:"
+          cat eas-build.json
+      - name: Check EAS output
+        working-directory: apps/android
+        run: |
+          if [ ! -f eas-build.json ]; then
+            echo "EAS build did not produce output"
+            exit 1
+          fi
+          ARTIFACT_URL=$(python3 -c "import json,sys; d=json.load(open('eas-build.json')); print(d.get('artifacts',{}).get('buildUrl',''))" 2>/dev/null || echo "")
+          if [ -z "$ARTIFACT_URL" ]; then
+            echo "No Android APK artifact URL found in EAS build output"
+            echo "EAS build may have succeeded but artifact is only on Expo dashboard"
+            exit 1
+          fi
+          echo "artifact_url=$ARTIFACT_URL" >> $GITHUB_OUTPUT
+        id: eas-output
+      - name: Download APK from EAS
+        working-directory: apps/android
+        run: |
+          ARTIFACT_URL="${{ steps.eas-output.outputs.artifact_url }}"
+          if [ -n "$ARTIFACT_URL" ]; then
+            curl -L -o TokenFence-Mobile-Lite-Android.apk "$ARTIFACT_URL"
+            echo "APK downloaded successfully"
+            ls -la TokenFence-Mobile-Lite-Android.apk
+          fi
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: android-apk
+          path: apps/android/TokenFence-Mobile-Lite-Android.apk
 
   desktop-windows:
     needs: [web-build]
@@ -31,14 +89,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'npm'
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - run: npm ci --legacy-peer-deps
       - run: npm run build
       - name: Install Tauri CLI
         run: npm install -g @tauri-apps/cli@latest
       - name: Build Tauri (Windows)
-        shell: bash
         working-directory: apps/desktop
         run: npx tauri build
       - uses: actions/upload-artifact@v4
@@ -56,7 +112,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'npm'
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - run: npm ci --legacy-peer-deps
       - run: npm run build
@@ -71,24 +126,8 @@ jobs:
           name: desktop-macos
           path: apps/desktop/src-tauri/target/release/bundle/
 
-  android-apk:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - uses: expo/expo-github-action@v8
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
-      - run: npm ci --legacy-peer-deps
-      - name: Submit EAS Android Build
-        working-directory: apps/android
-        run: npx eas build --platform android --profile preview-apk --non-interactive --wait
-
   release:
-    needs: [desktop-windows, desktop-macos, android-apk]
+    needs: [web-build, android-apk]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -100,6 +139,7 @@ jobs:
         with:
           name: Release ${{ github.ref_name }}
           files: |
+            android-apk/TokenFence-Mobile-Lite-Android.apk
             desktop-windows/**/*
             desktop-macos/**/*
           draft: false

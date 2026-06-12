@@ -1,13 +1,22 @@
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { View, Text, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { RootNavigator } from './src/navigation/RootNavigator';
+import { NavigationContainer } from '@react-navigation/native';
 
 export default function App() {
   return (
     <NavigationContainer>
       <StatusBar style="dark" />
-      <RootNavigator />
+      <View style={s.c}>
+        <Text style={s.t}>Nav Container Import Test</Text>
+        <Text style={s.sub}>If you see this, import works</Text>
+      </View>
     </NavigationContainer>
   );
 }
+
+const s = StyleSheet.create({
+  c: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
+  t: { fontSize: 24, fontWeight: '700', color: '#3b82f6' },
+  sub: { fontSize: 14, color: '#666', marginTop: 8 },
+});

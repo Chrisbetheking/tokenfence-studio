@@ -1,13 +1,20 @@
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { View, Text, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { RootNavigator } from './src/navigation/RootNavigator';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 export default function App() {
   return (
-    <NavigationContainer>
+    <SafeAreaProvider>
       <StatusBar style="dark" />
-      <RootNavigator />
-    </NavigationContainer>
+      <View style={s.c}>
+        <Text style={s.t}>SafeArea Test</Text>
+      </View>
+    </SafeAreaProvider>
   );
 }
+
+const s = StyleSheet.create({
+  c: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
+  t: { fontSize: 24, fontWeight: '700', color: '#3b82f6' },
+});

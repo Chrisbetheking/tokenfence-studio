@@ -13,9 +13,7 @@
         "backgroundColor": "#3b82f6"
       }
     },
-    "plugins": [
-      "expo-build-properties"
-    ],
+    "plugins": [],
     "owner": "kevin_wong0712",
     "extra": {
       "eas": {

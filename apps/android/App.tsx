@@ -8,8 +8,8 @@ export default function App() {
     <NavigationContainer>
       <StatusBar style="dark" />
       <View style={s.c}>
-        <Text style={s.t}>TokenFence v0.5.16</Text>
-        <Text style={s.sub}>Simple navigation test</Text>
+        <Text style={s.t}>Nav Container Import Test</Text>
+        <Text style={s.sub}>If you see this, import works</Text>
       </View>
     </NavigationContainer>
   );

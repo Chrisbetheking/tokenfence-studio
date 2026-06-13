@@ -7,7 +7,7 @@ TokenFence Studio ships via GitHub Releases.
 - **v0.5.22** is the current stable release
 - **v0.6.0** is in development on `feature/product-ui-desktop`
 - **Web** build is available and stable
-- **Android APK** is built via Expo EAS and available from GitHub Releases (v0.5.24+)
+- **Android APK** (internal release, local JDK 17 build) is available from GitHub Releases (v0.5.24+)
 - **Desktop** (Windows/macOS) is experimental -- a dedicated Vite+React renderer is in development
 - **iOS** is self-build/self-signing only
 
@@ -32,7 +32,7 @@ git push origin v0.6.0
 
 The `.github/workflows/release.yml` workflow runs automatically and produces:
 - Web build artifacts
-- Android APK (via Expo EAS, with --wait and artifact download)
+- Android APK (local JDK 17 build, internal release with debug signing)
 - Desktop app bundles (Windows + macOS via Tauri -- experimental)
 
 ## Desktop

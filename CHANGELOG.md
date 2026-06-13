@@ -1,4 +1,9 @@
 # Changelog
+
+## v0.5.24 (2026-06-13)
+- **First stable Android navigation build**: Custom React Native core navigation (Context + View + TouchableOpacity) replacing crash-prone @react-navigation/bottom-tabs.
+- 12 Mobile Lite screens tested with zero FATAL / ReactNativeJS crash logs.
+- Emulator-tested debug APK uploaded to GitHub Release (EAS production build still under investigation).
 ## v0.5.22 (2026-06-13)
 - **Stable Android navigation**: Replaced crash-prone `@react-navigation/bottom-tabs`/`react-native-safe-area-context` with custom type-safe route registry and tab shell. Pure React Native components (Context + View + TouchableOpacity) ¡ª zero crash-prone dependencies at runtime.
 - Added ErrorBoundary for per-screen crash isolation.

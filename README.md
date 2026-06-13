@@ -298,7 +298,7 @@ Response / comparison / archive / exported context
 ## Releases
 
 - **v0.3.11** is the current stable release -- includes Android APK in GitHub Release Assets
-- **Android APK** is available from GitHub Releases starting from v0.3.11
+- **Android APK** is available from GitHub Releases starting from v0.5.24
 - **Windows/macOS** desktop packages are experimental; a dedicated Vite+React desktop renderer is being built on feature/agent-workspace-v050
 - **iOS** is self-build/self-signing only
 

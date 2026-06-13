@@ -1,4 +1,4 @@
-# TokenFence Studio
+﻿# TokenFence Studio
 
 <p align="center">
   <img src="./docs/images/banner.png" alt="TokenFence Studio" width="100%">
@@ -115,6 +115,28 @@ Cross-platform logic in `packages/shared` -- guard scanning, provider presets, f
 | Windows Desktop | Experimental | Tauri wrapper, packaging in progress |
 | macOS Desktop | Experimental | Tauri wrapper, packaging in progress |
 | iOS | Self-build only | Users sign with their own Apple Developer account |
+---
+
+## Download (v0.5.24)
+
+### Android Mobile Lite
+
+**Recommended APK:** [TokenFence-Mobile-Lite-Android-v0.5.24-internal-release.apk](https://github.com/Chrisbetheking/tokenfence-studio/releases/download/v0.5.24/TokenFence-Mobile-Lite-Android-v0.5.24-internal-release.apk)
+
+- Internal release APK — runs without Metro/dev server
+- Verified in Android Emulator
+- Not a Google Play production-signed build
+
+### Windows Desktop (Experimental)
+
+**Recommended:** [tokenfence-studio-windows-v0.5.24-i686-unsigned.exe](https://github.com/Chrisbetheking/tokenfence-studio/releases/download/v0.5.24/tokenfence-studio-windows-v0.5.24-i686-unsigned.exe)
+
+- Unsigned experimental i686 portable exe
+- Smoke-tested locally — launches successfully
+- x64 build pending toolchain support
+
+Installers: [MSI](https://github.com/Chrisbetheking/tokenfence-studio/releases/download/v0.5.24/TokenFence-Studio-Windows-v0.5.24-i686-unsigned.msi) | [Setup.exe](https://github.com/Chrisbetheking/tokenfence-studio/releases/download/v0.5.24/TokenFence-Studio-Windows-v0.5.24-i686-unsigned-setup.exe)
+
 
 ---
 
@@ -339,3 +361,4 @@ Building practical AI infrastructure.
 ## License
 
 MIT License
+

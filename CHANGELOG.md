@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.5.24-desktop (2026-06-13)
+- **Windows desktop package**: Built with Tauri 2 ¡ª MSI (6.2 MB) + NSIS installer (4.2 MB). 32-bit GNU toolchain, debug signing.
+- Tauri config: frontendDist points to Vite desktop UI, not Next.js SSR.
+- macOS CI build configured in GitHub Actions (unsigned, experimental).
+
 ## v0.5.24 (2026-06-13)
 - **First stable Android navigation build**: Custom React Native core navigation (Context + View + TouchableOpacity) replacing crash-prone @react-navigation/bottom-tabs.
 - 12 Mobile Lite screens tested with zero FATAL / ReactNativeJS crash logs.

@@ -299,7 +299,7 @@ Response / comparison / archive / exported context
 
 - **v0.3.11** is the current stable release -- includes Android APK in GitHub Release Assets
 - **Recommended Android APK**: `TokenFence-Mobile-Lite-Android-v0.5.24-internal-release.apk` (57.3 MB, standalone, no Metro required). Available from [GitHub Releases](https://github.com/Chrisbetheking/tokenfence-studio/releases/tag/v0.5.24). Debug APK also available for traceability.
-- **Windows/macOS** desktop packages are experimental; a dedicated Vite+React desktop renderer is being built on feature/agent-workspace-v050
+- ****Windows**: Desktop package available (MSI 6.2 MB, NSIS installer 4.2 MB), built locally with Tauri 2. **macOS**: Experimental, GitHub Actions CI build in progress.
 - **iOS** is self-build/self-signing only
 
 See [docs/RELEASES.md](./docs/RELEASES.md) for current release status and troubleshooting.

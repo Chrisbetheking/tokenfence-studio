@@ -17,8 +17,8 @@ TokenFence Studio ships via GitHub Releases.
 |---|---|---|---|
 | Web | TokenFence-Studio-Web | Static site | Stable |
 | Android | TokenFence-Mobile-Lite-Android | .apk | Available (v0.5.24+) |
-| Windows | TokenFence-Studio-Windows | .exe / .msi | Experimental |
-| macOS | TokenFence-Studio-macOS | .dmg / .app | Experimental |
+| Windows | TokenFence-Studio-Windows | .msi / .exe | Available (v0.5.24, unsigned 32-bit, smoke-tested) |
+| macOS | TokenFence-Studio-macOS | .dmg / .app | Experimental (CI build in progress) |
 | iOS | â€?| .ipa | Self-build only |
 
 ## How Releases Are Built

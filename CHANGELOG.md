@@ -1,7 +1,7 @@
 # Changelog
 
 ## v0.5.24-desktop (2026-06-13)
-- **Windows desktop package**: Built with Tauri 2 ¡ª MSI (6.2 MB) + NSIS installer (4.2 MB). 32-bit GNU toolchain, debug signing.
+- **Windows desktop package**: Built with Tauri 2 ¡ª MSI (6.2 MB) + NSIS installer (4.2 MB). 32-bit i686 GNU toolchain, unsigned experimental.
 - Tauri config: frontendDist points to Vite desktop UI, not Next.js SSR.
 - macOS CI build configured in GitHub Actions (unsigned, experimental).
 

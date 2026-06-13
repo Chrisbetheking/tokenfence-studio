@@ -1,36 +1,9 @@
 {
-  "cli": {
-    "version": ">= 13.0.0"
-  },
+  "cli": { "version": ">= 13.0.0" },
   "build": {
     "preview-apk": {
-      "android": {
-        "buildType": "apk"
-      },
-      "distribution": "internal",
-      "env": {
-        "EAS_BUILD_DISABLE_NPM_CACHE": "1",
-        "EAS_BUILD_DISABLE_MAVEN_CACHE": "1"
-      }
-    },
-    "production-aab": {
-      "android": {
-        "buildType": "app-bundle"
-      },
-      "distribution": "store"
-    },
-    "ios-simulator": {
-      "ios": {
-        "simulator": true
-      },
+      "android": { "buildType": "apk" },
       "distribution": "internal"
-    }
-  },
-  "submit": {
-    "production": {
-      "android": {
-        "track": "internal"
-      }
     }
   }
 }

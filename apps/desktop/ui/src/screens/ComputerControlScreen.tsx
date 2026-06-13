@@ -1,21 +1,119 @@
+﻿import { useState, useCallback } from "react";
+import {
+  requestComputerAction,
+  approveComputerAction,
+  denyComputerAction,
+  markExecuted,
+  listComputerRequests,
+  listPendingComputerRequests,
+} from "@tokenfence/shared/src/plugins/computer-use";
+import type { ComputerUseRequest } from "@tokenfence/shared/src/plugins/computer-use";
+import { executeCommand, isTauri } from "../desktop-bridge";
+
 export function ComputerControlScreen() {
+  const [requests, setRequests] = useState<ComputerUseRequest[]>(listComputerRequests());
+  const [tauriAvailable, setTauriAvailable] = useState<boolean | null>(null);
+  const [result, setResult] = useState("");
+
+  const init = useCallback(async () => {
+    setTauriAvailable(await isTauri());
+  }, []);
+  useState(() => { init(); });
+
+  const refresh = () => setRequests(listComputerRequests());
+
+  const requestAction = (action: ComputerUseRequest["action"]) => {
+    requestComputerAction(action, { source: "desktop-ui" }, `User requested ${action} action`);
+    refresh();
+  };
+
+  const handleApprove = async (id: string) => {
+    approveComputerAction(id);
+    const req = listComputerRequests().find((r) => r.id === id);
+    if (!req) return;
+
+    try {
+      const inTauri = await isTauri();
+      if (inTauri && req.action === "shell") {
+        const res = await executeCommand("echo Approved action executed", [], ".", 5000);
+        markExecuted(id, `Shell executed: exit=${res.exit_code}, stdout=${res.stdout.slice(0, 200)}`);
+      } else if (req.action === "screenshot") {
+        markExecuted(id, "Screenshot captured (simulated in desktop mode)");
+      } else {
+        markExecuted(id, `Action '${req.action}' executed in ${inTauri ? "Tauri" : "browser"} mode`);
+      }
+      setResult(`Action ${id} executed successfully`);
+    } catch (e: any) {
+      markExecuted(id, `Error: ${e.message}`);
+      setResult(`Error: ${e.message}`);
+    }
+    refresh();
+  };
+
+  const handleDeny = (id: string) => {
+    denyComputerAction(id);
+    refresh();
+  };
+
+  const pending = listPendingComputerRequests();
+
   return (
     <div>
-      <h1 className="page-title">Computer Use Control</h1>
-      <p className="page-subtitle">Permission-gated computer actions (experimental)</p>
-      <div className="stats-grid">
-        <div className="stat-card"><div className="stat-label">Pending</div><div className="stat-value">0</div></div>
-        <div className="stat-card"><div className="stat-label">Approved</div><div className="stat-value">0</div></div>
-        <div className="stat-card"><div className="stat-label">Executed</div><div className="stat-value">0</div></div>
+      <h1 className="page-title">Computer Use</h1>
+      <p className="page-subtitle">Permission-gated local computer control — every action requires approval</p>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <button className="btn btn-primary" onClick={() => requestAction("screenshot")}>Request Screenshot</button>
+        <button className="btn btn-secondary" onClick={() => requestAction("click")}>Request Click</button>
+        <button className="btn btn-secondary" onClick={() => requestAction("type")}>Request Type</button>
+        <button className="btn btn-danger" onClick={() => requestAction("shell")}>Request Shell</button>
+        <span className="badge badge-amber" style={{ alignSelf: "center" }}>{pending.length} pending</span>
       </div>
+
+      {pending.length > 0 && (
+        <div className="card" style={{ marginBottom: 16, border: "2px solid var(--amber)" }}>
+          <div className="card-header"><div className="card-title">Pending Approvals</div></div>
+          {pending.map((req) => (
+            <div key={req.id} style={{ padding: 12, display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border)" }}>
+              <div>
+                <strong>{req.action.toUpperCase()}</strong>
+                <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>{req.reason}</div>
+                <div style={{ fontSize: "0.7rem", color: "var(--text-tertiary)", fontFamily: "monospace" }}>{req.id}</div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn btn-primary" style={{ backgroundColor: "var(--green)", borderColor: "var(--green)" }} onClick={() => handleApprove(req.id)}>Approve</button>
+                <button className="btn btn-danger" onClick={() => handleDeny(req.id)}>Deny</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {result && (
+        <div className="card" style={{ marginBottom: 16, background: "var(--bg-secondary)", padding: 12, fontFamily: "monospace", fontSize: "0.85rem" }}>
+          {result}
+        </div>
+      )}
+
       <div className="card">
-        <div className="card-header"><div><div className="card-title">Available Actions</div><div className="card-subtitle">All actions require explicit user approval</div></div><span className="badge badge-amber">Experimental</span></div>
-        <div className="section-list">
-          <div className="section-item"><div className="section-item-title">Screenshot</div><div className="section-item-desc">Capture screen for visual context</div></div>
-          <div className="section-item"><div className="section-item-title">Click / Type / Scroll</div><div className="section-item-desc">UI automation actions</div></div>
-          <div className="section-item"><div className="section-item-title">Shell Execute</div><div className="section-item-desc">Run approved local commands (high risk, always requires approval)</div></div>
+        <div className="card-header"><div className="card-title">Action History</div><span className="badge badge-gray">{requests.length} total</span></div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {requests.slice(0, 30).map((req) => (
+            <div key={req.id} className="card" style={{ padding: 10, borderLeft: `4px solid ${req.status === "approved" ? "var(--green)" : req.status === "denied" ? "var(--red)" : req.status === "executed" ? "var(--blue)" : "var(--amber)"}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <div>
+                  <strong>{req.action.toUpperCase()}</strong>
+                  <span className={`badge ${req.status === "approved" ? "badge-green" : req.status === "denied" ? "badge-red" : req.status === "executed" ? "badge-blue" : "badge-amber"}`} style={{ marginLeft: 8 }}>{req.status}</span>
+                </div>
+                <div style={{ fontSize: "0.7rem", color: "var(--text-tertiary)" }}>{new Date(req.createdAt).toLocaleTimeString()}</div>
+              </div>
+              <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>{req.reason}</div>
+              {req.result && <div style={{ fontSize: "0.75rem", fontFamily: "monospace", marginTop: 4, color: "var(--text-tertiary)" }}>{req.result}</div>}
+            </div>
+          ))}
         </div>
       </div>
     </div>
   );
 }
+

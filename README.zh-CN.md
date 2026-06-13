@@ -1,12 +1,21 @@
 ﻿# TokenFence Studio
 
+
+**语言：** [English](README.md) | [简体中文](README.zh-CN.md)
+
 <p align="center">
   <img src="./docs/images/banner.png" alt="TokenFence Studio" width="100%">
 </p>
 
+
+**语言：** [English](README.md) | [简体中文](README.zh-CN.md)
+
 <p align="center">
   <strong>闈㈠悜澶ц瑷€妯″瀷鐨勬湰鍦颁紭鍏?Prompt 瀹夊叏銆佹枃妗ｆ櫤鑳藉鐞嗕笌澶氭ā鍨嬬紪鎺掑伐浣滃彴</strong>
 </p>
+
+
+**语言：** [English](README.md) | [简体中文](README.zh-CN.md)
 
 <p align="center">
   <a href="./README.md">English</a> | <strong>涓�?/strong>

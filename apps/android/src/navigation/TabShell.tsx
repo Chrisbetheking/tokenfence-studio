@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useNavigation } from './NavigationContext';
 import { TAB_ROUTES, MORE_ROUTES, findRoute, type ScreenName } from './routeRegistry';

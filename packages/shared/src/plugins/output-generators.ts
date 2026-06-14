@@ -1,4 +1,4 @@
-﻿/* Output Plugin Generators — Real file generation */
+/* Output Plugin Generators — Real file generation */
 
 export interface OutputResult {
   format: "pdf" | "docx" | "md" | "html" | "json";

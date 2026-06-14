@@ -1,4 +1,4 @@
-﻿export * from './types';
+export * from './types';
 export { scanPrompt } from './guard';
 export { PROVIDERS, recommendModel } from './providers';
 export { createArchiveEntry, filterArchive } from './archive';

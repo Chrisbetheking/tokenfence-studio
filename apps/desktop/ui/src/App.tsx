@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { tk, onLangChange } from '@tokenfence/shared/src/i18n';
 import { Dashboard } from './screens/Dashboard';
 import { GuardScreen } from './screens/GuardScreen';

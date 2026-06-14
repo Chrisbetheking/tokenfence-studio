@@ -1,4 +1,4 @@
-﻿# TokenFence Studio Update Log
+# TokenFence Studio Update Log
 
 This folder records the main development updates of TokenFence Studio.
 

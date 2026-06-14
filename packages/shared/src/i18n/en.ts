@@ -1,4 +1,4 @@
-﻿/* English translations for TokenFence Studio */
+/* English translations for TokenFence Studio */
 
 const en = {
   app: {

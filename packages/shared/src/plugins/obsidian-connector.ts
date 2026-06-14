@@ -1,4 +1,4 @@
-﻿/* Obsidian Knowledge Connector — writes real files to vault path */
+/* Obsidian Knowledge Connector — writes real files to vault path */
 import { storeGet, storeSet } from "../agent-runtime/safeStorage";
 
 export interface ObsidianNote {

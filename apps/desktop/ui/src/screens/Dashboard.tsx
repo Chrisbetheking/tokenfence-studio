@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { tk, onLangChange } from "@tokenfence/shared/src/i18n";
 import { getBuiltinPlugins } from "@tokenfence/shared/src/plugins/builtin";
 import { PROVIDERS } from "@tokenfence/shared/src/providers";

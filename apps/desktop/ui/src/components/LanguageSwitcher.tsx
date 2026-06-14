@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { getLang, setLang, onLangChange } from "@tokenfence/shared/src/i18n";
 import type { SupportedLanguage } from "@tokenfence/shared/src/i18n";
 

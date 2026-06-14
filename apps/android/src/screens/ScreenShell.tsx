@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import type { ScreenName } from '../navigation/routeRegistry';
 import { findRoute } from '../navigation/routeRegistry';

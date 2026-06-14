@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { getBuiltinPlugins, getPluginsByCategory } from "@tokenfence/shared/src/plugins/builtin";
 import type { PluginManifest } from "@tokenfence/shared/src/agent-runtime/types";
 

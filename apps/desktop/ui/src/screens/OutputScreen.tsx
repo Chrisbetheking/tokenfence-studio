@@ -1,4 +1,4 @@
-﻿import { useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { exportContent } from "@tokenfence/shared/src/plugins/output-generators";
 import { initTokenfenceDirs, writeFile, isTauri } from "../desktop-bridge";
 import type { OutputResult } from "@tokenfence/shared/src/plugins/output-generators";

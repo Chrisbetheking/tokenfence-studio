@@ -1,4 +1,4 @@
-﻿/* Simplified Chinese translations for TokenFence Studio */
+/* Simplified Chinese translations for TokenFence Studio */
 
 import type { Translations } from "./en";
 

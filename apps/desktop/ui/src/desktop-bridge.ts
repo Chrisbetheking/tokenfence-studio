@@ -1,4 +1,4 @@
-﻿// Desktop bridge: invokes Tauri commands for file I/O and command execution
+// Desktop bridge: invokes Tauri commands for file I/O and command execution
 // Falls back to browser-safe stubs when not running inside Tauri
 
 let tauriInvoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null;

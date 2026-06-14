@@ -1,4 +1,4 @@
-﻿/* i18n: Bilingual language support for TokenFence Studio (Android) */
+/* i18n: Bilingual language support for TokenFence Studio (Android) */
 
 import en from "./en";
 import zhCN from "./zh-CN";

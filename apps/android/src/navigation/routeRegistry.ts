@@ -1,4 +1,4 @@
-﻿// Type-safe route definitions for TokenFence Mobile Lite
+// Type-safe route definitions for TokenFence Mobile Lite
 // Labels are now i18n-aware via tk() and labelKey
 
 export type ScreenName =

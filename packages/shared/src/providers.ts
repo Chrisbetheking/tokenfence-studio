@@ -1,4 +1,4 @@
-﻿import type { ProviderModel } from './types';
+import type { ProviderModel } from './types';
 import { storeGet, storeSet } from "./agent-runtime/safeStorage";
 
 export interface ProviderConfig {

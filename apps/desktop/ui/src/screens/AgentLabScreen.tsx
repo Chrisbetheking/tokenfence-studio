@@ -1,4 +1,4 @@
-﻿import { tk } from "@tokenfence/shared/src/i18n";
+import { tk } from "@tokenfence/shared/src/i18n";
 import { useState, useCallback } from "react";
 import {
   createTask,

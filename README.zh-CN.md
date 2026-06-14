@@ -279,6 +279,66 @@ Provider 层
 
 ---
 
+## 功能矩阵
+
+| 功能 | 状态 | 说明 |
+|---|---|---|
+| Prompt Guard（敏感数据扫描） | 已验证 | API 密钥、邮箱、手机、密码、中文个人标识 |
+| 脱敏引擎 | 已验证 | 结构化占位符替换 |
+| 风险策略配置 | 已验证 | 可配置风险等级 |
+| 文档管线（PDF/DOCX/OCR） | 已验证 | 文本型 PDF、DOCX、Tesseract OCR、分块生成 |
+| 模型矩阵（多模型对比） | 已验证 | 延迟、Token、风险并排对比 |
+| 文件级模型路由 | 已验证 | 基于类型和风险的模型选择 |
+| Provider Hub（11 个 Provider） | 已验证 | OpenAI、DeepSeek、通义千问、Kimi、豆包、智谱、Ollama、LM Studio 等 |
+| API Connector | 已验证 | 自定义 OpenAI 兼容端点的连通性测试 |
+| 上下文压缩 | 已验证 | 保留目标、约束和关键细节 |
+| 本地归档 | 已验证 | 脱敏本地存储，无需云数据库 |
+| Agent Pack | 已验证 | 面向 Coding Agent 的可复用上下文包 |
+| 输出生成（MD/HTML/JSON/PDF/DOCX） | 已验证 | ZIP-wrapped DOCX，有效 PDF |
+| Obsidian Vault 写入 | 已验证 | Test Vault 写入与读回 |
+| Computer Use 运行时 | 已验证* | 权限控制、危险命令拦截；完整控制仍为实验功能 |
+| Web UI（Next.js） | 已验证 | 完整工作台，含所有页面 |
+| Android Mobile Lite | 已验证 | 12 页面导航，internal-release APK |
+| Windows Desktop（i686） | 实验性 | unsigned，portable exe 已 smoke test |
+| Windows Desktop（x64） | 阻塞 | 缺少 MSVC linker / 64-bit MinGW |
+| macOS Desktop | 实验性 | CI 已配置，artifact 未验证 |
+| iOS | 仅源码 | 需自行签名 |
+
+## 已验证工作流
+
+以下工作流已通过 v1.0.0-rc2 验收测试：
+
+| 工作流 | 结果 |
+|---|---|
+| 本地 runtime 执行 | 通过 |
+| 输出生成：Markdown | 通过 |
+| 输出生成：HTML | 通过 |
+| 输出生成：JSON | 通过 |
+| 输出生成：PDF | 通过 |
+| 输出生成：ZIP-wrapped DOCX | 通过 |
+| Obsidian test-vault 写入与读回 | 通过 |
+| Provider Hub 预设加载 | 通过 |
+| API Connector 测试流程 | 通过 |
+| Computer Use 权限控制 | 通过 |
+| 危险命令拦截 | 通过 |
+| README UTF-8 与下载链接检查 | 通过 |
+| Android 12 页面导航 smoke test | 通过 |
+| Windows desktop portable exe smoke test | 通过 |
+
+## 已知限制
+
+> 这是 **v1.0.0-rc2** 发布候选版本，并非 v1.0 正式版。
+
+- **Windows Desktop** 为 unsigned i686 实验性构建，非 production-signed。
+- **Windows x64** 因缺少 MSVC linker 或 64-bit MinGW-w64 toolchain 而阻塞。
+- **macOS artifact** CI 已配置但未验证。无可测试的 macOS 二进制文件。
+- **Android** 为 Mobile Lite，功能不完全等同于完整 Web 工作台。
+- **Provider 调用** 需要用户自行提供 API 密钥，不内置任何密钥。
+- **Computer Use 完整控制** 仍为实验功能。已做权限控制但未完成生产硬化。
+- **iOS** 仅提供源码，无预构建 IPA，需自行签名。
+
+---
+
 ## 更新日志
 
 近期更新和开发笔记请见 [更新日志](./docs/changelog/README.md)。

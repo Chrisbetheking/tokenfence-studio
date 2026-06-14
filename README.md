@@ -312,6 +312,66 @@ See [docs/RELEASES.md](./docs/RELEASES.md) for current release status and troubl
 
 ---
 
+## Feature Matrix
+
+| Feature | Status | Notes |
+|---|---|---|
+| Prompt Guard (sensitive data scanning) | Verified | API keys, emails, phones, secrets, Chinese PII |
+| Redaction Engine | Verified | Structured placeholder replacement |
+| Risk Policy Profiles | Verified | Configurable risk levels |
+| Document Pipeline (PDF/DOCX/OCR) | Verified | Text-based PDF, DOCX, Tesseract OCR, chunk generation |
+| Model Matrix (multi-model comparison) | Verified | Side-by-side latency, token, risk comparison |
+| File-level Model Routing | Verified | Type- and risk-based model selection |
+| Provider Hub (11 providers) | Verified | OpenAI, DeepSeek, Qwen, Kimi, Doubao, Zhipu, Ollama, LM Studio, etc. |
+| API Connector | Verified | Custom OpenAI-compatible endpoint connectivity test |
+| Context Compression | Verified | Preserves goal, constraints, key details |
+| Local Archive | Verified | Sanitized local storage, no cloud DB |
+| Agent Packs | Verified | Reusable context bundles for coding agents |
+| Output Generator (MD/HTML/JSON/PDF/DOCX) | Verified | ZIP-wrapped DOCX, valid PDF |
+| Obsidian Vault Writer | Verified | Test-vault write and read-back |
+| Computer Use Runtime | Verified* | Permission-gated, dangerous-command blocking; full control experimental |
+| Web UI (Next.js) | Verified | Full workspace with all screens |
+| Android Mobile Lite | Verified | 12-screen navigation, internal-release APK |
+| Windows Desktop (i686) | Experimental | Unsigned, smoke-tested portable exe |
+| Windows Desktop (x64) | Blocked | Missing MSVC linker / 64-bit MinGW |
+| macOS Desktop | Experimental | CI prepared, artifact unverified |
+| iOS | Source only | Self-build/self-signing |
+
+
+## Verified Workflows
+
+These workflows have passed the v1.0.0-rc2 acceptance test suite:
+
+| Workflow | Result |
+|---|---|
+| Local runtime execution | Passed |
+| Output generation: Markdown | Passed |
+| Output generation: HTML | Passed |
+| Output generation: JSON | Passed |
+| Output generation: PDF | Passed |
+| Output generation: ZIP-wrapped DOCX | Passed |
+| Obsidian test-vault write and read-back | Passed |
+| Provider Hub preset loading | Passed |
+| API Connector test flow | Passed |
+| Computer Use permission gating | Passed |
+| Dangerous command blocking | Passed |
+| README UTF-8 and direct download checks | Passed |
+| Android 12-screen navigation smoke test | Passed |
+| Windows desktop portable exe smoke test | Passed |
+
+## Known Limitations
+
+> This is **v1.0.0-rc2**, a release candidate. It is not v1.0 final.
+
+- **Windows Desktop** is unsigned i686 experimental. Not production-signed.
+- **Windows x64** is blocked by missing MSVC linker or 64-bit MinGW-w64 toolchain.
+- **macOS artifact** is CI-prepared but unverified. No tested macOS binary.
+- **Android** is Mobile Lite — not feature-complete with the full Web workspace.
+- **Provider calls** require user-provided API keys. No bundled keys.
+- **Computer Use full control** remains experimental. Permission-gated but not production-hardened.
+- **iOS** is source-only. No pre-built IPA. Requires self-signing.
+---
+
 ## Update Log
 
 Recent updates and development notes are available in the [Update Log](./docs/changelog/README.md).

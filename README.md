@@ -1,4 +1,4 @@
-# TokenFence Studio PUBLIC-FIX-CHECK-2026
+# TokenFence Studio
 
 **Languages:** [English](README.md) | [简体中文](README.zh-CN.md)
 
@@ -25,7 +25,7 @@ Local-first prompt safety, document intelligence, and multi-model orchestration 
 
 TokenFence Studio is a local-first AI workspace that sits between users and large language models.
 
-It is not just another chat UI. It builds a pre-LLM layer that can inspect, clean, protect, chunk, and route user input before it reaches a model.
+It builds a pre-LLM layer that can inspect, clean, protect, chunk, and route user input before it reaches a model.
 
 ## Feature Matrix
 
@@ -33,8 +33,8 @@ It is not just another chat UI. It builds a pre-LLM layer that can inspect, clea
 |---|---|---|
 | Prompt Guard | Detect secrets, credentials, tokens, emails, phone numbers, database URLs, and risky prompt content | Working |
 | Redaction | Replace sensitive values with safe placeholders | Working |
-| Document Intelligence | PDF / DOCX / image OCR parsing, cleaning, and chunking | Working / experimental depending on input |
-| Output Generation | Markdown, HTML, JSON, PDF, ZIP-wrapped DOCX | Verified in acceptance |
+| Document Intelligence | PDF / DOCX / image OCR parsing, cleaning, and chunking | Working / experimental |
+| Output Generation | Markdown, HTML, JSON, PDF, ZIP-wrapped DOCX | Verified |
 | Model Matrix | Compare multiple model responses side by side | Working |
 | File-level Routing | Route files by type, risk, and task intent | Working |
 | Provider Hub | OpenAI, Claude, Gemini, DeepSeek, Qwen, Kimi, Doubao, Zhipu, Ollama, LM Studio, Custom | Working; requires user keys |
@@ -51,21 +51,25 @@ It is not just another chat UI. It builds a pre-LLM layer that can inspect, clea
 The current product-candidate acceptance flow verifies:
 
 1. Local runtime execution
-2. Markdown / HTML / JSON / PDF / DOCX output generation
-3. ZIP-wrapped DOCX package structure
-4. Obsidian test-vault note writing and read-back
-5. Provider Hub preset loading
-6. Router primary / fallback rule loading
-7. API Connector test flow
-8. Computer Use permission gating for approved actions
-9. Dangerous command blocking
-10. README UTF-8 and direct download checks
+2. Markdown output generation
+3. HTML output generation
+4. JSON output generation
+5. PDF output generation
+6. ZIP-wrapped DOCX output generation
+7. Obsidian test-vault note writing and read-back
+8. Provider Hub preset loading
+9. Router primary / fallback rule loading
+10. API Connector test flow
+11. Computer Use permission gating for approved actions
+12. Dangerous command blocking
+13. README UTF-8 checks
+14. Direct download link checks
 
 ## Known Limitations
 
 - This is a release candidate, not the final v1.0 production release.
 - Windows Desktop is an unsigned i686 experimental build.
-- Windows x64 is blocked by missing MSVC linker / 64-bit MinGW-w64 in the current build environment.
+- Windows x64 is blocked by missing MSVC linker / 64-bit MinGW-w64.
 - macOS artifact is CI-prepared but not yet verified.
 - Android is Mobile Lite, not full desktop parity.
 - Play Store production signing is not available.
@@ -77,9 +81,9 @@ The current product-candidate acceptance flow verifies:
 | Platform | Status | Notes |
 |---|---|---|
 | Web | Available | Full Next.js workspace |
-| Android | Available | Expo React Native Mobile Lite. APK available from GitHub Releases. |
-| Windows Desktop | Experimental | Tauri wrapper, unsigned experimental i686 |
-| macOS Desktop | Experimental | Tauri wrapper, CI prepared but artifact unverified |
+| Android | Available | Expo React Native Mobile Lite |
+| Windows Desktop | Experimental | Tauri wrapper, unsigned i686 |
+| macOS Desktop | Experimental | CI prepared but artifact unverified |
 | iOS | Self-build only | Users sign with their own Apple Developer account |
 
 ## Quick Start
@@ -91,9 +95,11 @@ npm install --legacy-peer-deps
 npm run dev
 ```
 
-### API Keys
+## API Keys
 
-This project requires user-provided API keys. Supported providers include OpenAI, Anthropic Claude, Google Gemini, DeepSeek, Volcengine/Doubao, Alibaba/Qwen, Kimi/Moonshot, Zhipu GLM, Ollama, LM Studio, and custom OpenAI-compatible endpoints.
+This project requires user-provided API keys.
+
+Supported providers include OpenAI, Anthropic Claude, Google Gemini, DeepSeek, Qwen, Kimi, Doubao, Zhipu, Ollama, LM Studio, and custom OpenAI-compatible endpoints.
 
 ## Project Structure
 
@@ -101,7 +107,7 @@ This project requires user-provided API keys. Supported providers include OpenAI
 |---|---|
 | apps/web | Next.js Web workspace |
 | apps/android | Expo React Native Android Mobile Lite |
-| apps/desktop | Tauri desktop wrapper (Windows + macOS) |
+| apps/desktop | Tauri desktop wrapper |
 | packages/shared | Cross-platform shared logic |
 | docs | Product documentation |
 

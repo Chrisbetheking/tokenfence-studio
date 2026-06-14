@@ -1,4 +1,4 @@
-# TokenFence Studio
+# TokenFence Studio PUBLIC-FIX-CHECK-2026
 
 **Languages:** [English](README.md) | [简体中文](README.zh-CN.md)
 

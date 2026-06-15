@@ -270,7 +270,6 @@ const zhCN: Translations = {
     modelStatusFailed: "\u5931\u8D25",
     modelStatusDegraded: "\u964D\u7EA7",
     modelStatusUnknown: "\u672A\u77E5",
-    inspector: "\u68C0\u67E5\u5668",
     hideInspector: "\u9690\u85CF\u68C0\u67E5\u5668",
     showInspector: "\u663E\u793A\u68C0\u67E5\u5668",
     collapsedInfo: "\u8BE6\u60C5",
@@ -326,6 +325,30 @@ const zhCN: Translations = {
     fileRoutingOn: "\u6587\u4EF6\u7C7B\u578B\u8DEF\u7531",
     fileRoutingOff: "\u6587\u4EF6\u7C7B\u578B\u8DEF\u7531\u5DF2\u5173\u95ED",
   },
+
+settings: {
+  general: "通用",
+  providers: "提供商",
+  modelRouting: "模型路由",
+  privacy: "隐私",
+  theme: "主题",
+  themeLight: "浅色",
+  themeDark: "深色",
+  themeSystem: "跟随系统",
+  defaultPage: "默认页面",
+  language: "语言",
+  resetData: "重置所有本地数据",
+  resetWarning: "此操作无法撤销。",
+  clearConversations: "清除所有对话",
+  conversationsCleared: "对话已清除",
+  localFirstMode: "本地优先模式",
+  redactBeforeSend: "发送前脱敏处理",
+  saveConversations: "本地保存对话",
+  autoSwitchDesc: "添加文件时自动切换模型",
+  askBeforeSwitch: "切换前询问",
+  routingRulesDesc: "路由规则在模型注册表中配置。",
+},
+
 };
 
 export default zhCN;

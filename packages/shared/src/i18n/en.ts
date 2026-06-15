@@ -105,7 +105,7 @@ const en = {
     fileIO: "File I/O",
     outputGeneration: "Output Generation",
     tauriConnected: "Tauri Connected",
-    tauriNotConnected: "Browser mode 鈥?no filesystem access",
+    tauriNotConnected: "Browser mode 閳?no filesystem access",
   },
 
   outputs: {
@@ -206,7 +206,7 @@ const en = {
 
   language: {
     english: "English",
-    chinese: "涓枃",
+    chinese: "中文",
     switchTo: "Language",
   },
 
@@ -266,7 +266,6 @@ const en = {
     modelStatusFailed: 'Failed',
     modelStatusDegraded: 'Degraded',
     modelStatusUnknown: 'Unknown',
-    inspector: 'Inspector',
     hideInspector: 'Hide Inspector',
     showInspector: 'Show Inspector',
     collapsedInfo: 'Details',
@@ -320,7 +319,32 @@ const en = {
     routingSettings: 'Routing Settings',
     fileRoutingOn: 'File-type routing',
     fileRoutingOff: 'File-type routing disabled',
+
   },
+
+settings: {
+  general: "General",
+  providers: "Providers",
+  modelRouting: "Model Routing",
+  privacy: "Privacy",
+  theme: "Theme",
+  themeLight: "Light",
+  themeDark: "Dark",
+  themeSystem: "System",
+  defaultPage: "Default Page",
+  language: "Language",
+  resetData: "Reset All Local Data",
+  resetWarning: "This action cannot be undone.",
+  clearConversations: "Clear all conversations",
+  conversationsCleared: "Conversations cleared",
+  localFirstMode: "Local-first mode",
+  redactBeforeSend: "Redact sensitive data before sending",
+  saveConversations: "Save conversations locally",
+  autoSwitchDesc: "Auto-switch model on file attach",
+  askBeforeSwitch: "Ask before switching",
+  routingRulesDesc: "Routing rules are configured in the Model Registry.",
+},
+
 };
 
 export type Translations = typeof en;

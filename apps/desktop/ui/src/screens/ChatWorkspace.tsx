@@ -1,10 +1,16 @@
 ﻿import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { tk, onLangChange } from "@tokenfence/shared/src/i18n";
+import { tk } from "@tokenfence/shared/src/i18n";
 import {
   PROVIDERS, PROVIDER_ENDPOINTS, type ProviderConfig,
   loadProviderConfigs, saveProviderConfigs,
-  FILE_ROUTING_RULES, getRoutingRuleForFile, estimateTokens,
+  estimateTokens,
 } from "@tokenfence/shared/src/providers";
+import {
+  MODEL_REGISTRY, getModelsForProvider, getModelById,
+  getDefaultModelForProvider, findRoutingRule, searchModels,
+  getStatusColor, getStatusLabel, getProviderIds,
+  type ModelRegistryItem, type ModelStatus,
+} from "@tokenfence/shared/src/model-registry";
 import { storeGet, storeSet } from "@tokenfence/shared/src/agent-runtime/safeStorage";
 
 /* ============================================================
@@ -12,29 +18,18 @@ import { storeGet, storeSet } from "@tokenfence/shared/src/agent-runtime/safeSto
    ============================================================ */
 
 interface ChatMessage {
-  id: string;
-  role: "user" | "assistant" | "system";
-  content: string;
-  timestamp: number;
-  provider?: string;
-  model?: string;
+  id: string; role: "user" | "assistant" | "system"; content: string;
+  timestamp: number; provider?: string; model?: string;
   guardResult?: { flagged: boolean; details: string };
 }
 
 interface Conversation {
-  id: string;
-  title: string;
-  messages: ChatMessage[];
-  createdAt: number;
-  updatedAt: number;
+  id: string; title: string; messages: ChatMessage[];
+  createdAt: number; updatedAt: number;
 }
 
 interface AttachedFile {
-  id: string;
-  name: string;
-  size: number;
-  type: string;
-  content: string;
+  id: string; name: string; size: number; type: string; content: string;
 }
 
 type TaskStatus = "idle" | "scanning" | "preparing" | "waiting" | "responding" | "done" | "error";
@@ -43,9 +38,7 @@ type TaskStatus = "idle" | "scanning" | "preparing" | "waiting" | "responding" |
    Helpers
    ============================================================ */
 
-function uid(): string {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
-}
+function uid(): string { return Date.now().toString(36) + Math.random().toString(36).slice(2, 9); }
 
 function loadConversations(): Conversation[] {
   try { const raw = storeGet("tokenfence-conversations"); return raw ? JSON.parse(raw) : []; }
@@ -75,28 +68,26 @@ async function callProviderAPI(
   const ep = PROVIDER_ENDPOINTS[config.provider];
   if (!ep) return `[Error: Unknown provider "${config.provider}"]`;
   if (!config.apiKey && config.deployment === "cloud") {
-    return `[Preview] Configure "${config.provider}" API key in Settings to get real AI responses.`;
+    return `[Preview] Configure "${config.provider}" API key in Settings.`;
   }
   try {
-    const modelId = config.customModelId || config.model;
-    const url = `${config.baseUrl || ep.baseUrl}${ep.chatEndpoint.replace("{model}", modelId)}`;
+    const mid = config.customModelId || config.model;
+    const url = `${config.baseUrl || ep.baseUrl}${ep.chatEndpoint.replace("{model}", mid)}`;
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (config.apiKey) {
       if (config.provider === "Claude") { headers["x-api-key"] = config.apiKey; headers["anthropic-version"] = "2023-06-01"; }
       else if (config.provider === "Gemini") { headers["x-goog-api-key"] = config.apiKey; }
       else { headers["Authorization"] = `Bearer ${config.apiKey}`; }
-    } else {
-      return `[Preview] Configure "${config.provider}" API key for real AI responses.`;
-    }
+    } else { return `[Preview] Configure "${config.provider}" API key.`; }
     let body: Record<string, unknown>;
-    if (config.provider === "Claude") { body = { model: modelId, max_tokens: 2048, messages: messages.map(m => ({ role: m.role, content: m.content })) }; }
+    if (config.provider === "Claude") { body = { model: mid, max_tokens: 2048, messages: messages.map(m => ({ role: m.role, content: m.content })) }; }
     else if (config.provider === "Gemini") { body = { contents: messages.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })) }; }
-    else { body = { model: modelId, messages, max_tokens: 2048 }; }
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000);
-    const resp = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal: controller.signal });
-    clearTimeout(timeout);
-    if (!resp.ok) { const errText = await resp.text().catch(() => "Unknown error"); return `[Error: ${resp.status} ${resp.statusText}] ${errText.slice(0, 300)}`; }
+    else { body = { model: mid, messages, max_tokens: 2048 }; }
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 30000);
+    const resp = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal: ctrl.signal });
+    clearTimeout(t);
+    if (!resp.ok) { const e = await resp.text().catch(() => "Unknown"); return `[Error: ${resp.status}] ${e.slice(0, 300)}`; }
     const data = await resp.json();
     if (config.provider === "Claude") return data?.content?.[0]?.text ?? JSON.stringify(data).slice(0, 500);
     else if (config.provider === "Gemini") return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? JSON.stringify(data).slice(0, 500);
@@ -129,13 +120,15 @@ export function ChatWorkspace() {
   const [routingNote, setRoutingNote] = useState<string | null>(null);
   const [textInputMode, setTextInputMode] = useState(false);
   const [manualCalcText, setManualCalcText] = useState("");
+  const [modelSearch, setModelSearch] = useState("");
+  const [showModelPicker, setShowModelPicker] = useState(false);
 
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
 
   const activeConv = conversations.find((c) => c.id === activeConvId) ?? null;
-
   const providerConfigs = useMemo(() => loadProviderConfigs(), []);
 
   const getConfigFor = useCallback(
@@ -143,25 +136,39 @@ export function ChatWorkspace() {
     [providerConfigs],
   );
 
-  const getModelStatusColor = useCallback(
-    (provider: string) => {
-      const cfg = getConfigFor(provider);
-      if (!cfg) return "var(--text-muted)";
-      if (cfg.lastHealthStatus === "ok") return "var(--green)";
-      if (cfg.lastHealthStatus === "degraded") return "var(--amber)";
-      if (cfg.lastHealthStatus === "failed") return "var(--red)";
-      return "var(--text-muted)";
-    },
+  const isProviderConfigured = useCallback(
+    (provider: string) => !!(getConfigFor(provider)?.apiKey),
     [getConfigFor],
   );
 
-  const isProviderConfigured = useCallback(
-    (provider: string) => {
-      const cfg = getConfigFor(provider);
-      return !!(cfg && cfg.apiKey);
-    },
-    [getConfigFor],
+  // Get models for current provider from registry
+  const providerModels = useMemo(() => getModelsForProvider(selectedProvider), [selectedProvider]);
+
+  // Filtered models based on search
+  const filteredModels = useMemo(() => {
+    if (!modelSearch.trim()) return providerModels;
+    const q = modelSearch.toLowerCase();
+    return providerModels.filter(m =>
+      m.displayName.toLowerCase().includes(q) ||
+      m.modelId.toLowerCase().includes(q) ||
+      (m.alias && m.alias.toLowerCase().includes(q))
+    );
+  }, [providerModels, modelSearch]);
+
+  // All searched models (cross-provider)
+  const searchedModels = useMemo(() => {
+    if (!modelSearch.trim() || modelSearch.trim().length < 2) return [];
+    return searchModels(modelSearch);
+  }, [modelSearch]);
+
+  // Current model registry item
+  const currentRegistryModel = useMemo(
+    () => getModelById(selectedProvider, selectedModel) ?? providerModels[0],
+    [selectedProvider, selectedModel, providerModels],
   );
+
+  // Provider list from registry
+  const providerIds = useMemo(() => getProviderIds(), []);
 
   useEffect(() => {
     if (conversations.length > 0 && !activeConvId) {
@@ -172,6 +179,18 @@ export function ChatWorkspace() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeConv?.messages]);
+
+  // Close picker on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setShowModelPicker(false);
+        setModelSearch("");
+      }
+    };
+    if (showModelPicker) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showModelPicker]);
 
   /* ---- Token Budget ---- */
 
@@ -186,9 +205,7 @@ export function ChatWorkspace() {
   }, [activeConv]);
 
   const totalTokens = composerTokens + attachedFilesTokens + messageHistoryTokens;
-
-  const selectedProviderInfo = PROVIDERS.find((p) => p.provider === selectedProvider);
-  const contextLimit = selectedProviderInfo?.contextWindow ?? 128000;
+  const contextLimit = currentRegistryModel?.contextWindow ?? 128000;
   const budgetRatio = totalTokens / contextLimit;
   const budgetColor = budgetRatio > 0.9 ? "var(--red)" : budgetRatio > 0.7 ? "var(--amber)" : "var(--text-secondary)";
 
@@ -209,33 +226,11 @@ export function ChatWorkspace() {
           new Promise<AttachedFile>((resolve) => {
             if (isText) {
               const reader = new FileReader();
-              reader.onload = () => {
-                resolve({
-                  id: uid(),
-                  name: file.name,
-                  size: file.size,
-                  type: file.type || ext,
-                  content: reader.result as string,
-                });
-              };
-              reader.onerror = () => {
-                resolve({
-                  id: uid(),
-                  name: file.name,
-                  size: file.size,
-                  type: file.type || ext,
-                  content: `[Error reading file: ${file.name}]`,
-                });
-              };
+              reader.onload = () => resolve({ id: uid(), name: file.name, size: file.size, type: file.type || ext, content: reader.result as string });
+              reader.onerror = () => resolve({ id: uid(), name: file.name, size: file.size, type: file.type || ext, content: `[Error reading: ${file.name}]` });
               reader.readAsText(file);
             } else {
-              resolve({
-                id: uid(),
-                name: file.name,
-                size: file.size,
-                type: file.type || ext,
-                content: `[Binary file: ${file.name} (${file.size} bytes)]`,
-              });
+              resolve({ id: uid(), name: file.name, size: file.size, type: file.type || ext, content: `[Binary file: ${file.name} (${file.size} bytes)]` });
             }
           }),
         );
@@ -246,16 +241,21 @@ export function ChatWorkspace() {
           if (autoSwitchModel && merged.length > 0) {
             const latestFile = newFiles[newFiles.length - 1];
             if (latestFile) {
-              const rule = getRoutingRuleForFile(latestFile.name);
-              if (rule && rule.provider !== selectedProvider) {
-                setSelectedProvider(rule.provider);
-                setSelectedModel(rule.model);
-                setRoutingNote(
-                  tk("chat.systemCardRouted")
-                    .replace("{provider}", rule.provider)
-                    .replace("{model}", rule.model)
-                    .replace("{reason}", rule.reason),
+              const rule = findRoutingRule(latestFile.name);
+              if (rule) {
+                const bestModel = MODEL_REGISTRY.find(m =>
+                  (rule.preferredProviderId ? m.providerId === rule.preferredProviderId : true) &&
+                  (rule.preferredModelId ? m.modelId === rule.preferredModelId : true) &&
+                  m.capabilities.includes(rule.preferredCapability)
+                ) ?? MODEL_REGISTRY.find(m =>
+                  (rule.fallbackProviderId ? m.providerId === rule.fallbackProviderId : true) &&
+                  (rule.fallbackModelId ? m.modelId === rule.fallbackModelId : true)
                 );
+                if (bestModel) {
+                  setSelectedProvider(bestModel.providerId);
+                  setSelectedModel(bestModel.modelId);
+                  setRoutingNote(`Switched to ${bestModel.providerName} / ${bestModel.displayName} for ${rule.name}`);
+                }
               }
             }
           }
@@ -264,7 +264,7 @@ export function ChatWorkspace() {
       });
       if (fileInputRef.current) fileInputRef.current.value = "";
     },
-    [autoSwitchModel, selectedProvider],
+    [autoSwitchModel],
   );
 
   const handleRemoveFile = useCallback((fileId: string) => {
@@ -272,52 +272,37 @@ export function ChatWorkspace() {
   }, []);
 
   const clearAttachedFiles = useCallback(() => {
-    setAttachedFiles([]);
-    setRoutingNote(null);
+    setAttachedFiles([]); setRoutingNote(null);
   }, []);
 
   /* ---- conversation handlers ---- */
 
   const handleNewConversation = useCallback(() => {
-    const conv: Conversation = {
-      id: uid(),
-      title: tk("chat.newConversation"),
-      messages: [],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
+    const conv: Conversation = { id: uid(), title: tk("chat.newConversation"), messages: [], createdAt: Date.now(), updatedAt: Date.now() };
     const updated = [conv, ...conversations];
-    setConversations(updated);
-    setActiveConvId(conv.id);
-    saveConversations(updated);
-    setLastGuardResult(null);
-    setTaskStatus("idle");
-    clearAttachedFiles();
+    setConversations(updated); setActiveConvId(conv.id);
+    saveConversations(updated); setLastGuardResult(null); setTaskStatus("idle"); clearAttachedFiles();
   }, [conversations, clearAttachedFiles]);
 
   const handleClearConversation = useCallback(() => {
     if (!activeConv) return;
-    const updated = conversations.map((c) =>
-      c.id === activeConvId ? { ...c, messages: [], updatedAt: Date.now() } : c,
-    );
-    setConversations(updated);
-    saveConversations(updated);
-    setLastGuardResult(null);
-    setTaskStatus("idle");
-    clearAttachedFiles();
+    const updated = conversations.map((c) => c.id === activeConvId ? { ...c, messages: [], updatedAt: Date.now() } : c);
+    setConversations(updated); saveConversations(updated); setLastGuardResult(null); setTaskStatus("idle"); clearAttachedFiles();
   }, [activeConv, activeConvId, conversations, clearAttachedFiles]);
 
   const handleDeleteConversation = useCallback(
     (convId: string) => {
       const updated = conversations.filter((c) => c.id !== convId);
-      setConversations(updated);
-      saveConversations(updated);
-      if (activeConvId === convId) {
-        setActiveConvId(updated.length > 0 ? updated[0].id : "");
-      }
+      setConversations(updated); saveConversations(updated);
+      if (activeConvId === convId) setActiveConvId(updated.length > 0 ? updated[0].id : "");
     },
     [activeConvId, conversations],
   );
+
+  const handleSelectModel = useCallback((providerId: string, modelId: string) => {
+    setSelectedProvider(providerId); setSelectedModel(modelId);
+    setShowModelPicker(false); setModelSearch("");
+  }, []);
 
   /* ---- send message ---- */
 
@@ -325,127 +310,68 @@ export function ChatWorkspace() {
     const text = composerText.trim();
     if (!text || sending) return;
 
-    setSending(true);
-    setTaskStatus("scanning");
-    setRoutingNote(null);
+    // Check if model is configured
+    if (!isProviderConfigured(selectedProvider) && PROVIDERS.find(p => p.provider === selectedProvider)?.deployment === "cloud") {
+      setRoutingNote(`Please configure API key for ${selectedProvider} before using ${selectedModel}.`);
+      return;
+    }
+
+    setSending(true); setTaskStatus("scanning"); setRoutingNote(null);
 
     let guardResult: { flagged: boolean; details: string } | undefined;
     if (guardEnabled && activeConv) {
       guardResult = scanPrompt(text);
       setLastGuardResult(guardResult);
-      if (guardResult.flagged) {
-        setTaskStatus("idle");
-        setSending(false);
-        return;
-      }
+      if (guardResult.flagged) { setTaskStatus("idle"); setSending(false); return; }
     }
 
     setTaskStatus("preparing");
-
     let fullContent = text;
     if (attachedFiles.length > 0) {
       const fileContexts = attachedFiles.map((f) => {
         const preview = f.content.slice(0, 4000);
-        const truncated = f.content.length > 4000 ? preview + "\n... [truncated]" : preview;
-        return `[Attached: ${f.name} (${f.type})]\n${truncated}`;
+        return `[Attached: ${f.name}]\n${f.content.length > 4000 ? preview + "\n... [truncated]" : preview}`;
       });
       fullContent = fileContexts.join("\n\n") + "\n\n---\n\n" + text;
     }
 
-    const userMsg: ChatMessage = {
-      id: uid(),
-      role: "user",
-      content: fullContent,
-      timestamp: Date.now(),
-      provider: selectedProvider,
-      model: selectedModel,
-      guardResult,
-    };
+    const userMsg: ChatMessage = { id: uid(), role: "user", content: fullContent, timestamp: Date.now(), provider: selectedProvider, model: selectedModel, guardResult };
 
     let targetConv = activeConv;
     if (!targetConv) {
-      const newConv: Conversation = {
-        id: uid(),
-        title: text.slice(0, 60),
-        messages: [],
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      };
+      const newConv: Conversation = { id: uid(), title: text.slice(0, 60), messages: [], createdAt: Date.now(), updatedAt: Date.now() };
       const updated = [newConv, ...conversations];
-      setConversations(updated);
-      setActiveConvId(newConv.id);
-      saveConversations(updated);
+      setConversations(updated); setActiveConvId(newConv.id); saveConversations(updated);
       targetConv = newConv;
     }
 
-    const withUserMsg = {
-      ...targetConv,
-      messages: [...targetConv.messages, userMsg],
-      updatedAt: Date.now(),
-    };
-
+    const withUserMsg = { ...targetConv, messages: [...targetConv.messages, userMsg], updatedAt: Date.now() };
     const updatedConvs = conversations.map((c) => (c.id === targetConv!.id ? withUserMsg : c));
-    if (!conversations.some((c) => c.id === targetConv!.id)) {
-      updatedConvs.unshift(withUserMsg);
-    }
-    setConversations(updatedConvs);
-    saveConversations(updatedConvs);
-    setComposerText("");
+    if (!conversations.some((c) => c.id === targetConv!.id)) updatedConvs.unshift(withUserMsg);
+    setConversations(updatedConvs); saveConversations(updatedConvs); setComposerText("");
 
     setTaskStatus("waiting");
-
     const configs = loadProviderConfigs();
-    const config = configs.find((c) => c.provider === selectedProvider) ?? {
-      provider: selectedProvider,
-      model: selectedModel,
-      deployment: "cloud",
-    } as ProviderConfig;
+    const config = configs.find((c) => c.provider === selectedProvider) ?? { provider: selectedProvider, model: selectedModel, deployment: "cloud" } as ProviderConfig;
 
     const apiMessages: { role: string; content: string }[] = [];
-    if (withUserMsg.messages.length === 1) {
-      apiMessages.push({ role: "system", content: "You are an AI assistant in TokenFence Studio, a local-first AI workspace. Be helpful, concise, and direct." });
-    }
-    for (const m of withUserMsg.messages) {
-      apiMessages.push({ role: m.role, content: m.content });
-    }
+    if (withUserMsg.messages.length === 1) apiMessages.push({ role: "system", content: "You are an AI assistant in TokenFence Studio. Be helpful and concise." });
+    for (const m of withUserMsg.messages) apiMessages.push({ role: m.role, content: m.content });
 
     setTaskStatus("responding");
     const responseText = await callProviderAPI(apiMessages, config);
-
     setTaskStatus("done");
 
-    const assistantMsg: ChatMessage = {
-      id: uid(),
-      role: "assistant",
-      content: responseText,
-      timestamp: Date.now(),
-      provider: selectedProvider,
-      model: selectedModel,
-    };
-
-    const finalConv = {
-      ...withUserMsg,
-      messages: [...withUserMsg.messages, assistantMsg],
-      updatedAt: Date.now(),
-    };
-
-    setConversations((prev) => {
-      const next = prev.map((c) => (c.id === finalConv.id ? finalConv : c));
-      saveConversations(next);
-      return next;
-    });
+    const assistantMsg: ChatMessage = { id: uid(), role: "assistant", content: responseText, timestamp: Date.now(), provider: selectedProvider, model: selectedModel };
+    const finalConv = { ...withUserMsg, messages: [...withUserMsg.messages, assistantMsg], updatedAt: Date.now() };
+    setConversations((prev) => { const next = prev.map((c) => (c.id === finalConv.id ? finalConv : c)); saveConversations(next); return next; });
 
     setSending(false);
     setTimeout(() => setTaskStatus("idle"), 2000);
-  }, [composerText, sending, guardEnabled, activeConv, selectedProvider, selectedModel, conversations, attachedFiles]);
+  }, [composerText, sending, guardEnabled, activeConv, selectedProvider, selectedModel, conversations, attachedFiles, isProviderConfigured]);
 
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-      }
-    },
+    (e: React.KeyboardEvent) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } },
     [sendMessage],
   );
 
@@ -453,29 +379,19 @@ export function ChatWorkspace() {
 
   const sortedConversations = [...conversations].sort((a, b) => b.updatedAt - a.updatedAt);
   const contextPackTotalChars = attachedFiles.reduce((sum, f) => sum + f.content.length, 0);
+  const manualCalcTokens = useMemo(() => estimateTokens(manualCalcText), [manualCalcText]);
 
   const taskStatusLabel: Record<TaskStatus, string> = {
-    idle: tk("chat.idle"),
-    scanning: tk("chat.scanning"),
-    preparing: tk("chat.preparing"),
-    waiting: tk("chat.waiting"),
-    responding: tk("chat.responding"),
-    done: tk("chat.done"),
-    error: tk("chat.taskError"),
+    idle: tk("chat.idle"), scanning: tk("chat.scanning"), preparing: tk("chat.preparing"),
+    waiting: tk("chat.waiting"), responding: tk("chat.responding"), done: tk("chat.done"), error: tk("chat.taskError"),
   };
 
   const taskStatusColor: Record<TaskStatus, string> = {
-    idle: "var(--text-muted)",
-    scanning: "var(--amber)",
-    preparing: "var(--amber)",
-    waiting: "#2196f3",
-    responding: "#9c27b0",
-    done: "var(--green)",
-    error: "var(--red)",
+    idle: "var(--text-muted)", scanning: "var(--amber)", preparing: "var(--amber)",
+    waiting: "#2196f3", responding: "#9c27b0", done: "var(--green)", error: "var(--red)",
   };
 
   const isRunning = taskStatus !== "idle" && taskStatus !== "done" && taskStatus !== "error";
-  const manualCalcTokens = useMemo(() => estimateTokens(manualCalcText), [manualCalcText]);
 
   /* ============================================================
      Render
@@ -486,48 +402,27 @@ export function ChatWorkspace() {
       {/* Left: Conversations sidebar */}
       <div style={{ width: 220, minWidth: 220, borderRight: "1px solid var(--border)", display: "flex", flexDirection: "column", background: "var(--surface)" }}>
         <div style={{ padding: "12px", borderBottom: "1px solid var(--border)" }}>
-          <button
-            onClick={handleNewConversation}
-            className="btn btn-primary"
-            style={{ width: "100%", justifyContent: "center", padding: "10px 12px", fontSize: "0.85rem" }}
-          >
+          <button onClick={handleNewConversation} className="btn btn-primary" style={{ width: "100%", justifyContent: "center", padding: "10px 12px", fontSize: "0.85rem" }}>
             + {tk("chat.newConversation")}
           </button>
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: "8px" }}>
           {sortedConversations.map((conv) => (
-            <div
-              key={conv.id}
-              onClick={() => setActiveConvId(conv.id)}
-              style={{
-                padding: "10px 12px", marginBottom: 2, borderRadius: "var(--radius)", cursor: "pointer",
-                background: conv.id === activeConvId ? "var(--surface-alt)" : "transparent",
-                display: "flex", justifyContent: "space-between", alignItems: "center",
-              }}
-            >
+            <div key={conv.id} onClick={() => setActiveConvId(conv.id)}
+              style={{ padding: "10px 12px", marginBottom: 2, borderRadius: "var(--radius)", cursor: "pointer",
+                background: conv.id === activeConvId ? "var(--surface-alt)" : "transparent", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ flex: 1, overflow: "hidden" }}>
                 <div style={{ fontSize: "0.8rem", fontWeight: 500, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {conv.title || tk("chat.newConversation")}
                 </div>
-                <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginTop: 2 }}>
-                  {conv.messages.length} {tk("chat.messageCount")}
-                </div>
+                <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginTop: 2 }}>{conv.messages.length} msgs</div>
               </div>
               <button onClick={(e) => { e.stopPropagation(); handleDeleteConversation(conv.id); }}
-                style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "0.75rem", padding: "2px 6px", opacity: 0.5 }}>
-                x
-              </button>
+                style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "0.75rem", padding: "2px 6px", opacity: 0.5 }}>x</button>
             </div>
           ))}
-          {sortedConversations.length === 0 && (
-            <div style={{ padding: "32px 16px", textAlign: "center", fontSize: "0.8rem", color: "var(--text-muted)" }}>
-              {tk("chat.newConversation")}
-            </div>
-          )}
         </div>
-        <div style={{ padding: "8px 12px", borderTop: "1px solid var(--border)", fontSize: "0.65rem", color: "var(--text-muted)" }}>
-          v1.0.3
-        </div>
+        <div style={{ padding: "8px 12px", borderTop: "1px solid var(--border)", fontSize: "0.65rem", color: "var(--text-muted)" }}>v1.0.4</div>
       </div>
 
       {/* Center: Chat area */}
@@ -535,23 +430,11 @@ export function ChatWorkspace() {
         {/* Header */}
         <div style={{ padding: "12px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--text)" }}>
-              {activeConv?.title || tk("chat.newConversation")}
-            </span>
-            <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", background: "var(--surface-alt)", padding: "2px 8px", borderRadius: 10 }}>
-              {selectedProvider} / {selectedModel}
-            </span>
-            {attachedFiles.length > 0 && (
-              <span style={{ fontSize: "0.7rem", color: "var(--primary)" }}>
-                {attachedFiles.length} files
-              </span>
-            )}
+            <span style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--text)" }}>{activeConv?.title || tk("chat.newConversation")}</span>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             {activeConv && activeConv.messages.length > 0 && (
-              <button onClick={handleClearConversation} className="btn btn-ghost" style={{ fontSize: "0.75rem", padding: "4px 10px" }}>
-                {tk("chat.clearConversation")}
-              </button>
+              <button onClick={handleClearConversation} className="btn btn-ghost" style={{ fontSize: "0.75rem", padding: "4px 10px" }}>{tk("chat.clearConversation")}</button>
             )}
             <button onClick={() => setShowRightPanel(!showRightPanel)} className="btn btn-ghost" style={{ fontSize: "0.75rem", padding: "4px 10px" }}>
               {showRightPanel ? tk("chat.hideInspector") : tk("chat.showInspector")}
@@ -565,62 +448,23 @@ export function ChatWorkspace() {
             <div style={{ padding: "60px 40px", textAlign: "center" }}>
               <div style={{ width: 64, height: 64, background: "var(--primary)", borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", fontSize: 28, color: "white" }}>TF</div>
               <h2 style={{ fontSize: "1.2rem", fontWeight: 600, color: "var(--text)", marginBottom: 8 }}>TokenFence Studio</h2>
-              <p style={{ fontSize: "0.9rem", color: "var(--text-secondary)", maxWidth: 420, margin: "0 auto", lineHeight: 1.6 }}>
-                {tk("chat.welcome")}
-              </p>
-              <div style={{ marginTop: 24, display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-                {PROVIDERS.slice(0, 6).map((p) => (
-                  <span key={p.provider} style={{
-                    fontSize: "0.7rem", color: "var(--text-muted)", background: "var(--surface-alt)",
-                    padding: "4px 10px", borderRadius: 12, cursor: "pointer",
-                    border: selectedProvider === p.provider ? "1px solid var(--primary)" : "1px solid var(--border)",
-                  }}
-                    onClick={() => { setSelectedProvider(p.provider); setSelectedModel(p.model); }}
-                  >
-                    <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: getModelStatusColor(p.provider), marginRight: 4, verticalAlign: "middle" }}></span>
-                    {p.provider}
-                  </span>
-                ))}
-              </div>
+              <p style={{ fontSize: "0.9rem", color: "var(--text-secondary)", maxWidth: 420, margin: "0 auto", lineHeight: 1.6 }}>{tk("chat.welcome")}</p>
             </div>
           )}
           {routingNote && (
-            <div style={{ padding: "10px 16px", background: "var(--surface-alt)", borderRadius: "var(--radius)", marginBottom: 16, fontSize: "0.8rem", color: "var(--text-secondary)", borderLeft: "3px solid var(--primary)" }}>
-              {routingNote}
-            </div>
+            <div style={{ padding: "10px 16px", background: "var(--surface-alt)", borderRadius: "var(--radius)", marginBottom: 16, fontSize: "0.8rem", color: "var(--text-secondary)", borderLeft: "3px solid var(--primary)" }}>{routingNote}</div>
           )}
           {activeConv?.messages.map((msg) => (
             <div key={msg.id} style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontWeight: 600, color: msg.role === "user" ? "var(--text-secondary)" : "var(--primary)" }}>
-                  {msg.role === "user" ? "You" : (msg.provider ?? "AI")}
-                </span>
-                <span>{msg.role === "assistant" ? (msg.model ?? "") : ""}</span>
+              <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginBottom: 6, display: "flex", gap: 8 }}>
+                <span style={{ fontWeight: 600, color: msg.role === "user" ? "var(--text-secondary)" : "var(--primary)" }}>{msg.role === "user" ? "You" : (msg.provider ?? "AI")}</span>
                 <span style={{ marginLeft: "auto" }}>{new Date(msg.timestamp).toLocaleTimeString()}</span>
               </div>
-              <div
-                style={{
-                  padding: "12px 16px", borderRadius: "var(--radius-lg)",
-                  background: msg.role === "user" ? "var(--surface)" : "var(--surface-alt)",
-                  border: "1px solid var(--border)", color: "var(--text)",
-                  fontSize: "0.85rem", lineHeight: 1.6, whiteSpace: "pre-wrap", wordBreak: "break-word",
-                }}
-              >
-                {msg.content}
-              </div>
-              {msg.guardResult && (
-                <div style={{ fontSize: "0.7rem", color: msg.guardResult.flagged ? "var(--amber)" : "var(--green)", marginTop: 4 }}>
-                  {msg.guardResult.details}
-                </div>
-              )}
+              <div style={{ padding: "12px 16px", borderRadius: "var(--radius-lg)", background: msg.role === "user" ? "var(--surface)" : "var(--surface-alt)", border: "1px solid var(--border)", color: "var(--text)", fontSize: "0.85rem", lineHeight: 1.6, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{msg.content}</div>
+              {msg.guardResult && <div style={{ fontSize: "0.7rem", color: msg.guardResult.flagged ? "var(--amber)" : "var(--green)", marginTop: 4 }}>{msg.guardResult.details}</div>}
             </div>
           ))}
-          {sending && (
-            <div style={{ padding: "16px 20px", color: "var(--text-muted)", fontSize: "0.85rem", display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--primary)", display: "inline-block" }}></span>
-              {isRunning ? taskStatusLabel[taskStatus] : "..."}
-            </div>
-          )}
+          {sending && <div style={{ padding: "16px 20px", color: "var(--text-muted)", fontSize: "0.85rem" }}>{isRunning ? taskStatusLabel[taskStatus] : "..."}</div>}
           <div ref={messagesEndRef} />
         </div>
 
@@ -636,33 +480,99 @@ export function ChatWorkspace() {
               ))}
             </div>
           )}
+
           <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <select value={selectedProvider} onChange={(e) => { setSelectedProvider(e.target.value); const p = PROVIDERS.find((x) => x.provider === e.target.value); if (p) setSelectedModel(p.model); }}
-              style={{ background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)", borderRadius: 8, padding: "7px 10px", fontSize: "0.8rem", outline: "none" }}>
-              {PROVIDERS.map((p) => (
-                <option key={p.provider} value={p.provider} style={{ color: isProviderConfigured(p.provider) ? "var(--green)" : "var(--text-muted)" }}>
-                  {isProviderConfigured(p.provider) ? "✓ " : ""}{p.provider}
-                </option>
-              ))}
-            </select>
-            <select value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)}
-              style={{ background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)", borderRadius: 8, padding: "7px 10px", fontSize: "0.8rem", outline: "none" }}>
-              {PROVIDERS.filter((p) => p.provider === selectedProvider).map((p) => (
-                <option key={p.model} value={p.model}>{p.model}</option>
-              ))}
-              {!PROVIDERS.some((p) => p.provider === selectedProvider) && <option value={selectedModel}>{selectedModel}</option>}
-            </select>
+            {/* Model picker button */}
+            <div ref={pickerRef} style={{ position: "relative" }}>
+              <button onClick={() => setShowModelPicker(!showModelPicker)}
+                style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--surface-alt)", color: "var(--text)", border: "1px solid var(--border)", borderRadius: 8, padding: "7px 12px", fontSize: "0.8rem", cursor: "pointer", outline: "none", minWidth: 180 }}>
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: isProviderConfigured(selectedProvider) ? "var(--green)" : "var(--text-muted)", flexShrink: 0 }}></span>
+                <span style={{ fontWeight: 500 }}>{selectedProvider}</span>
+                <span style={{ color: "var(--text-muted)", fontSize: "0.7rem" }}>/ {currentRegistryModel?.displayName ?? selectedModel}</span>
+                <span style={{ marginLeft: "auto", fontSize: "0.6rem", color: "var(--text-muted)" }}>▼</span>
+              </button>
+
+              {/* Model picker dropdown */}
+              {showModelPicker && (
+                <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, width: 320, maxHeight: 400, overflowY: "auto", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, boxShadow: "0 8px 30px rgba(0,0,0,0.2)", zIndex: 100, padding: "8px 0" }}>
+                  {/* Search */}
+                  <div style={{ padding: "0 12px 8px" }}>
+                    <input
+                      value={modelSearch} onChange={(e) => setModelSearch(e.target.value)}
+                      placeholder="Search models..." autoFocus
+                      style={{ width: "100%", background: "var(--surface-alt)", color: "var(--text)", border: "1px solid var(--border)", borderRadius: 6, padding: "8px 10px", fontSize: "0.8rem", outline: "none" }}
+                    />
+                  </div>
+
+                  {modelSearch.trim().length >= 2 ? (
+                    /* Search results - cross provider */
+                    <>
+                      <div style={{ padding: "4px 12px", fontSize: "0.65rem", color: "var(--text-muted)", textTransform: "uppercase" }}>Search results</div>
+                      {searchedModels.slice(0, 30).map((m) => (
+                        <div key={m.providerId + m.modelId} onClick={() => handleSelectModel(m.providerId, m.modelId)}
+                          style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", cursor: "pointer", fontSize: "0.8rem" }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-alt)")}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                        >
+                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: isProviderConfigured(m.providerId) ? "var(--green)" : "var(--text-muted)", flexShrink: 0 }}></span>
+                          <span style={{ fontWeight: 500, color: "var(--text)" }}>{m.displayName}</span>
+                          <span style={{ color: "var(--text-muted)", fontSize: "0.7rem", marginLeft: "auto" }}>{m.providerName}</span>
+                        </div>
+                      ))}
+                    </>
+                  ) : (
+                    /* Provider-grouped models */
+                    providerIds.map((pid) => {
+                      const models = getModelsForProvider(pid);
+                      if (models.length === 0) return null;
+                      const configured = isProviderConfigured(pid);
+                      return (
+                        <div key={pid}>
+                          <div onClick={() => { setSelectedProvider(pid); const d = getDefaultModelForProvider(pid); if (d) setSelectedModel(d.modelId); setShowModelPicker(false); setModelSearch(""); }}
+                            style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", cursor: "pointer", background: pid === selectedProvider ? "var(--surface-alt)" : "transparent", borderBottom: "1px solid var(--border)" }}>
+                            <span style={{ width: 6, height: 6, borderRadius: "50%", background: configured ? "var(--green)" : "var(--text-muted)", flexShrink: 0 }}></span>
+                            <span style={{ fontWeight: 600, fontSize: "0.75rem", color: configured ? "var(--green)" : "var(--text-muted)" }}>{pid}</span>
+                            <span style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginLeft: "auto" }}>{models.length} models</span>
+                          </div>
+                          {pid === selectedProvider && models.map((m) => (
+                            <div key={m.modelId} onClick={() => handleSelectModel(pid, m.modelId)}
+                              style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px 5px 24px", cursor: "pointer", background: m.modelId === selectedModel ? "var(--accent-faint, rgba(79,140,255,0.1))" : "transparent", fontSize: "0.75rem" }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-alt)")}
+                              onMouseLeave={(e) => { if (m.modelId !== selectedModel) e.currentTarget.style.background = "transparent"; }}
+                            >
+                              <span style={{ color: "var(--text)", flex: 1 }}>{m.displayName}</span>
+                              {m.isRecommended && <span style={{ fontSize: "0.6rem", background: "var(--primary)", color: "white", padding: "1px 5px", borderRadius: 8 }}>REC</span>}
+                              {m.isDefault && <span style={{ fontSize: "0.6rem", color: "var(--text-muted)" }}>default</span>}
+                              <span style={{ fontSize: "0.6rem", color: "var(--text-muted)" }}>{m.contextWindow ? (m.contextWindow >= 1000000 ? (m.contextWindow / 1000000).toFixed(1) + "M" : (m.contextWindow / 1000).toFixed(0) + "K") : ""}</span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Guard toggle */}
             <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.75rem", color: "var(--text-secondary)", cursor: "pointer" }}>
               <input type="checkbox" checked={guardEnabled} onChange={(e) => setGuardEnabled(e.target.checked)} /> {tk("nav.guard")}
             </label>
+
+            {/* Auto-switch toggle */}
             <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.75rem", color: autoSwitchModel ? "var(--primary)" : "var(--text-muted)", cursor: "pointer" }}>
               <input type="checkbox" checked={autoSwitchModel} onChange={(e) => setAutoSwitchModel(e.target.checked)} /> {tk("chat.autoSwitch")}
             </label>
-            <input ref={fileInputRef} type="file" multiple onChange={handleFileAttach} style={{ display: "none" }} accept=".txt,.md,.json,.csv,.js,.ts,.tsx,.py,.html,.css,.xml,.yaml,.yml,.toml,.ini,.cfg,.log,.env,.sh,.bat,.ps1,.pdf,.png,.jpg,.jpeg,.gif,.webp" />
-            <button onClick={() => fileInputRef.current?.click()} title={tk("chat.attachFile")} className="btn btn-ghost" style={{ fontSize: "0.8rem", padding: "7px 12px" }}>
+
+            {/* File attach */}
+            <input ref={fileInputRef} type="file" multiple onChange={handleFileAttach} style={{ display: "none" }}
+              accept=".txt,.md,.json,.csv,.js,.ts,.tsx,.py,.html,.css,.xml,.yaml,.yml,.toml,.ini,.cfg,.log,.env,.sh,.bat,.ps1,.pdf,.png,.jpg,.jpeg,.gif,.webp,.mp3,.wav,.m4a" />
+            <button onClick={() => fileInputRef.current?.click()} className="btn btn-ghost" style={{ fontSize: "0.8rem", padding: "7px 12px" }}>
               📎 {tk("chat.attachFile")}
             </button>
           </div>
+
+          {/* Text area + send */}
           <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
             <textarea ref={composerRef} value={composerText} onChange={(e) => setComposerText(e.target.value)} onKeyDown={handleKeyDown}
               placeholder={tk("chat.typeMessage")} disabled={sending} rows={3}
@@ -701,22 +611,20 @@ export function ChatWorkspace() {
               </div>
               <div style={{ borderTop: "1px solid var(--border)", paddingTop: 8, display: "flex", justifyContent: "space-between", fontSize: "0.8rem", fontWeight: 600 }}>
                 <span style={{ color: budgetColor }}>{tk("chat.totalTokens")}</span>
-                <span style={{ color: budgetColor }}>{totalTokens.toLocaleString()} / {contextLimit.toLocaleString()}</span>
+                <span style={{ color: budgetColor }}>{totalTokens.toLocaleString()} / {contextLimit >= 1000000 ? (contextLimit / 1000000).toFixed(1) + "M" : (contextLimit / 1000).toFixed(0) + "K"}</span>
               </div>
               {budgetRatio > 0.7 && (
-                <div style={{ marginTop: 6, fontSize: "0.7rem", color: budgetColor, fontWeight: 500 }}>
-                  ⚠ {tk("chat.budgetWarning")}
-                </div>
+                <div style={{ marginTop: 6, fontSize: "0.7rem", color: budgetColor, fontWeight: 500 }}>⚠ {tk("chat.budgetWarning")}</div>
               )}
               <div style={{ marginTop: 8 }}>
                 <button onClick={(e) => { e.stopPropagation(); setTextInputMode(!textInputMode); }}
                   style={{ background: "none", border: "none", color: "var(--primary)", cursor: "pointer", fontSize: "0.7rem", padding: 0 }}>
-                  {textInputMode ? tk("chat.collapseDetails") : tk("common.working") + "..."}
+                  {textInputMode ? tk("chat.collapseDetails") : "Manual calc..."}
                 </button>
                 {textInputMode && (
                   <div style={{ marginTop: 6 }}>
                     <textarea value={manualCalcText} onChange={(e) => setManualCalcText(e.target.value)}
-                      placeholder="Paste text to count tokens..." rows={3}
+                      placeholder="Paste text..." rows={3}
                       style={{ width: "100%", background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 8px", fontSize: "0.7rem", resize: "vertical", outline: "none" }}
                       onClick={(e) => e.stopPropagation()} />
                     <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: 4 }}>~{manualCalcTokens} tokens</div>
@@ -743,28 +651,20 @@ export function ChatWorkspace() {
           {!collapsedSections.has("inspector") && (
             <>
               <div className="card" style={{ padding: 12, marginBottom: 12, background: "var(--surface-alt)" }}>
-                <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginBottom: 4 }}>{tk("chat.activeProvider")}</div>
-                <div style={{ fontSize: "0.8rem", color: "var(--text)", fontWeight: 500 }}>{selectedProvider} / {selectedModel}</div>
+                <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginBottom: 4 }}>Active Model</div>
+                <div style={{ fontSize: "0.8rem", color: "var(--text)", fontWeight: 500 }}>{selectedProvider} / {currentRegistryModel?.displayName ?? selectedModel}</div>
                 <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: getModelStatusColor(selectedProvider) }}></span>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: isProviderConfigured(selectedProvider) ? "var(--green)" : "var(--text-muted)" }}></span>
                   <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
-                    {isProviderConfigured(selectedProvider) ? tk("chat.modelConfigured") : tk("chat.modelNotConfigured")}
+                    {isProviderConfigured(selectedProvider) ? "Configured" : "Not configured"}
                   </span>
                 </div>
               </div>
               <div className="card" style={{ padding: 12, marginBottom: 12, background: "var(--surface-alt)" }}>
                 <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginBottom: 4 }}>{tk("chat.promptGuard")}</div>
                 {lastGuardResult ? (
-                  <div style={{ fontSize: "0.75rem", color: lastGuardResult.flagged ? "var(--amber)" : "var(--green)" }}>
-                    {lastGuardResult.flagged ? lastGuardResult.details : "No issues"}
-                  </div>
-                ) : (
-                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Send a message</div>
-                )}
-              </div>
-              <div className="card" style={{ padding: 12, marginBottom: 12, background: "var(--surface-alt)" }}>
-                <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginBottom: 4 }}>{tk("chat.conversation")}</div>
-                <div style={{ fontSize: "0.8rem", color: "var(--text)" }}>{activeConv?.messages.length ?? 0} {tk("chat.messageCount")}</div>
+                  <div style={{ fontSize: "0.75rem", color: lastGuardResult.flagged ? "var(--amber)" : "var(--green)" }}>{lastGuardResult.flagged ? lastGuardResult.details : "No issues"}</div>
+                ) : <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Send a message</div>}
               </div>
             </>
           )}

@@ -198,7 +198,7 @@ export function App() {
             <span className="status-dot green"></span>
             <span>{tk("status.localFirst")}</span>
           </div>
-          <div className="version-text">v1.0.3</div>
+          <div className="version-text">v1.0.4</div>
         </div>
       </nav>
       <main className="main-content" style={{ padding: 0 }}>

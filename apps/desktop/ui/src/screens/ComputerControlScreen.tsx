@@ -1,4 +1,4 @@
-﻿import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   requestComputerAction,
   approveComputerAction,
@@ -10,6 +10,13 @@ import {
 import type { ComputerUseRequest } from "@tokenfence/shared/src/plugins/computer-use";
 import { tk, onLangChange } from "@tokenfence/shared/src/i18n";
 import { executeCommand, isTauri } from "../desktop-bridge";
+
+function label(key: string, fallback: string): string {
+  try {
+    const value = tk(key);
+    return value === key ? fallback : value;
+  } catch { return fallback; }
+}
 
 export function ComputerControlScreen() {
   const [, forceRender] = useState(0);
@@ -75,17 +82,17 @@ export function ComputerControlScreen() {
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <span className={`badge ${computerEnabled ? "badge-green" : "badge-red"}`} style={{ fontSize: "0.75rem" }}>
-          {computerEnabled ? tk("computerUse.enabledLabel") : tk("computerUse.disabledLabel")}
+          {computerEnabled ? label("computerUse.enabledLabel", "Enabled") : label("computerUse.disabledLabel", "Disabled")}
         </span>
         <button className={`btn ${computerEnabled ? "btn-danger" : "btn-primary"}`} onClick={toggleEnabled}>
-          {computerEnabled ? tk("computerUse.disable") : tk("computerUse.enable")}
+          {computerEnabled ? label("computerUse.disable", "Disable") : label("computerUse.enable", "Enable")}
         </button>
       </div>
 
       {!computerEnabled ? (
         <div className="card" style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>
           <div style={{ fontSize: 32, marginBottom: 8 }}>&#x1F6AB;</div>
-          <div>{tk("computerUse.disabledLabel")}</div>
+          <div>{label("computerUse.disabledLabel", "Disabled")}</div>
         </div>
       ) : (
       <>

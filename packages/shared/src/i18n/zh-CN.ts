@@ -163,6 +163,14 @@ const zhCN: Translations = {
     denied: "\u5DF2\u62D2\u7EDD",
     executed: "\u5DF2\u6267\u884C",
     dangerousBlocked: "\u5371\u9669\u547D\u4EE4\u5DF2\u963B\u6B62",
+    enabledLabel: "\u5DF2\u542F\u7528",
+    disabledLabel: "\u5DF2\u7981\u7528",
+    enable: "\u542F\u7528",
+    disable: "\u7981\u7528",
+    requiresApproval: "\u9700\u8981\u5BA1\u6279",
+    approvalMode: "\u5BA1\u6279\u6A21\u5F0F",
+    tauriUnavailable: "\u684C\u9762\u8FD0\u884C\u65F6\u4E0D\u53EF\u7528",
+    invokeError: "\u684C\u9762\u547D\u4EE4\u6865\u63A5\u5931\u8D25",
   },
 
   agentLab: {

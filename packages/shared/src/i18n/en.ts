@@ -172,6 +172,14 @@ const en = {
     denied: "Denied",
     executed: "Executed",
     dangerousBlocked: "Dangerous command blocked",
+    enabledLabel: "Enabled",
+    disabledLabel: "Disabled",
+    enable: "Enable",
+    disable: "Disable",
+    requiresApproval: "Requires approval",
+    approvalMode: "Approval mode",
+    tauriUnavailable: "Desktop runtime is unavailable",
+    invokeError: "Desktop command bridge failed",
   },
 
   agentLab: {

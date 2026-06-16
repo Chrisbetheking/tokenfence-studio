@@ -5,13 +5,25 @@ let tauriInvoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unkno
 
 async function getInvoke() {
   if (tauriInvoke) return tauriInvoke;
-  try {
-    const tauri = await import("@tauri-apps/api/core");
-    tauriInvoke = tauri.invoke;
+
+  // Priority 1: window.__TAURI__ global (set by Tauri v1 runtime)
+  const g = (window as any).__TAURI__;
+  const globalInvoke = g?.invoke || g?.tauri?.invoke;
+  if (typeof globalInvoke === "function") {
+    tauriInvoke = globalInvoke;
     return tauriInvoke;
-  } catch {
-    return null;
   }
+
+  // Priority 2: @tauri-apps/api npm package
+  try {
+    const mod = await import("@tauri-apps/api/core");
+    if (typeof mod.invoke === "function") {
+      tauriInvoke = mod.invoke;
+      return tauriInvoke;
+    }
+  } catch { /* package not available */ }
+
+  return null;
 }
 
 export interface CommandResult {

@@ -136,6 +136,47 @@ const zhCN: Translations = {
     tags: "\u6807\u7B7E",
   },
 
+  
+  storage: {
+    title: "\u5B58\u50A8\u8BBE\u7F6E",
+    subtitle: "\u914D\u7F6E\u672C\u5730\u5B58\u50A8\u8DEF\u5F84\u548C\u9009\u9879",
+    localStorage: "\u672C\u5730\u5B58\u50A8",
+    localDesc: "\u6240\u6709\u5BC6\u94A5\u3001\u5F52\u6863\u548C\u914D\u7F6E\u4FDD\u7559\u5728\u60A8\u7684\u673A\u5668\u4E0A",
+    dataDirectory: "\u6570\u636E\u76EE\u5F55",
+    providerConfig: "\u63D0\u4F9B\u5546\u914D\u7F6E",
+    archive: "\u5F52\u6863",
+    redactionVault: "\u8131\u654F\u4FDD\u7BA1\u5E93",
+  },
+
+  providersPage: {
+    title: "\u6A21\u578B\u63D0\u4F9B\u5546",
+    subtitle: "\u914D\u7F6E AI \u6A21\u578B\u63D0\u4F9B\u5546\uFF0C\u8BBE\u7F6E API \u5BC6\u94A5\u5E76\u8FD0\u884C\u5065\u5EB7\u68C0\u67E5",
+    runAllHC: "\u8FD0\u884C\u6240\u6709\u5065\u5EB7\u68C0\u67E5",
+    enabledCount: "\u5DF2\u542F\u7528",
+    healthyCount: "\u5065\u5EB7",
+    refreshModels: "\u4ECE\u63D0\u4F9B\u5546\u5237\u65B0\u6A21\u578B",
+    refreshHint: "\u4ECE\u63D0\u4F9B\u5546 API \u83B7\u53D6\u6700\u65B0\u6A21\u578B\u5217\u8868",
+    noKeyForRefresh: "\u8BF7\u5148\u914D\u7F6E API Key \u518D\u5237\u65B0\u6A21\u578B",
+    refreshedModels: "\u4ECE {provider} \u5237\u65B0\u4E86 {count} \u4E2A\u6A21\u578B",
+    noModelsFound: "\u672A\u4ECE\u63D0\u4F9B\u5546 API \u627E\u5230\u6A21\u578B",
+    customModelHint: "\u81EA\u5B9A\u4E49\u6A21\u578B ID\uFF08\u8986\u76D6\u63D0\u4F9B\u5546\u9ED8\u8BA4\u503C\uFF09",
+  },
+
+  guardPage: {
+    title: "\u63D0\u793A\u8BCD\u9632\u62A4",
+    subtitle: "\u5B89\u5168\u626B\u63CF\u3001\u8131\u654F\u548C\u8DEF\u7531\u63D0\u793A\u8BCD",
+    status: "\u9632\u62A4\u72B6\u6001",
+    statusDesc: "\u5B9E\u65F6\u63D0\u793A\u8BCD\u5B89\u5168\u626B\u63CF",
+    active: "\u5DF2\u6FC0\u6D3B",
+    redactionEngine: "\u8131\u654F\u5F15\u64CE",
+    redactionDesc: "\u5728\u4EFB\u4F55 API \u8C03\u7528\u4E4B\u524D\u68C0\u6D4B\u548C\u5C4F\u853D PII\u3001\u5BC6\u94A5\u548C\u654F\u611F\u6570\u636E",
+    policyEngine: "\u7B56\u7565\u5F15\u64CE",
+    policyDesc: "\u6309\u63D0\u4F9B\u5546\u548C\u4EFB\u52A1\u7C7B\u578B\u5B9E\u65BD\u53EF\u914D\u7F6E\u7684\u9632\u62A4\u7B56\u7565",
+    riskAssessment: "\u98CE\u9669\u8BC4\u4F30",
+    riskDesc: "\u6309\u98CE\u9669\u7B49\u7EA7\u5BF9\u63D0\u793A\u8BCD\u8BC4\u5206\uFF08\u5B89\u5168/\u4F4E/\u4E2D/\u9AD8/\u4E25\u91CD\uFF09",
+    safeRouting: "\u5B89\u5168\u8DEF\u7531",
+    safeRoutingDesc: "\u654F\u611F\u5185\u5BB9\u8DEF\u7531\u5230\u672C\u5730\u6A21\u578B\uFF1B\u4E00\u822C\u4EFB\u52A1\u8DEF\u7531\u5230\u4E91\u7AEF\u6A21\u578B",
+  },
   computerUse: {
     title: "\u8BA1\u7B97\u673A\u4F7F\u7528",
     subtitle: "\u6743\u9650\u95E8\u63A7\u7684\u672C\u5730\u8BA1\u7B97\u673A\u63A7\u5236",
@@ -150,6 +191,10 @@ const zhCN: Translations = {
     denied: "\u5DF2\u62D2\u7EDD",
     executed: "\u5DF2\u6267\u884C",
     dangerousBlocked: "\u5371\u9669\u547D\u4EE4\u5DF2\u963B\u6B62",
+    enable: "\u542F\u7528\u8BA1\u7B97\u673A\u4F7F\u7528",
+    disable: "\u7981\u7528\u8BA1\u7B97\u673A\u4F7F\u7528",
+    enabledLabel: "\u8BA1\u7B97\u673A\u4F7F\u7528\u5DF2\u542F\u7528",
+    disabledLabel: "\u8BA1\u7B97\u673A\u4F7F\u7528\u5DF2\u7981\u7528",
   },
 
   agentLab: {
@@ -270,8 +315,29 @@ const zhCN: Translations = {
     modelStatusFailed: "\u5931\u8D25",
     modelStatusDegraded: "\u964D\u7EA7",
     modelStatusUnknown: "\u672A\u77E5",
-    inspector: "\u68C0\u67E5\u5668",
     hideInspector: "\u9690\u85CF\u68C0\u67E5\u5668",
+
+    guardNoIssues: "\u65E0\u95EE\u9898",
+    guardNoSensitive: "\u672A\u68C0\u6D4B\u5230\u654F\u611F\u6570\u636E",
+    sendMessageHint: "\u53D1\u9001\u6D88\u606F",
+
+    agentStepScan: "\u626B\u63CF\u63D0\u793A\u8BCD",
+    agentStepPrepare: "\u51C6\u5907\u4E0A\u4E0B\u6587",
+    agentStepSelect: "\u9009\u62E9\u6A21\u578B",
+    agentStepSend: "\u53D1\u9001\u5230\u63D0\u4F9B\u5546",
+    agentStepRespond: "\u751F\u6210\u54CD\u5E94",
+    agentStepSave: "\u4FDD\u5B58\u5BF9\u8BDD",
+
+    modelRefresh: "\u5237\u65B0\u6A21\u578B",
+    modelRefreshHint: "\u4ECE\u63D0\u4F9B\u5546 API \u83B7\u53D6\u6700\u65B0\u6A21\u578B\u5217\u8868",
+    noKeyForRefresh: "\u8BF7\u5148\u914D\u7F6E API Key \u518D\u5237\u65B0\u6A21\u578B",
+    refreshSuccess: "\u5DF2\u5237\u65B0 {count} \u4E2A\u6A21\u578B",
+    refreshFailed: "\u672A\u8FD4\u56DE\u6A21\u578B",
+
+    switchToConfigured: "\u5207\u6362\u5230\u5DF2\u914D\u7F6E\u6A21\u578B",
+    autoSwitchHint: "\u5DF2\u81EA\u52A8\u5207\u6362\u5230 {provider} / {model}\uFF08\u5DF2\u914D\u7F6E\uFF09",
+    modelNotConfiguredHint: "{provider} \u672A\u914D\u7F6E\u3002\u8BF7\u914D\u7F6E API Key \u6216\u9009\u62E9\u5176\u4ED6\u6A21\u578B\u3002",
+    noModelsAvailable: "\u65E0\u53EF\u7528\u6A21\u578B\u2014\u2014\u8BF7\u5148\u914D\u7F6E\u63D0\u4F9B\u5546",
     showInspector: "\u663E\u793A\u68C0\u67E5\u5668",
     collapsedInfo: "\u8BE6\u60C5",
     expandDetails: "\u5C55\u5F00",
@@ -326,6 +392,30 @@ const zhCN: Translations = {
     fileRoutingOn: "\u6587\u4EF6\u7C7B\u578B\u8DEF\u7531",
     fileRoutingOff: "\u6587\u4EF6\u7C7B\u578B\u8DEF\u7531\u5DF2\u5173\u95ED",
   },
+
+settings: {
+  general: "通用",
+  providers: "提供�?,
+  modelRouting: "模型路由",
+  privacy: "隐私",
+  theme: "主题",
+  themeLight: "浅色",
+  themeDark: "深色",
+  themeSystem: "跟随系统",
+  defaultPage: "默认页面",
+  language: "语言",
+  resetData: "重置所有本地数�?,
+  resetWarning: "此操作无法撤销�?,
+  clearConversations: "清除所有对�?,
+  conversationsCleared: "对话已清�?,
+  localFirstMode: "本地优先模式",
+  redactBeforeSend: "发送前脱敏处理",
+  saveConversations: "本地保存对话",
+  autoSwitchDesc: "添加文件时自动切换模�?,
+  askBeforeSwitch: "切换前询�?,
+  routingRulesDesc: "路由规则在模型注册表中配置�?,
+},
+
 };
 
 export default zhCN;

@@ -11,7 +11,7 @@ Local-first prompt safety, document intelligence, multi-model routing, and Codex
 ## Latest Downloads
 
 - [Android APK](https://github.com/Chrisbetheking/tokenfence-studio/releases/download/v1.0.0/TokenFence-Studio-Android-v1.0.0-release.apk)
-- [Windows Portable ZIP](https://github.com/Chrisbetheking/tokenfence-studio/releases/download/v1.0.6/TokenFence-Studio-Windows-v1.0.6-portable.zip)
+- [Windows Portable ZIP](https://github.com/Chrisbetheking/tokenfence-studio/releases/download/v1.0.14/TokenFence-Studio-Windows-v1.0.14-portable.zip)
 
 > Windows users: download the portable ZIP, extract it first, then run `tokenfence-studio.exe` from the extracted folder. Do not run the EXE directly from inside the ZIP preview.
 
@@ -52,6 +52,12 @@ It helps users work with prompts, files, context packs, model routing, token bud
 | Model Status | Green/gray/amber/red provider status | Working |
 | Model Routing | Route by file type and context rule | Working |
 | Provider Hub | OpenAI, Claude, Gemini, DeepSeek, Qwen, Kimi, Doubao, Zhipu, Ollama, LM Studio, Custom | Working; requires keys |
+| Configured-first Selection | Auto-prioritize configured, favorite, and recent models | Working |
+| Auto-switch Model | Switch to configured model when current is unavailable | Working |
+| Dynamic Model Refresh | Fetch latest model list from provider API | Partial / provider-dependent |
+| Latest Model Catalog | GPT-5.5, DeepSeek V4, Gemini 3.0, Qwen 3.5, Kimi K2.6, GLM-5.1 | Working |
+| Computer Use Persistence | Enable/disable state remembered across sessions | Working |
+| i18n Chinese Coverage | Agent steps, guard, storage, providers all translated | Working |
 | Toolbox | Plugin/output/media/computer-use entries | Preview |
 | Projects | Project workspace entry | Coming soon |
 | Settings | Configuration entry | Coming soon |
@@ -71,7 +77,7 @@ It helps users work with prompts, files, context packs, model routing, token bud
 
 ## Windows Usage
 
-Download `TokenFence-Studio-Windows-v1.0.6-portable.zip`, extract it first, then run `tokenfence-studio.exe` from the extracted folder.
+Download `TokenFence-Studio-Windows-v1.0.14-portable.zip`, extract it first, then run `tokenfence-studio.exe` from the extracted folder.
 
 Do not run the EXE directly from inside the ZIP preview.
 

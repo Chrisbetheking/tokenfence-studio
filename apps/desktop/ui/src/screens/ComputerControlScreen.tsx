@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+﻿import { useState, useCallback, useEffect } from "react";
 import {
   requestComputerAction,
   approveComputerAction,
@@ -18,6 +18,16 @@ export function ComputerControlScreen() {
   const [requests, setRequests] = useState<ComputerUseRequest[]>(listComputerRequests());
   const [tauriAvailable, setTauriAvailable] = useState<boolean | null>(null);
   const [result, setResult] = useState("");
+
+  const [computerEnabled, setComputerEnabled] = useState<boolean>(() => {
+    try { return localStorage.getItem("tokenfence-computer-enabled") !== "false"; } catch { return true; }
+  });
+
+  const toggleEnabled = useCallback(() => {
+    const next = !computerEnabled;
+    setComputerEnabled(next);
+    try { localStorage.setItem("tokenfence-computer-enabled", String(next)); } catch {}
+  }, [computerEnabled]);
 
   const init = useCallback(async () => {
     setTauriAvailable(await isTauri());
@@ -63,6 +73,22 @@ export function ComputerControlScreen() {
       <h1 className="page-title">{tk("computerUse.title")}</h1>
       <p className="page-subtitle">{tk("computerUse.subtitle")}</p>
 
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <span className={`badge ${computerEnabled ? "badge-green" : "badge-red"}`} style={{ fontSize: "0.75rem" }}>
+          {computerEnabled ? tk("computerUse.enabledLabel") : tk("computerUse.disabledLabel")}
+        </span>
+        <button className={`btn ${computerEnabled ? "btn-danger" : "btn-primary"}`} onClick={toggleEnabled}>
+          {computerEnabled ? tk("computerUse.disable") : tk("computerUse.enable")}
+        </button>
+      </div>
+
+      {!computerEnabled ? (
+        <div className="card" style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>&#x1F6AB;</div>
+          <div>{tk("computerUse.disabledLabel")}</div>
+        </div>
+      ) : (
+      <>
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
         <button className="btn btn-primary" onClick={() => requestAction("screenshot")}>{tk('computerUse.screenshot')}</button>
         <button className="btn btn-secondary" onClick={() => requestAction("click")}>{tk('computerUse.click')}</button>
@@ -114,6 +140,7 @@ export function ComputerControlScreen() {
           ))}
         </div>
       </div>
+      </>)}
     </div>
   );
 }

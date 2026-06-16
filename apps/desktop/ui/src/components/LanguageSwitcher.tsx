@@ -15,22 +15,23 @@ export function LanguageSwitcher() {
     setLang(next);
   };
 
-  const label = lang === "en" ? "中文" : "English";
+  const label = lang === "en" ? "\u4E2D\u6587" : "English";
 
   return (
     <button
       onClick={toggle}
-      className="lang-switcher"
       title={lang === "en" ? "Switch to Chinese" : "Switch to English"}
       style={{
-        background: "var(--bg-tertiary)",
-        border: "1px solid var(--border)",
-        color: "var(--text-primary)",
+        background: "var(--tf-surface-alt)",
+        border: "1px solid var(--tf-border)",
+        color: "var(--tf-text-secondary)",
         padding: "4px 10px",
         borderRadius: 6,
         cursor: "pointer",
         fontSize: "0.8rem",
         fontWeight: 500,
+        fontFamily: "inherit",
+        width: "100%",
       }}
     >
       {label}

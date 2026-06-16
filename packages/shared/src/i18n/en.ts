@@ -105,7 +105,7 @@ const en = {
     fileIO: "File I/O",
     outputGeneration: "Output Generation",
     tauriConnected: "Tauri Connected",
-    tauriNotConnected: "Browser mode 鈥?no filesystem access",
+    tauriNotConnected: "Browser mode �?no filesystem access",
   },
 
   outputs: {
@@ -206,7 +206,7 @@ const en = {
 
   language: {
     english: "English",
-    chinese: "涓枃",
+    chinese: "中文",
     switchTo: "Language",
   },
 
@@ -266,7 +266,6 @@ const en = {
     modelStatusFailed: 'Failed',
     modelStatusDegraded: 'Degraded',
     modelStatusUnknown: 'Unknown',
-    inspector: 'Inspector',
     hideInspector: 'Hide Inspector',
     showInspector: 'Show Inspector',
     collapsedInfo: 'Details',
@@ -320,7 +319,94 @@ const en = {
     routingSettings: 'Routing Settings',
     fileRoutingOn: 'File-type routing',
     fileRoutingOff: 'File-type routing disabled',
+
   },
+
+
+  storage: {
+    title: "Storage Settings",
+    subtitle: "Configure local storage paths and options",
+    localStorage: "Local Storage",
+    localDesc: "All keys, archives, and configs stay on your machine",
+    dataDirectory: "Data Directory",
+    providerConfig: "Provider Config",
+    archive: "Archive",
+    redactionVault: "Redaction Vault",
+  },
+
+  providers: {
+    title: "Model Providers",
+    subtitle: "Configure AI model providers, set API keys, and run health checks",
+    runAllHC: "Run All Health Checks",
+    enabledCount: "enabled",
+    healthyCount: "healthy",
+    refreshModels: "Refresh models from provider",
+    refreshHint: "Fetches latest model list from provider API",
+    noKeyForRefresh: "Configure API key first to refresh models",
+    refreshedModels: "Refreshed {count} models from {provider}",
+    noModelsFound: "No models found from provider API",
+    customModelHint: "Custom model ID (overrides provider defaults)",
+  },
+
+  guard: {
+    title: "Prompt Guard",
+    subtitle: "Scan, redact, and route prompts safely",
+    status: "Guard Status",
+    statusDesc: "Real-time prompt safety scanning",
+    active: "Active",
+    redactionEngine: "Redaction Engine",
+    redactionDesc: "Detects and masks PII, secrets, and sensitive data before any API call",
+    policyEngine: "Policy Engine",
+    policyDesc: "Enforces configurable guard policies per provider and task type",
+    riskAssessment: "Risk Assessment",
+    riskDesc: "Scores prompts by risk level (Safe / Low / Medium / High / Critical)",
+    safeRouting: "Safe Routing",
+    safeRoutingDesc: "Routes to local models for sensitive content; cloud models for general tasks",
+  },
+
+  computerUse: {
+    title: "Computer Use",
+    subtitle: "Permission-gated local computer control",
+    requestAction: "Request Action",
+    pendingApprovals: "Pending Approvals",
+    actionHistory: "Action History",
+    screenshot: "Screenshot",
+    click: "Click",
+    type: "Type",
+    shell: "Shell",
+    approved: "Approved",
+    denied: "Denied",
+    executed: "Executed",
+    dangerousBlocked: "Dangerous command blocked",
+    enable: "Enable Computer Use",
+    disable: "Disable Computer Use",
+    enabledLabel: "Computer Use enabled",
+    disabledLabel: "Computer Use disabled",
+  },
+
+  settings: {
+  general: "General",
+  providers: "Providers",
+  modelRouting: "Model Routing",
+  privacy: "Privacy",
+  theme: "Theme",
+  themeLight: "Light",
+  themeDark: "Dark",
+  themeSystem: "System",
+  defaultPage: "Default Page",
+  language: "Language",
+  resetData: "Reset All Local Data",
+  resetWarning: "This action cannot be undone.",
+  clearConversations: "Clear all conversations",
+  conversationsCleared: "Conversations cleared",
+  localFirstMode: "Local-first mode",
+  redactBeforeSend: "Redact sensitive data before sending",
+  saveConversations: "Save conversations locally",
+  autoSwitchDesc: "Auto-switch model on file attach",
+  askBeforeSwitch: "Ask before switching",
+  routingRulesDesc: "Routing rules are configured in the Model Registry.",
+},
+
 };
 
 export type Translations = typeof en;

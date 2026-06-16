@@ -1,5 +1,6 @@
-ï»¿import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { tk, onLangChange } from "@tokenfence/shared/src/i18n";
+import { ThemeProvider, useTheme } from "./components/ThemeProvider";
 import { ChatWorkspace } from "./screens/ChatWorkspace";
 import { ProjectsScreen } from "./screens/ProjectsScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
@@ -25,6 +26,8 @@ type Screen = "chat" | "projects" | "models" | "toolbox" | "settings" | "about"
 
 type FeatureStatus = "working" | "preview" | "coming_soon" | "needs_runtime";
 
+const VERSION = "v1.0.14";
+
 const primaryNav: { id: Screen; icon: string }[] = [
   { id: "chat", icon: "\u{1F4AC}" },
   { id: "projects", icon: "\u{1F4C1}" },
@@ -36,45 +39,45 @@ const primaryNav: { id: Screen; icon: string }[] = [
 
 type ToolGroup = {
   labelKey: string;
-  items: { id: Screen; labelKey: string; status: FeatureStatus }[];
+  items: { id: Screen; labelKey: string; status: FeatureStatus; icon: string }[];
 };
 
 const toolGroups: ToolGroup[] = [
   {
     labelKey: "common.security",
     items: [
-      { id: "guard", labelKey: "nav.guard", status: "working" },
-      { id: "routing", labelKey: "nav.routing", status: "working" },
+      { id: "guard", labelKey: "nav.guard", status: "working", icon: "\u{1F6E1}\uFE0F" },
+      { id: "routing", labelKey: "nav.routing", status: "working", icon: "\u{1F4E1}" },
     ],
   },
   {
     labelKey: "common.documents",
     items: [
-      { id: "documents", labelKey: "nav.documents", status: "preview" },
-      { id: "output", labelKey: "nav.outputs", status: "preview" },
+      { id: "documents", labelKey: "nav.documents", status: "preview", icon: "\u{1F4C4}" },
+      { id: "output", labelKey: "nav.outputs", status: "preview", icon: "\u{1F4E4}" },
     ],
   },
   {
     labelKey: "common.knowledge",
     items: [
-      { id: "storage", labelKey: "nav.storage", status: "preview" },
-      { id: "archive", labelKey: "nav.archive", status: "coming_soon" },
+      { id: "storage", labelKey: "nav.storage", status: "preview", icon: "\u{1F5C4}\uFE0F" },
+      { id: "archive", labelKey: "nav.archive", status: "coming_soon", icon: "\u{1F4E6}" },
     ],
   },
   {
     labelKey: "common.agent",
     items: [
-      { id: "agent-lab", labelKey: "nav.agentLab", status: "preview" },
-      { id: "computer", labelKey: "nav.computerUse", status: "needs_runtime" },
-      { id: "plugins", labelKey: "nav.plugins", status: "preview" },
+      { id: "agent-lab", labelKey: "nav.agentLab", status: "preview", icon: "\u{1F9EA}" },
+      { id: "computer", labelKey: "nav.computerUse", status: "needs_runtime", icon: "\u{1F5A5}\uFE0F" },
+      { id: "plugins", labelKey: "nav.plugins", status: "preview", icon: "\u{1F9E9}" },
     ],
   },
   {
     labelKey: "common.creative",
     items: [
-      { id: "mindmap", labelKey: "nav.mindMap", status: "preview" },
-      { id: "dashboard", labelKey: "nav.dashboard", status: "working" },
-      { id: "matrix", labelKey: "nav.matrix", status: "preview" },
+      { id: "mindmap", labelKey: "nav.mindMap", status: "preview", icon: "\u{1F9E0}" },
+      { id: "dashboard", labelKey: "nav.dashboard", status: "working", icon: "\u{1F4CA}" },
+      { id: "matrix", labelKey: "nav.matrix", status: "preview", icon: "\u{1F9EE}" },
     ],
   },
 ];
@@ -119,33 +122,56 @@ const screens: Record<string, React.ReactNode> = {
   dashboard: <Dashboard />,
 };
 
+/* ---- ToolboxScreen â€?independent full-page layout ---- */
 function ToolboxScreen() {
   const [activeTool, setActiveTool] = useState<Screen | null>(null);
   if (activeTool && screens[activeTool]) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-        <div style={{ padding: "8px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 12 }}>
-          <button onClick={() => setActiveTool(null)} className="btn btn-ghost" style={{ fontSize: 12 }}>{"\u2190"} {tk("actions.back")}</button>
-          <span style={{ fontWeight: 600, fontSize: 14 }}>{tk(screenLabels[activeTool])}</span>
+      <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--tf-bg)" }}>
+        <div style={{
+          padding: "10px 20px", borderBottom: "1px solid var(--tf-border)",
+          display: "flex", alignItems: "center", gap: 14,
+          background: "var(--tf-surface)"
+        }}>
+          <button onClick={() => setActiveTool(null)} className="btn btn-ghost" style={{ fontSize: 12, fontWeight: 600 }}>
+            {"\u2190"} {tk("actions.back")}
+          </button>
+          <span style={{ fontWeight: 600, fontSize: 15, color: "var(--tf-text)" }}>{tk(screenLabels[activeTool])}</span>
         </div>
         <div style={{ flex: 1, overflow: "auto" }}>{screens[activeTool]}</div>
       </div>
     );
   }
   return (
-    <div style={{ padding: "28px 32px" }}>
-      <h2 className="page-title">{tk("common.toolbox")}</h2>
-      <p className="page-subtitle">Tools and utilities â€” status labels show what is ready.</p>
+    <div style={{ padding: "32px 36px", maxWidth: 1280, margin: "0 auto", width: "100%", overflow: "auto" }}>
+      <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--tf-text)", marginBottom: 6 }}>{tk("common.toolbox")}</h1>
+      <p style={{ fontSize: 14, color: "var(--tf-text-muted)", marginBottom: 32 }}>
+        Tools and utilities â€?status labels show readiness.
+      </p>
       {toolGroups.map((group) => (
-        <div key={group.labelKey} style={{ marginBottom: 24 }}>
-          <h3 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-muted)", marginBottom: 12, textTransform: "uppercase" }}>{tk(group.labelKey)}</h3>
+        <div key={group.labelKey} style={{ marginBottom: 28 }}>
+          <h3 style={{
+            fontSize: 12, fontWeight: 700,
+            color: "var(--tf-text-muted)", marginBottom: 12,
+            textTransform: "uppercase", letterSpacing: "0.06em"
+          }}>
+            {tk(group.labelKey)}
+          </h3>
           <div className="stats-grid">
             {group.items.map((item) => {
               const badge = statusBadge(item.status);
               return (
-                <div key={item.id} className="stat-card" style={{ cursor: "pointer" }} onClick={() => setActiveTool(item.id)}>
-                  <div className="stat-label">{tk(item.labelKey)}</div>
-                  <span className={`badge ${badge.className}`} style={{ fontSize: "0.65rem", marginTop: 6, display: "inline-block" }}>{badge.label}</span>
+                <div
+                  key={item.id}
+                  className="stat-card"
+                  style={{ cursor: "pointer" }}
+                  onClick={() => setActiveTool(item.id)}
+                >
+                  <div style={{ fontSize: 24, marginBottom: 6 }}>{item.icon}</div>
+                  <div className="stat-label" style={{ fontSize: 13, fontWeight: 600 }}>{tk(item.labelKey)}</div>
+                  <span className={`badge ${badge.className}`} style={{ fontSize: "0.62rem", marginTop: 8, display: "inline-block" }}>
+                    {badge.label}
+                  </span>
                 </div>
               );
             })}
@@ -156,16 +182,53 @@ function ToolboxScreen() {
   );
 }
 
-export function App() {
+/* ---- Theme toggle button ---- */
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme();
+  const options: { value: "light" | "dark" | "system"; icon: string }[] = [
+    { value: "light", icon: "\u2600\uFE0F" },
+    { value: "dark", icon: "\u{1F319}" },
+    { value: "system", icon: "\u{1F4BB}" },
+  ];
+  return (
+    <div className="theme-toggle-group" style={{ marginBottom: 8 }}>
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          className={`theme-toggle-btn ${theme === opt.value ? "active" : ""}`}
+          onClick={() => setTheme(opt.value)}
+          title={opt.value}
+        >
+          {opt.icon}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ---- App Inner ---- */
+function AppInner() {
   const [screen, setScreen] = useState<Screen>("chat");
   const [, forceRender] = useState(0);
+  const [mascotVisible, setMascotVisible] = useState(() => {
+    try { const v = localStorage.getItem("tokenfence-mascot"); return v !== "hidden"; } catch { return true; }
+  });
 
   useEffect(() => {
     return onLangChange(() => forceRender((n) => n + 1));
   }, []);
 
+  const toggleMascot = useCallback(() => {
+    const next = !mascotVisible;
+    setMascotVisible(next);
+    try { localStorage.setItem("tokenfence-mascot", next ? "visible" : "hidden"); } catch {}
+  }, [mascotVisible]);
+
+  const currentContent = screen === "toolbox" ? <ToolboxScreen /> : screens[screen] ?? <ChatWorkspace />;
+
   return (
     <div className="app-layout">
+      {/* Sidebar */}
       <nav className="sidebar">
         <div className="sidebar-brand">
           <span className="sidebar-brand-icon">TF</span>
@@ -173,25 +236,58 @@ export function App() {
         </div>
         <div className="sidebar-nav">
           {primaryNav.map(({ id, icon }) => (
-            <button key={id} className={`sidebar-item ${screen === id ? "active" : ""}`}
-              onClick={() => setScreen(id)}>
+            <button
+              key={id}
+              className={`sidebar-item ${screen === id ? "active" : ""}`}
+              onClick={() => setScreen(id)}
+              title={tk(screenLabels[id])}
+            >
               <span className="sidebar-item-icon">{icon}</span>
               <span className="sidebar-item-label">{tk(screenLabels[id])}</span>
             </button>
           ))}
         </div>
         <div className="sidebar-footer">
+          <ThemeToggle />
           <LanguageSwitcher />
           <div className="status-indicator" style={{ marginTop: 8 }}>
             <span className="status-dot green"></span>
             <span>{tk("status.localFirst")}</span>
           </div>
-          <div className="version-text">v1.0.5</div>
+          <div className="version-text">{VERSION}</div>
+          <button
+            onClick={toggleMascot}
+            style={{
+              background: "none", border: "none", cursor: "pointer",
+              fontSize: 11, color: "var(--tf-text-muted)", marginTop: 6,
+              padding: "2px 4px"
+            }}
+            title={mascotVisible ? "Hide mascot" : "Show mascot"}
+          >
+            {mascotVisible ? "\u{1F441}\uFE0F} Hide mascot" : "\u{1F441}\uFE0F} Show mascot"}
+          </button>
         </div>
       </nav>
-      <main className="main-content" style={{ padding: 0 }}>
-        {screens[screen] ?? <ChatWorkspace />}
-      </main>
+
+      {/* Main */}
+      <main className="main-content">{currentContent}</main>
+
+      {/* Mascot */}
+      <div
+        className={`mascot ${mascotVisible ? "" : "hidden"}`}
+        onClick={() => setScreen("chat")}
+        title="Back to Chat"
+      >
+        <span style={{ fontSize: 48 }}>{String.fromCodePoint(0x1F916)}</span>
+      </div>
     </div>
+  );
+}
+
+export function App() {
+  return (
+    <ThemeProvider>
+      <AppInner />
+    </ThemeProvider>
   );
 }

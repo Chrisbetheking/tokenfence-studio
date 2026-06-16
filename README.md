@@ -11,7 +11,7 @@ Local-first AI workspace with a Codex-like chat interface, Prompt Guard, Context
 ## Latest Downloads
 
 - [Android APK](https://github.com/Chrisbetheking/tokenfence-studio/releases/download/v1.0.0/TokenFence-Studio-Android-v1.0.0-release.apk)
-- [Windows Portable ZIP](https://github.com/Chrisbetheking/tokenfence-studio/releases/download/v1.0.12/TokenFence-Studio-Windows-v1.0.12-portable.zip)
+- [Windows Portable ZIP](https://github.com/Chrisbetheking/tokenfence-studio/releases/download/v1.0.13/TokenFence-Studio-Windows-v1.0.13-portable.zip)
 
 > Windows users: download the portable ZIP, extract it first, then run `tokenfence-studio.exe` from the extracted folder. Do not run the EXE directly from inside the ZIP preview.
 
@@ -67,7 +67,7 @@ It provides a Codex-like chat workspace with attached files, context packs, mode
 
 ## Windows Usage
 
-Download `TokenFence-Studio-Windows-v1.0.12-portable.zip`, extract it first, then run `tokenfence-studio.exe` from the extracted folder.
+Download `TokenFence-Studio-Windows-v1.0.13-portable.zip`, extract it first, then run `tokenfence-studio.exe` from the extracted folder.
 
 Do not run the EXE directly from inside the ZIP preview.
 

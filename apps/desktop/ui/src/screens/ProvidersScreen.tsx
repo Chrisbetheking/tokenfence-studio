@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+﻿import { useState, useCallback, useMemo } from "react";
 import { tk } from "@tokenfence/shared/src/i18n";
 import {
   PROVIDERS,
@@ -8,19 +8,32 @@ import {
   healthCheckProvider,
 } from "@tokenfence/shared/src/providers";
 import type { ProviderConfig } from "@tokenfence/shared/src/providers";
+import { getModelsForProvider, getProviderIds } from "@tokenfence/shared/src/model-registry";
+import { ProviderModelSelect } from "../components/ProviderModelSelect";
 
 interface EditState {
   provider: string;
   model: string;
+  customModelId?: string;
   baseUrl: string;
   apiKey: string;
   enabled: boolean;
 }
 
+const PROVIDER_ICONS: Record<string, string> = {
+  OpenAI: "\u{1F916}", Claude: "\u{1F9E0}", Gemini: "\u{1F4CE}",
+  DeepSeek: "\u{1F30A}", Qwen: "\u2601\uFE0F", Kimi: "\u{1F31F}",
+  Doubao: "\u{1FADB}", Zhipu: "\u{1F3EE}",
+  xAI: "\u{1F31F}", Mistral: "\u{1F4A8}", Cohere: "\u{1F91D}",
+  Perplexity: "\u{1F50D}", Groq: "\u26A1", Together: "\u{1F91D}",
+  Ollama: "\u{1F42B}", "LM Studio": "\u{1F4BB}", Custom: "\u2699\uFE0F",
+};
+
 export function ProvidersScreen() {
   const [configs, setConfigs] = useState<ProviderConfig[]>(loadProviderConfigs());
   const [testingId, setTestingId] = useState<string | null>(null);
   const [editing, setEditing] = useState<EditState | null>(null);
+  const providerIds = useMemo(() => getProviderIds(), []);
 
   const save = useCallback((next: ProviderConfig[]) => {
     setConfigs(next);
@@ -65,6 +78,7 @@ export function ProvidersScreen() {
     setEditing({
       provider: c.provider,
       model: c.model,
+      customModelId: c.customModelId,
       baseUrl: c.baseUrl,
       apiKey: c.apiKey,
       enabled: c.enabled,
@@ -76,7 +90,7 @@ export function ProvidersScreen() {
     setConfigs((prev) => {
       const next = prev.map((c) =>
         c.provider === editing.provider
-          ? { ...c, model: editing.model, baseUrl: editing.baseUrl, apiKey: editing.apiKey, enabled: editing.enabled }
+          ? { ...c, model: editing.model, customModelId: editing.customModelId, baseUrl: editing.baseUrl, apiKey: editing.apiKey, enabled: editing.enabled }
           : c
       );
       saveProviderConfigs(next);
@@ -85,18 +99,11 @@ export function ProvidersScreen() {
     setEditing(null);
   }, [editing]);
 
-  const providerMeta: Record<string, { icon: string; models: number }> = {
-    OpenAI: { icon: "\u{1F916}", models: 20 },
-    Claude: { icon: "\u{1F9E0}", models: 10 },
-    Gemini: { icon: "\u{1F4CE}", models: 8 },
-    DeepSeek: { icon: "\u{1F30A}", models: 5 },
-    Qwen: { icon: "\u2601\uFE0F", models: 11 },
-    Kimi: { icon: "\u{1F31F}", models: 6 },
-    Doubao: { icon: "\u{1FADB}", models: 7 },
-    Zhipu: { icon: "\u{1F3EE}", models: 14 },
-    Ollama: { icon: "\u{1F42B}", models: 0 },
-    "LM Studio": { icon: "\u{1F4BB}", models: 0 },
-    Custom: { icon: "\u2699\uFE0F", models: 0 },
+  const getProviderDisplayName = (pid: string) => {
+    const key = "providers." + pid.toLowerCase().replace(/\s+/g, "");
+    const translated = tk(key);
+    if (translated === key || translated === pid) return pid;
+    return translated;
   };
 
   return (
@@ -113,7 +120,9 @@ export function ProvidersScreen() {
       {/* Summary Cards Grid */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
         {configs.map((config) => {
-          const meta = providerMeta[config.provider] ?? { icon: "\u{1F310}", models: 0 };
+          const icon = PROVIDER_ICONS[config.provider] ?? "\u{1F310}";
+          const modelCount = getModelsForProvider(config.provider).length;
+          const isCustom = config.provider === "Custom";
           const testing = testingId === config.provider;
           const statusColor =
             config.lastHealthStatus === "ok" ? "var(--green)" :
@@ -130,23 +139,25 @@ export function ProvidersScreen() {
               {/* Header row */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 22 }}>{meta.icon}</span>
+                  <span style={{ fontSize: 22 }}>{icon}</span>
                   <div>
                     <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--text)" }}>
-                      {tk(`providers.${config.provider.toLowerCase().replace(/\s+/g, "")}` as any) || config.provider}
+                      {getProviderDisplayName(config.provider)}
                     </div>
-                    <div style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>
-                      {config.deployment === "local" ? tk("providers.local") : tk("providers.cloud")}
-                      {" \u00B7 "}{meta.models} {tk("providers.modelsAvailable")}
+                    <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
+                      {isCustom ? tk("common.customModel") : (config.deployment === "local" ? tk("providers.local") + " · " : tk("providers.cloud") + " · ") + modelCount + " " + tk("providers.modelsAvailable")}
                     </div>
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: statusColor }} title={config.lastHealthStatus ?? "unknown"}></span>
-                  <label className="toggle" onClick={(e) => { e.stopPropagation(); toggleEnabled(config.provider); }}>
-                    <input type="checkbox" checked={config.enabled} readOnly />
-                    <span style={{ fontSize: "0.7rem" }}>{config.enabled ? tk("status.enabled") : tk("status.disabled")}</span>
-                  </label>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: statusColor }}></span>
+                  <button
+                    className="btn btn-ghost"
+                    style={{ fontSize: "0.65rem", padding: "2px 6px" }}
+                    onClick={(e) => { e.stopPropagation(); toggleEnabled(config.provider); }}
+                  >
+                    {config.enabled ? tk("actions.disable") : tk("actions.enable")}
+                  </button>
                 </div>
               </div>
 
@@ -183,7 +194,8 @@ export function ProvidersScreen() {
       {editing && (
         <div
           style={{
-            position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)",
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+            backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
             display: "flex", alignItems: "center", justifyContent: "center",
             zIndex: 200, padding: 16,
           }}
@@ -192,41 +204,56 @@ export function ProvidersScreen() {
           <div
             className="card"
             style={{
-              background: "var(--surface)", maxWidth: 460, width: "100%",
-              padding: 20, borderRadius: 12, maxHeight: "90vh", overflowY: "auto",
+              background: "var(--surface)", maxWidth: 480, width: "100%",
+              padding: 24, borderRadius: 16, maxHeight: "90vh", overflowY: "auto",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h3 style={{ margin: 0, fontSize: "1rem", color: "var(--text)" }}>
-                {tk("providers.editProvider")}: {editing.provider}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 600, color: "var(--text)" }}>
+                {tk("providers.editProvider")}: {getProviderDisplayName(editing.provider)}
               </h3>
               <button
                 onClick={() => setEditing(null)}
                 style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "1.2rem", padding: "2px 6px" }}
-              >\u2715</button>
+              >{"\u2715"}</button>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {/* Model select */}
               <div>
-                <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "block", marginBottom: 3 }}>{tk("providers.model")}</label>
-                <input className="input" style={{ width: "100%", padding: "6px 10px", fontSize: "0.8rem" }}
-                  value={editing.model}
-                  onChange={(e) => setEditing({ ...editing, model: e.target.value })} />
+                <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "block", marginBottom: 4, fontWeight: 500 }}>
+                  {tk("providers.model")}
+                </label>
+                <ProviderModelSelect
+                  providerId={editing.provider}
+                  selectedModelId={editing.model}
+                  customModelId={editing.customModelId}
+                  onChange={(mid, cid) => setEditing({ ...editing, model: mid, customModelId: cid })}
+                  allowCustom={editing.provider === "Custom"}
+                />
               </div>
+
               <div>
-                <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "block", marginBottom: 3 }}>{tk("providers.baseUrl")}</label>
-                <input className="input" style={{ width: "100%", padding: "6px 10px", fontSize: "0.75rem", fontFamily: "monospace" }}
+                <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "block", marginBottom: 4, fontWeight: 500 }}>
+                  {tk("providers.baseUrl")}
+                </label>
+                <input className="input" style={{ width: "100%", padding: "7px 10px", fontSize: "0.75rem", fontFamily: "monospace", borderRadius: 8 }}
                   value={editing.baseUrl}
                   onChange={(e) => setEditing({ ...editing, baseUrl: e.target.value })} />
               </div>
+
               <div>
-                <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "block", marginBottom: 3 }}>{tk("providers.apiKey")}</label>
-                <input className="input" type="password" style={{ width: "100%", padding: "6px 10px", fontSize: "0.75rem", fontFamily: "monospace" }}
+                <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "block", marginBottom: 4, fontWeight: 500 }}>
+                  {tk("providers.apiKey")}
+                </label>
+                <input className="input" type="password" style={{ width: "100%", padding: "7px 10px", fontSize: "0.75rem", fontFamily: "monospace", borderRadius: 8 }}
                   value={editing.apiKey}
                   onChange={(e) => setEditing({ ...editing, apiKey: e.target.value })}
                   placeholder="sk-..." />
               </div>
+
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <label className="toggle">
                   <input type="checkbox" checked={editing.enabled}
@@ -234,9 +261,10 @@ export function ProvidersScreen() {
                   <span>{editing.enabled ? tk("status.enabled") : tk("status.disabled")}</span>
                 </label>
               </div>
-              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                <button className="btn btn-primary" style={{ flex: 1 }} onClick={saveEdit}>{tk("actions.save")}</button>
-                <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setEditing(null)}>{tk("actions.cancel")}</button>
+
+              <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                <button className="btn btn-primary" style={{ flex: 1, borderRadius: 10 }} onClick={saveEdit}>{tk("actions.save")}</button>
+                <button className="btn btn-secondary" style={{ flex: 1, borderRadius: 10 }} onClick={() => setEditing(null)}>{tk("actions.cancel")}</button>
               </div>
             </div>
           </div>

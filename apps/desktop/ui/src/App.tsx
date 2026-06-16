@@ -26,7 +26,7 @@ type Screen = "chat" | "projects" | "models" | "toolbox" | "settings" | "about"
 
 type FeatureStatus = "working" | "preview" | "coming_soon" | "needs_runtime";
 
-const VERSION = "v1.0.12";
+const VERSION = "v1.0.13";
 
 const primaryNav: { id: Screen; icon: string }[] = [
   { id: "chat", icon: "\u{1F4AC}" },
@@ -284,7 +284,7 @@ function AppInner() {
       <div
         className={`mascot ${mascotVisible ? "" : "hidden"}`}
         onClick={() => setScreen("chat")}
-        title={tk("nav.chat")}
+        title={tk("nav.chat")} style={{ zIndex: 99, bottom: 16, right: 16 }}
       >
         <span style={{ fontSize: 48 }}>{String.fromCodePoint(0x1F916)}</span>
       </div>

@@ -1,15 +1,17 @@
+﻿import { tk } from "@tokenfence/shared/src/i18n";
+
 export function StorageScreen() {
   return (
     <div>
-      <h1 className="page-title">Storage Settings</h1>
-      <p className="page-subtitle">Configure local storage paths and options</p>
+      <h1 className="page-title">{tk("storage.title")}</h1>
+      <p className="page-subtitle">{tk("storage.subtitle")}</p>
       <div className="card">
-        <div className="card-header"><div><div className="card-title">Local Storage</div><div className="card-subtitle">All keys, archives, and configs stay on your machine</div></div><span className="badge badge-green">Local</span></div>
+        <div className="card-header"><div><div className="card-title">{tk("storage.localStorage")}</div><div className="card-subtitle">{tk("storage.localStorageDesc")}</div></div><span className="badge badge-green">{tk("providers.local")}</span></div>
         <div className="section-list">
-          <div className="section-item"><div className="section-item-title">Data Directory</div><div className="section-item-desc"><code className="code-block">.tokenfence/</code></div></div>
-          <div className="section-item"><div className="section-item-title">Provider Config</div><div className="section-item-desc"><code className="code-block">.tokenfence/providers.json</code></div></div>
-          <div className="section-item"><div className="section-item-title">Archive</div><div className="section-item-desc"><code className="code-block">.tokenfence/archive.jsonl</code></div></div>
-          <div className="section-item"><div className="section-item-title">Redaction Vault</div><div className="section-item-desc"><code className="code-block">.tokenfence/redactions.json</code></div></div>
+          <div className="section-item"><div className="section-item-title">{tk("storage.dataDirectory")}</div><div className="section-item-desc"><code className="code-block">.tokenfence/</code></div></div>
+          <div className="section-item"><div className="section-item-title">{tk("storage.providerConfig")}</div><div className="section-item-desc"><code className="code-block">.tokenfence/providers.json</code></div></div>
+          <div className="section-item"><div className="section-item-title">{tk("storage.archive")}</div><div className="section-item-desc"><code className="code-block">.tokenfence/archive.jsonl</code></div></div>
+          <div className="section-item"><div className="section-item-title">{tk("storage.redactionVault")}</div><div className="section-item-desc"><code className="code-block">.tokenfence/redactions.json</code></div></div>
         </div>
       </div>
     </div>

@@ -389,6 +389,16 @@ settings: {
   mascot: { hide: "Hide mascot", show: "Show mascot" },
 
 
+  storage: {
+    title: 'Storage Settings',
+    subtitle: 'Configure local storage paths and options',
+    localStorage: 'Local Storage',
+    localStorageDesc: 'All keys, archives, and configs stay on your machine',
+    dataDirectory: 'Data Directory',
+    providerConfig: 'Provider Config',
+    archive: 'Archive',
+    redactionVault: 'Redaction Vault',
+  },
 };
 
 export type Translations = typeof en;

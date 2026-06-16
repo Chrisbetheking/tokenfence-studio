@@ -362,6 +362,16 @@ settings: {
   mascot: { hide: "\u9690\u85CF\u5409\u7965\u7269", show: "\u663E\u793A\u5409\u7965\u7269" },
 
 
+  storage: {
+    title: "\u5B58\u50A8\u8BBE\u7F6E",
+    subtitle: "\u914D\u7F6E\u672C\u5730\u5B58\u50A8\u8DEF\u5F84\u548C\u9009\u9879",
+    localStorage: "\u672C\u5730\u5B58\u50A8",
+    localStorageDesc: "\u6240\u6709\u5BC6\u94A5\u3001\u5F52\u6863\u548C\u914D\u7F6E\u5747\u7559\u5728\u672C\u673A",
+    dataDirectory: "\u6570\u636E\u76EE\u5F55",
+    providerConfig: "Provider\u914D\u7F6E",
+    archive: "\u5F52\u6863",
+    redactionVault: "\u8131\u654F\u4ED3\u5E93",
+  },
 };
 
 export default zhCN;

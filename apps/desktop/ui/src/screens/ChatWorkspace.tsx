@@ -20,6 +20,8 @@ import {
   type ModelRegistryItem, type ModelStatus, type ModelPickReason,
 } from "@tokenfence/shared/src/model-registry";
 
+import { getEnabledModels, loadInstalledModels, type InstalledModel } from "@tokenfence/shared/src/installed-models";
+import { readFile } from "../desktop-bridge";
 import { storeGet, storeSet } from "@tokenfence/shared/src/agent-runtime/safeStorage";
 import { ModelPickerPanel } from "../components/ModelPickerPanel";
 
@@ -269,6 +271,7 @@ export function ChatWorkspace() {
   const [manualCalcText, setManualCalcText] = useState("");
 
   const [showModelPanel, setShowModelPanel] = useState(false);
+  const [installedModels, setInstalledModels] = useState<InstalledModel[]>(() => getEnabledModels());
   const [projectTab, setProjectTab] = useState(false);
   const [dragOver, setDragOver] = useState(false);
 
@@ -760,7 +763,7 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
     return activeProject.files.filter((f: any) => f.name.toLowerCase().includes(q));
   }, [activeProject?.files, searchQ]);
 
-  const toggleFile = (fileName: string) => {
+  const toggleFile = async (fileName: string) => {
     if (!activeProject) return;
     const updated = {
       ...activeProject,
@@ -774,8 +777,15 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
     // Update Context Pack
     const wasSelected = activeProject.files.find((f: any) => f.name === fileName)?.selected;
     if (!wasSelected) {
-      // Add to context
-      const content = `[Project: ${activeProject.name}]\n[File: ${fileName}]\n`;
+      // Add to context with real file content
+      let content = `[Project: ${activeProject.name}]\n[File: ${fileName}]\n\n`;
+      try {
+        const filePath = activeProject.folderPath + "\\" + fileName;
+        const fileContent = await readFile(filePath);
+        content += fileContent || "(empty file)";
+      } catch {
+        content += "(unable to read file)";
+      }
       setAttachedFiles((prev) => {
         if (prev.find((f) => f.name === fileName && f.type === "project")) return prev;
         return [...prev, { id: `proj-${fileName}`, name: fileName, size: content.length, type: "project", content }];
@@ -786,7 +796,7 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
     }
   };
 
-  const toggleAllFiles = (select: boolean) => {
+  const toggleAllFiles = async (select: boolean) => {
     if (!activeProject) return;
     const updated = {
       ...activeProject,
@@ -795,10 +805,18 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
     setActiveProject(updated);
     try { storeSet("tokenfence-projects", JSON.stringify(projects.map((p: any) => p.id === updated.id ? updated : p))); } catch {}
     if (select) {
-      const newFiles = activeProject.files.map((f: any) => ({
-        id: `proj-${f.name}`, name: f.name, size: 0, type: "project",
-        content: `[Project: ${activeProject.name}]\n[File: ${f.name}]\n`,
-      }));
+      const newFiles: any[] = [];
+      for (const f of activeProject.files) {
+        let content = `[Project: ${activeProject.name}]\n[File: ${f.name}]\n\n`;
+        try {
+          const filePath = activeProject.folderPath + "\\" + f.name;
+          const fileContent = await readFile(filePath);
+          content += fileContent || "(empty file)";
+        } catch {
+          content += "(unable to read file)";
+        }
+        newFiles.push({ id: `proj-${f.name}`, name: f.name, size: content.length, type: "project", content });
+      }
       setAttachedFiles((prev) => {
         const existing = new Set(prev.filter((f) => f.type === "project").map((f) => f.name));
         return [...prev.filter((f) => f.type !== "project"), ...newFiles.filter((f) => !existing.has(f.name))];
@@ -1072,7 +1090,7 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
               <span style={{ color: "var(--text-muted)" }}>/ {currentRegistryModel?.displayName ?? selectedModel}</span>
             </div>
             {/* Switch Model button */}
-            <button onClick={() => setShowModelPanel(true)} className="btn btn-ghost" style={{ fontSize: "0.75rem", padding: "4px 10px", color: "var(--primary)" }}>
+            <button onClick={() => { setInstalledModels(getEnabledModels()); setShowModelPanel(true); }} className="btn btn-ghost" style={{ fontSize: "0.75rem", padding: "4px 10px", color: "var(--primary)" }}>
               {tk("chat.switchModel")}
             </button>
           </div>

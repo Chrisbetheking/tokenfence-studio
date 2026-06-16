@@ -1,5 +1,8 @@
+import { getEnabledModels, type InstalledModel } from "@tokenfence/shared/src/installed-models";
 import { useState, useEffect, useMemo } from "react";
+import { getEnabledModels, type InstalledModel } from "@tokenfence/shared/src/installed-models";
 import { tk, onLangChange } from "@tokenfence/shared/src/i18n";
+import { getEnabledModels, type InstalledModel } from "@tokenfence/shared/src/installed-models";
 import {
   MODEL_REGISTRY, getModelsForProvider, getModelById,
   getDefaultModelForProvider, searchModels,
@@ -7,6 +10,7 @@ import {
   pickBestAvailableModel, addRecentModel,
   type ModelRegistryItem,
 } from "@tokenfence/shared/src/model-registry";
+import { getEnabledModels, type InstalledModel } from "@tokenfence/shared/src/installed-models";
 import { loadProviderConfigs, type ProviderConfig } from "@tokenfence/shared/src/providers";
 
 interface ModelPickerPanelProps {
@@ -15,10 +19,11 @@ interface ModelPickerPanelProps {
   selectedProvider: string;
   selectedModel: string;
   providerConfigs: ProviderConfig[];
+  installedModels?: InstalledModel[];
 }
 
 export function ModelPickerPanel({
- onClose, onSelect, selectedProvider, selectedModel, providerConfigs }: ModelPickerPanelProps) {
+ onClose, onSelect, selectedProvider, selectedModel, providerConfigs, installedModels }: ModelPickerPanelProps) {
   const [, forceRender] = useState(0);
   useEffect(() => { return onLangChange(() => forceRender((n) => n + 1)); }, []);
 
@@ -38,6 +43,8 @@ export function ModelPickerPanel({
   }, [searchText]);
 
   const currentModels = useMemo(() => getModelsForProvider(activeProvider), [activeProvider]);
+
+  const enabledInstalled = useMemo(() => (installedModels ?? []).filter((m) => m.enabled), [installedModels]);
 
   const handleSelect = (pid: string, mid: string) => {
     const cfg = providerConfigs.find((c) => c.provider === pid);
@@ -135,6 +142,38 @@ export function ModelPickerPanel({
           </div>
 
           {/* Right: Models */}
+            {/* Installed models section - shown first when not searching */}
+            {searchText.trim().length < 2 && enabledInstalled.length > 0 && (
+              <>
+                <div style={{ padding: "4px 16px 8px", fontSize: "0.65rem", color: "var(--primary)", textTransform: "uppercase" }}>
+                  {tk("chat.installedModels") || "Installed Models"}
+                </div>
+                {enabledInstalled.map((im) => {
+                  const isActive = im.providerId === selectedProvider && im.modelId === selectedModel;
+                  return (
+                    <div
+                      key={im.id}
+                      onClick={() => handleSelect(im.providerId, im.modelId)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 8,
+                        padding: "8px 16px", cursor: "pointer",
+                        background: isActive ? "var(--accent-faint, rgba(79,140,255,0.1))" : "transparent",
+                        fontSize: "0.8rem",
+                      }}
+                      onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "var(--surface-alt)"; }}
+                      onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+                    >
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--green)", flexShrink: 0 }}></span>
+                      <span style={{ fontWeight: isActive ? 600 : 400, color: "var(--text)", flex: 1 }}>
+                        {im.displayName}{im.alias ? ` (${im.alias})` : ""}
+                      </span>
+                      <span style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>{im.providerId}</span>
+                    </div>
+                  );
+                })}
+                <div style={{ margin: "4px 16px 8px", borderBottom: "1px solid var(--border)" }}></div>
+              </>
+            )}
           <div style={{ flex: 1, overflowY: "auto", padding: "8px 0" }}>
             {searchText.trim().length >= 2 ? (
               <>

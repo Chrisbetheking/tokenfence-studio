@@ -323,7 +323,6 @@ const zhCN: Translations = {
     ok: "\u786E\u5B9A",
     none: "\u65E0",
     all: "\u5168\u90E8",
-    unknown: "\u672A\u77E5",
     bytes: "\u5B57\u8282",
     generatedBy: "\u7531 TokenFence Studio \u751F\u6210",
     quickStart: "\u5FEB\u901F\u5F00\u59CB",
@@ -360,6 +359,26 @@ const zhCN: Translations = {
     fileRoutingOn: "\u6587\u4EF6\u7C7B\u578B\u8DEF\u7531",
     fileRoutingOff: "\u6587\u4EF6\u7C7B\u578B\u8DEF\u7531\u5DF2\u5173\u95ED",
   },
+
+  modelsPage: {
+    noInstalledModels: '尚未添加模型',
+    goToLibrary: '前往模型库添加模型',
+    installedModels: '已添加模型',
+    modelLibrary: '模型库',
+    addModel: '添加',
+    editAlias: '编辑别名',
+    setDefault: '设为默认',
+    remove: '移除',
+    capabilities: '能力',
+    provider: '提供商',
+    contextWindow: '上下文',
+    browseLibrary: '浏览模型库，点击添加到已安装列表。',
+    installedCount: '已安装 {count} 个',
+    enabledCount: '已启用 {count} 个',
+    lastUsed: '上次使用',
+    modelId: '模型 ID',
+  },
+
 };
 
 export default zhCN;

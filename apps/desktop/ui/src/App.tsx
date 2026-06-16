@@ -4,7 +4,7 @@ import { ThemeProvider, useTheme } from "./components/ThemeProvider";
 import { ChatWorkspace } from "./screens/ChatWorkspace";
 import { ProjectsScreen } from "./screens/ProjectsScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
-import { ProvidersScreen } from "./screens/ProvidersScreen";
+import { ModelsScreen } from "./screens/ModelsScreen";
 import { AboutScreen } from "./screens/AboutScreen";
 import { GuardScreen } from "./screens/GuardScreen";
 import { DocumentsScreen } from "./screens/DocumentsScreen";
@@ -26,7 +26,7 @@ type Screen = "chat" | "projects" | "models" | "toolbox" | "settings" | "about"
 
 type FeatureStatus = "working" | "preview" | "coming_soon" | "needs_runtime";
 
-const VERSION = "v1.0.21";
+const VERSION = "v1.0.22";
 
 const primaryNav: { id: Screen; icon: string }[] = [
   { id: "chat", icon: "\u{1F4AC}" },
@@ -104,7 +104,7 @@ const screenLabels: Record<Screen, string> = {
 const screens: Record<string, React.ReactNode> = {
   chat: <ChatWorkspace />,
   projects: <ProjectsScreen />,
-  models: <ProvidersScreen />,
+  models: <ModelsScreen />,
   settings: <SettingsScreen />,
   about: <AboutScreen />,
   guard: <GuardScreen />,
@@ -146,7 +146,7 @@ function ToolboxScreen() {
     <div style={{ padding: "32px 36px", maxWidth: 1280, margin: "0 auto", width: "100%", overflow: "auto" }}>
       <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--tf-text)", marginBottom: 6 }}>{tk("common.toolbox")}</h1>
       <p style={{ fontSize: 14, color: "var(--tf-text-muted)", marginBottom: 32 }}>
-        Tools and utilities ï¿½?status labels show readiness.
+        Tools and utilities ï¿?status labels show readiness.
       </p>
       {toolGroups.map((group) => (
         <div key={group.labelKey} style={{ marginBottom: 28 }}>

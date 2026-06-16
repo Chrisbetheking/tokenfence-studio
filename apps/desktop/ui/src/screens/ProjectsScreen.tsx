@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useCallback } from "react";
-import { tk } from "@tokenfence/shared/src/i18n";
+import { tk, onLangChange } from "@tokenfence/shared/src/i18n";
 import { storeGet, storeSet } from "@tokenfence/shared/src/agent-runtime/safeStorage";
 import { estimateTokens } from "@tokenfence/shared/src/providers";
 
@@ -25,6 +25,10 @@ function getActiveProjectId(): string | null { try { return storeGet(ACTIVE_KEY)
 function setActiveProjectId(id: string | null) { if (id) storeSet(ACTIVE_KEY, id); else storeSet(ACTIVE_KEY, ""); }
 
 export function ProjectsScreen() {
+  const [, forceRender] = useState(0);
+  useEffect(() => { return onLangChange(() => forceRender((n) => n + 1)); }, []);
+
+
   const [projects, setProjects] = useState<Project[]>(() => loadProjects());
   const [activeId, setActiveId] = useState<string | null>(() => getActiveProjectId());
   const [newName, setNewName] = useState("");

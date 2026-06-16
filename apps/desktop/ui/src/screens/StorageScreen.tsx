@@ -1,6 +1,10 @@
-﻿import { tk } from "@tokenfence/shared/src/i18n";
+﻿import { tk, onLangChange } from "@tokenfence/shared/src/i18n";
 
 export function StorageScreen() {
+  const [, forceRender] = useState(0);
+  useEffect(() => { return onLangChange(() => forceRender((n) => n + 1)); }, []);
+
+
   return (
     <div>
       <h1 className="page-title">{tk("storage.title")}</h1>

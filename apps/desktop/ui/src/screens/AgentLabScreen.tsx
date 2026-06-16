@@ -1,5 +1,5 @@
-import { tk } from "@tokenfence/shared/src/i18n";
-import { useState, useCallback } from "react";
+import { tk, onLangChange } from "@tokenfence/shared/src/i18n";
+import { useState, useEffect, useCallback } from "react";
 import {
   createTask,
   listTasks,
@@ -19,6 +19,10 @@ import type { OutputResult } from "@tokenfence/shared/src/plugins/output-generat
 const plugins = getBuiltinPlugins();
 
 export function AgentLabScreen() {
+  const [, forceRender] = useState(0);
+  useEffect(() => { return onLangChange(() => forceRender((n) => n + 1)); }, []);
+
+
   const [tasks, setTasks] = useState<AgentTask[]>(listTasks());
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [logs, setLogs] = useState<ExecutionLogEntry[]>([]);

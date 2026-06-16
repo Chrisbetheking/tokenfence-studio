@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 
-import { tk } from "@tokenfence/shared/src/i18n";
+import { tk, onLangChange } from "@tokenfence/shared/src/i18n";
 
 import {
 
@@ -206,6 +206,10 @@ async function callProviderAPI(
 
 
 export function ChatWorkspace() {
+  const [, forceRender] = useState(0);
+  useEffect(() => { return onLangChange(() => forceRender((n) => n + 1)); }, []);
+
+
 
   const [conversations, setConversations] = useState<Conversation[]>(() => loadConversations());
 
@@ -265,6 +269,7 @@ export function ChatWorkspace() {
   const [manualCalcText, setManualCalcText] = useState("");
 
   const [showModelPanel, setShowModelPanel] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
 
 
 
@@ -727,6 +732,35 @@ export function ChatWorkspace() {
 
 
 
+
+  /* ---- Drag & Drop upload ---- */
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    if (e.dataTransfer.types.includes("Files")) setDragOver(true);
+  }, []);
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false);
+  }, []);
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation(); setDragOver(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+    const readers: Promise<{ id: string; name: string; size: number; type: string; content: string }>[] = [];
+    files.forEach((file) => {
+      readers.push(new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve({ id: uid(), name: file.name, size: file.size, type: file.type, content: reader.result as string });
+        reader.onerror = () => resolve({ id: uid(), name: file.name, size: file.size, type: file.type, content: "" });
+        reader.readAsText(file);
+      }));
+    });
+    Promise.all(readers).then((results) => {
+      setAttachedFiles((prev) => [...prev, ...results]);
+    });
+  }, []);
+
+
   /* ---- misc ---- */
 
 
@@ -775,7 +809,19 @@ export function ChatWorkspace() {
 
   return (
 
-    <div style={{ display: "flex", height: "100%", overflow: "hidden", background: "var(--bg)" }}>
+    <div style={{ display: "flex", height: "100%", overflow: "hidden", background: "var(--bg)", position: "relative" }} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+
+        {/* Drag & Drop overlay */}
+        {dragOver && (
+          <div style={{ position: "absolute", inset: 0, background: "rgba(79,140,255,0.15)", backdropFilter: "blur(4px)", border: "3px dashed var(--primary)", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 500, pointerEvents: "none" }}>
+            <div style={{ background: "var(--surface)", borderRadius: 16, padding: "32px 48px", textAlign: "center", boxShadow: "0 8px 40px rgba(0,0,0,0.2)" }}>
+              <div style={{ fontSize: "2rem", marginBottom: 8 }}>{String.fromCodePoint(0x1F4C2)}</div>
+              <div style={{ fontSize: "1rem", fontWeight: 600, color: "var(--text)" }}>{tk("chat.dropFilesHere") || "Drop files here"}</div>
+              <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: 4 }}>{tk("chat.addToContextPack") || "Add to Context Pack"}</div>
+            </div>
+          </div>
+        )}
+
 
       {/* Left: Conversations sidebar */}
 

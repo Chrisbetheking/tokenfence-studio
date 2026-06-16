@@ -15,7 +15,7 @@ export function LanguageSwitcher() {
     setLang(next);
   };
 
-  const label = lang === "en" ? "\u4E2D\u6587" : "English";
+  const label = lang === "en" ? "\u4E2D\u6587" : "English"; // always show opposite language
 
   return (
     <button

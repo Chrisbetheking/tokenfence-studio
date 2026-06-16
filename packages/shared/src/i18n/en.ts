@@ -287,6 +287,8 @@ const en = {
     guardNoSensitive: "No sensitive data detected",
     guardNoIssues: "No issues",
 
+    dropFilesHere: 'Drop files here',
+    addToContextPack: 'Add to Context Pack',
     tokenBudget: 'Token Budget',
     inputTokens: 'Input',
     fileTokens: 'Files',
@@ -354,6 +356,8 @@ const en = {
     planned: 'Planned',
     preview: 'Preview',
     comingSoon: 'Coming soon',
+    hideMascot: 'Hide mascot',
+    showMascot: 'Show mascot',
     needsLocalRuntime: 'Needs local runtime',
     projects: 'Projects',
     activeProject: 'Active Project',

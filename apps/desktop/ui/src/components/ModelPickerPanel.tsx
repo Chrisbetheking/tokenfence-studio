@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { tk } from "@tokenfence/shared/src/i18n";
+import { useState, useEffect, useMemo } from "react";
+import { tk, onLangChange } from "@tokenfence/shared/src/i18n";
 import {
   MODEL_REGISTRY, getModelsForProvider, getModelById,
   getDefaultModelForProvider, searchModels,
@@ -17,7 +17,11 @@ interface ModelPickerPanelProps {
   providerConfigs: ProviderConfig[];
 }
 
-export function ModelPickerPanel({ onClose, onSelect, selectedProvider, selectedModel, providerConfigs }: ModelPickerPanelProps) {
+export function ModelPickerPanel({
+ onClose, onSelect, selectedProvider, selectedModel, providerConfigs }: ModelPickerPanelProps) {
+  const [, forceRender] = useState(0);
+  useEffect(() => { return onLangChange(() => forceRender((n) => n + 1)); }, []);
+
   const [searchText, setSearchText] = useState("");
   const [activeProvider, setActiveProvider] = useState(selectedProvider);
 

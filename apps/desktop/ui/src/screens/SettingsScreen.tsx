@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { tk } from "@tokenfence/shared/src/i18n";
+import { tk, onLangChange } from "@tokenfence/shared/src/i18n";
 import { useTheme } from "../components/ThemeProvider";
 import { PROVIDERS, PROVIDER_ENDPOINTS, type ProviderConfig,
   loadProviderConfigs, saveProviderConfigs, healthCheckProvider,
@@ -29,6 +29,10 @@ function defaultSettings(): AppSettings {
 function saveSettings(s: AppSettings) { storeSet(SETTINGS_KEY, JSON.stringify(s)); }
 
 export function SettingsScreen() {
+  const [, forceRender] = useState(0);
+  useEffect(() => { return onLangChange(() => forceRender((n) => n + 1)); }, []);
+
+
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
   const [activeSection, setActiveSection] = useState("general");
   const [providerConfigs, setProviderConfigs] = useState<ProviderConfig[]>(() => loadProviderConfigs());

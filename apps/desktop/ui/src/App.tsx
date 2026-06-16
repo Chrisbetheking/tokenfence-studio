@@ -26,7 +26,7 @@ type Screen = "chat" | "projects" | "models" | "toolbox" | "settings" | "about"
 
 type FeatureStatus = "working" | "preview" | "coming_soon" | "needs_runtime";
 
-const VERSION = "v1.0.18";
+const VERSION = "v1.0.19";
 
 const primaryNav: { id: Screen; icon: string }[] = [
   { id: "chat", icon: "\u{1F4AC}" },
@@ -262,9 +262,9 @@ function AppInner() {
               fontSize: 11, color: "var(--tf-text-muted)", marginTop: 6,
               padding: "2px 4px"
             }}
-            title={mascotVisible ? "Hide mascot" : "Show mascot"}
+            title={mascotVisible ? tk("common.hideMascot") || "Hide mascot" : tk("common.showMascot") || "Show mascot"}
           >
-            {mascotVisible ? "\u{1F441}\uFE0F} Hide mascot" : "\u{1F441}\uFE0F} Show mascot"}
+            {mascotVisible ? "\u{1F441}\uFE0F " + (tk("common.hideMascot") || "Hide mascot") : "\u{1F441}\uFE0F " + (tk("common.showMascot") || "Show mascot")}
           </button>
         </div>
       </nav>

@@ -1,5 +1,5 @@
-﻿import { useState, useCallback } from "react";
-import { tk } from "@tokenfence/shared/src/i18n";
+﻿import { useState, useEffect, useCallback } from "react";
+import { tk, onLangChange } from "@tokenfence/shared/src/i18n";
 import {
   PROVIDERS,
   PROVIDER_ENDPOINTS,
@@ -27,6 +27,10 @@ async function fetchProviderModels(provider: string, apiKey: string, baseUrl?: s
 }
 
 export function ProvidersScreen() {
+  const [, forceRender] = useState(0);
+  useEffect(() => { return onLangChange(() => forceRender((n) => n + 1)); }, []);
+
+
   const [configs, setConfigs] = useState<ProviderConfig[]>(loadProviderConfigs());
   const [testingId, setTestingId] = useState<string | null>(null);
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);

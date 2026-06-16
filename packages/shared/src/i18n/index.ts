@@ -49,13 +49,19 @@ export function tk(path: string): string {
         if (fallback && typeof fallback === "object" && k in fallback) {
           fallback = (fallback as Record<string, unknown>)[k];
         } else {
-          return path; // Return the key itself as last resort
+              // Humanize the key as last resort instead of showing raw key
+          const last = k || keys[keys.length - 1] || path;
+          return last
+            .replace(/([A-Z])/g, " $1")
+            .replace(/[-_]/g, " ")
+            .trim()
+            .replace(/^./, (s: string) => s.toUpperCase());
         }
       }
       return typeof fallback === "string" ? fallback : path;
     }
   }
-  return typeof value === "string" ? value : path;
+  return typeof value === "string" ? value : (() => { const last = keys[keys.length - 1] || path; return last.replace(/([A-Z])/g, " $1").replace(/[-_]/g, " ").trim().replace(/^./, (s: string) => s.toUpperCase()); })();
 }
 
 /** Get current language */
@@ -89,5 +95,12 @@ export function availableLanguages(): { code: SupportedLanguage; label: string }
 
 // Initialize from storage
 currentLang = loadLang();
+
+/** React hook: returns tk function that triggers re-render on language change */
+export function useTk(): (path: string) => string {
+  // This is a marker - components should use useEffect + onLangChange + forceRender
+  // The actual tk() function reads from the global currentLang
+  return tk;
+}
 
 export { en, zhCN };

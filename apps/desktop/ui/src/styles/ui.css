@@ -211,3 +211,85 @@
   margin: 20px 0 10px;
 }
 .tf-section-title:first-child { margin-top: 0; }
+
+/* ============================================================
+   v1.0.19 Jelly / Glass Polish & Animations
+   ============================================================ */
+
+/* Smooth transitions */
+.card, .btn, .sidebar-item, .badge, button, input, select, textarea {
+  transition: all 0.2s ease;
+}
+
+/* Glass modal backdrop */
+.glass-overlay {
+  animation: fadeIn 0.2s ease;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Card hover lift */
+.card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+
+/* Sidebar item hover */
+.sidebar-item:hover {
+  transform: translateX(2px);
+}
+
+/* Mascot positioning */
+.mascot {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 50;
+  cursor: pointer;
+  font-size: 2rem;
+  opacity: 0.85;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.mascot:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+.mascot.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.5);
+}
+
+/* Modal animation */
+.modal-enter {
+  animation: modalIn 0.25s ease;
+}
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.95) translateY(-10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Page transition */
+.main-content > * {
+  animation: pageIn 0.2s ease;
+}
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Button hover lift */
+.btn:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.btn:not(:disabled):active {
+  transform: translateY(0);
+}
+
+/* Input focus glow */
+input:focus, textarea:focus, select:focus {
+  box-shadow: 0 0 0 2px rgba(79,140,255,0.2);
+}

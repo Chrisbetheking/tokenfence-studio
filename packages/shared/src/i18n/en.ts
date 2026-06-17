@@ -342,7 +342,6 @@ const en = {
     manualPath: 'Manual Path',
     loadProject: 'Load Project',
     recentProjects: 'Recent Projects',
-    searchFiles: 'Search files...',
     addToContext: 'Add to Context',
     clearProjectContext: 'Clear Project Context',
     projectFiles: 'Project Files',

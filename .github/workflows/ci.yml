@@ -30,12 +30,14 @@ jobs:
 
   rust-tauri-check:
     needs: source-guard
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
         with:
-          toolchain: stable
+          node-version: "20"
+      - run: npm install --legacy-peer-deps
       - run: cargo check
         working-directory: apps/desktop/src-tauri
 

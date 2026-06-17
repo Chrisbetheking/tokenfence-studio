@@ -3,7 +3,7 @@ const path = require("path");
 const { execSync } = require("child_process");
 
 const ROOT = path.resolve(__dirname, "..");
-let errors = [];
+var errors = [];
 
 function fail(msg) {
   errors.push(msg);
@@ -16,68 +16,67 @@ function ok(msg) {
 
 // ===== 1. Core file line counts =====
 console.log("\n--- Core file line counts ---");
-const coreFiles = [
+var coreFiles = [
   { file: "apps/desktop/ui/src/components/AgentPatchPanel.tsx", min: 180 },
   { file: "apps/desktop/ui/src/screens/ToolboxScreen.tsx", min: 180 },
   { file: "apps/desktop/ui/src/desktop-bridge.ts", min: 100 },
   { file: "apps/desktop/src-tauri/src/main.rs", min: 100 },
   { file: "packages/shared/src/installed-models.ts", min: 50 },
+  { file: "scripts/source_guard.js", min: 120 },
+  { file: "scripts/release_sanity.js", min: 80 },
+  { file: ".github/workflows/ci.yml", min: 40 },
+  { file: "docs/RELEASE_CHECKLIST.md", min: 60 },
 ];
 
-for (const { file, min } of coreFiles) {
-  const fp = path.join(ROOT, file);
+for (var i = 0; i < coreFiles.length; i++) {
+  var item = coreFiles[i];
+  var fp = path.join(ROOT, item.file);
   if (!fs.existsSync(fp)) {
-    fail(file + ": FILE NOT FOUND");
+    fail(item.file + ": FILE NOT FOUND");
     continue;
   }
-  const content = fs.readFileSync(fp, "utf-8");
-  const lines = content.split("\n").length;
-  if (lines < min) {
-    fail(file + ": " + lines + " lines (min " + min + ") - TOO SHORT");
+  var content = fs.readFileSync(fp, "utf-8");
+  var lines = content.split("\n").length;
+  if (lines < item.min) {
+    fail(item.file + ": " + lines + " lines (min " + item.min + ") - TOO SHORT");
   } else {
-    ok(file + ": " + lines + " lines");
+    ok(item.file + ": " + lines + " lines");
   }
 }
 
 // ===== 2. Bad pattern check =====
 console.log("\n--- Bad pattern check ---");
-// Bad i18n key leaks (these should never appear as bare strings in TSX)
-const badKeys = [
+var badKeys = [
   "providersPage.title",
   "computerUse.enabledLabel",
   "chat.agentStep",
 ];
 
-const checkFiles = coreFiles.map(function(c) { return c.file; });
-checkFiles.push("apps/desktop/ui/src/App.tsx");
-
-// Mojibake check: these are GBK-misinterpreted UTF-8 sequences
-// 0xE5 0xA6 0x82 = 濡 (GBK misinterpretation)
-// We check raw bytes for common mojibake patterns
-const mojibakeBytes = [
-  { name: "mojibake-濡", bytes: [0xE6, 0xBF, 0x91] },  // 濡 in UTF-8 is actually E6 B9 A6
+var checkFiles = [
+  "apps/desktop/ui/src/components/AgentPatchPanel.tsx",
+  "apps/desktop/ui/src/screens/ToolboxScreen.tsx",
+  "apps/desktop/ui/src/desktop-bridge.ts",
+  "apps/desktop/src-tauri/src/main.rs",
+  "apps/desktop/ui/src/App.tsx",
 ];
 
-for (const f of checkFiles) {
-  const fp = path.join(ROOT, f);
+for (var j = 0; j < checkFiles.length; j++) {
+  var cf = checkFiles[j];
+  var fp = path.join(ROOT, cf);
   if (!fs.existsSync(fp)) continue;
-  const buf = fs.readFileSync(fp);
-  
-  // Check for bad i18n keys in content
-  const content = buf.toString("utf-8");
-  for (const key of badKeys) {
-    if (content.includes(key)) {
-      fail(f + ': leaked i18n key "' + key + '"');
+  var buf = fs.readFileSync(fp);
+  var content = buf.toString("utf-8");
+
+  for (var k = 0; k < badKeys.length; k++) {
+    if (content.includes(badKeys[k])) {
+      fail(cf + ': leaked i18n key "' + badKeys[k] + '"');
     }
   }
-  
-  // Check for mojibake byte sequences
-  // Common mojibake patterns from GBK<->UTF-8 corruption
-  // æ (0xC3A6) appears in mojibake
-  // å (0xC3A5) appears in mojibake  
-  for (let i = 0; i < buf.length - 1; i++) {
-    if (buf[i] === 0xC3 && (buf[i+1] === 0xA6 || buf[i+1] === 0xA5 || buf[i+1] === 0xA9)) {
-      fail(f + ": possible mojibake at byte " + i);
+
+  // Mojibake check: 0xC3 byte followed by common corrupt chars
+  for (var bi = 0; bi < buf.length - 1; bi++) {
+    if (buf[bi] === 0xC3 && (buf[bi+1] === 0xA6 || buf[bi+1] === 0xA5 || buf[bi+1] === 0xA9)) {
+      fail(cf + ": possible mojibake at byte " + bi);
       break;
     }
   }
@@ -86,35 +85,32 @@ ok("bad patterns checked");
 
 // ===== 3. Bare ### in TSX =====
 console.log("\n--- Bare ### in TSX ---");
-const tsxFiles = [
+var tsxFiles = [
   "apps/desktop/ui/src/components/AgentPatchPanel.tsx",
   "apps/desktop/ui/src/screens/ToolboxScreen.tsx",
 ];
 
-for (const f of tsxFiles) {
-  const fp = path.join(ROOT, f);
+for (var t = 0; t < tsxFiles.length; t++) {
+  var tf = tsxFiles[t];
+  var fp = path.join(ROOT, tf);
   if (!fs.existsSync(fp)) continue;
-  const lines = fs.readFileSync(fp, "utf-8").split("\n");
-  let found = false;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    // Bare ### at start of line (not inside string or regex context)
-    if (/^\s*###/.test(line)) {
-      // Allow if it looks like it's inside a template literal or regex
-      var trimmed = line.trimStart();
-      if (trimmed.startsWith("###")) {
-        fail(f + ":" + (i+1) + ': bare ### heading: "' + line.trim() + '"');
-        found = true;
-      }
+  var lines = fs.readFileSync(fp, "utf-8").split("\n");
+  var found = false;
+  for (var li = 0; li < lines.length; li++) {
+    var line = lines[li];
+    var trimmed = line.trimStart();
+    if (trimmed.startsWith("###")) {
+      fail(tf + ":" + (li+1) + ': bare ### heading: "' + line.trim() + '"');
+      found = true;
     }
   }
-  if (!found) ok(f + ": no bare ###");
+  if (!found) ok(tf + ": no bare ###");
 }
 
 // ===== 4. Tracked ZIPs =====
 console.log("\n--- Tracked ZIP check ---");
 try {
-  const tracked = execSync("git ls-files *.zip", { cwd: ROOT, encoding: "utf-8" }).trim();
+  var tracked = execSync("git ls-files *.zip", { cwd: ROOT, encoding: "utf-8" }).trim();
   if (tracked) {
     fail("ZIP files tracked in git: " + tracked);
   } else {
@@ -126,41 +122,39 @@ try {
 
 // ===== 5. README encoding check =====
 console.log("\n--- README check ---");
-const readmes = ["README.md", "README.zh-CN.md"];
+var readmes = ["README.md", "README.zh-CN.md"];
 
-for (const f of readmes) {
-  const fp = path.join(ROOT, f);
+for (var r = 0; r < readmes.length; r++) {
+  var rf = readmes[r];
+  var fp = path.join(ROOT, rf);
   if (!fs.existsSync(fp)) {
-    fail(f + ": FILE NOT FOUND");
+    fail(rf + ": FILE NOT FOUND");
     continue;
   }
-  const buf = fs.readFileSync(fp);
-  
-  // Check BOM
+  var buf = fs.readFileSync(fp);
+
   if (buf[0] === 0xEF && buf[1] === 0xBB && buf[2] === 0xBF) {
-    fail(f + ": has UTF-8 BOM");
+    fail(rf + ": has UTF-8 BOM");
   }
-  
-  // Check for CR
+
   var crCount = 0;
   for (var bi = 0; bi < buf.length; bi++) {
     if (buf[bi] === 0x0D) crCount++;
   }
   if (crCount > 0) {
-    fail(f + ": " + crCount + " CR bytes, should be LF-only");
+    fail(rf + ": " + crCount + " CR bytes, should be LF-only");
   }
-  
-  // Validate UTF-8 and line count
+
   try {
-    const text = buf.toString("utf-8");
-    const lines = text.split("\n").length;
+    var text = buf.toString("utf-8");
+    var lines = text.split("\n").length;
     if (lines < 80) {
-      fail(f + ": " + lines + " lines (min 80)");
+      fail(rf + ": " + lines + " lines (min 80)");
     } else {
-      ok(f + ": UTF-8, LF-only, " + lines + " lines");
+      ok(rf + ": UTF-8, LF-only, " + lines + " lines");
     }
   } catch (e) {
-    fail(f + ": invalid UTF-8");
+    fail(rf + ": invalid UTF-8");
   }
 }
 

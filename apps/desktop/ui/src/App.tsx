@@ -25,11 +25,11 @@ import { LanguageSwitcher } from "./components/LanguageSwitcher";
 
 type Screen = "chat" | "projects" | "models" | "toolbox" | "settings" | "about"
   | "guard" | "documents" | "matrix" | "providers" | "archive" | "storage"
-  | "agent-lab" | "plugins" | "output" | "mindmap" | "computer" | "routing" | "dashboard";
+  | "agent-lab" | "plugins" | "output" | "mindmap" | "computer" | "routing" | "dashboard" | "agent-edit";
 
 type FeatureStatus = "working" | "preview" | "coming_soon" | "needs_runtime";
 
-const VERSION = "v1.1.9";
+const VERSION = "v1.2.0";
 
 const primaryNav: { id: Screen; icon: string }[] = [
   { id: "chat", icon: "\u{1F4AC}" },
@@ -102,6 +102,7 @@ const screenLabels: Record<Screen, string> = {
   "agent-lab": "nav.agentLab", plugins: "nav.plugins", output: "nav.outputs",
   mindmap: "nav.mindMap", computer: "nav.computerUse", routing: "nav.routing",
   dashboard: "nav.dashboard",
+  "agent-edit": "nav.agentEdit",
 };
 
 const screens: Record<string, React.ReactNode> = {
@@ -123,6 +124,7 @@ const screens: Record<string, React.ReactNode> = {
   computer: <ComputerControlScreen />,
   routing: <RoutingScreen />,
   dashboard: <Dashboard />,
+  "agent-edit": <AgentPatchPanel selectedFiles={[]} onClose={() => {}} />,
   toolbox: <ToolboxScreen />,
 };
 
@@ -214,6 +216,9 @@ function ThemeToggle() {
 function AppInner() {
   const [screen, setScreen] = useState<Screen>("chat");
   const [, forceRender] = useState(0);
+  const [showAgentPatch, setShowAgentPatch] = useState(false);
+  const [agentFiles, setAgentFiles] = useState<{ name: string; path: string }[]>([]);
+  const [activeProject, setActiveProject] = useState<{ folderPath?: string } | null>(null);
   const [mascotVisible, setMascotVisible] = useState(() => {
     try { const v = localStorage.getItem("tokenfence-mascot"); return v !== "hidden"; } catch { return true; }
   });
@@ -228,7 +233,7 @@ function AppInner() {
     try { localStorage.setItem("tokenfence-mascot", next ? "visible" : "hidden"); } catch {}
   }, [mascotVisible]);
 
-  const currentContent = screen === "toolbox" ? <ToolboxScreen /> : screens[screen] ?? <ChatWorkspace />;
+  const currentContent = screen === "toolbox" ? <ToolboxScreen /> : screen === "agent-edit" ? <div style={{padding:16}}><AgentPatchPanel projectPath={activeProject?.folderPath} selectedFiles={agentFiles} onClose={() => setScreen("chat")} /></div> : screens[screen] ?? <ChatWorkspace />;
 
   return (
     <div className="app-layout">

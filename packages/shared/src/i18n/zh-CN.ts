@@ -15,6 +15,7 @@ const zhCN: Translations = {
     projects: "\u9879\u76EE",
     project: "\u9879\u76EE",
     dashboard: "\u4EEA\u8868\u76D8",
+    agentEdit: "Agent ??",
     agentLab: "Agent \u5B9E\u9A8C\u5BA4",
     plugins: "\u63D2\u4EF6",
     outputs: "\u8F93\u51FA",
@@ -175,7 +176,8 @@ const zhCN: Translations = {
     invokeError: "\u684C\u9762\u547D\u4EE4\u6865\u63A5\u5931\u8D25",
   },
 
-  agentLab: {
+  agentEdit: "Agent ??",
+    agentLab: {
     title: "Agent \u5B9E\u9A8C\u5BA4",
     subtitle: "\u672C\u5730 Agent \u4EFB\u52A1\u5DE5\u4F5C\u533A",
     quickActions: "\u5FEB\u901F\u64CD\u4F5C",
@@ -222,6 +224,7 @@ const zhCN: Translations = {
     archive: "\u5F52\u6863",
     settings: "\u8BBE\u7F6E",
     more: "\u66F4\u591A",
+    agentEdit: "Agent ??",
     agentLab: "Agent \u5B9E\u9A8C\u5BA4",
     plugins: "\u63D2\u4EF6",
     output: "\u8F93\u51FA",
@@ -382,6 +385,3 @@ const zhCN: Translations = {
 };
 
 export default zhCN;
-
-
-

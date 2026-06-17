@@ -10,6 +10,7 @@ const en = {
   nav: {
     chat: "Chat",
     dashboard: "Dashboard",
+    agentEdit: "Agent Edit",
     agentLab: "Agent Lab",
     plugins: "Plugins",
     outputs: "Output",
@@ -184,7 +185,8 @@ const en = {
     invokeError: "Desktop command bridge failed",
   },
 
-  agentLab: {
+  agentEdit: "Agent Edit",
+    agentLab: {
     title: "Agent Lab",
     subtitle: "Local agent task workspace",
     quickActions: "Quick Actions",
@@ -231,6 +233,7 @@ const en = {
     archive: "Archive",
     settings: "Settings",
     more: "More",
+    agentEdit: "Agent Edit",
     agentLab: "Agent Lab",
     plugins: "Plugins",
     output: "Output",
@@ -487,6 +490,3 @@ settings: {
 
 export type Translations = typeof en;
 export default en;
-
-
-

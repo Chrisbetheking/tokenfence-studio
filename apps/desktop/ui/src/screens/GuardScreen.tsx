@@ -1,4 +1,4 @@
-﻿import { tk, onLangChange } from "@tokenfence/shared/src/i18n";
+import { tk, onLangChange } from "@tokenfence/shared/src/i18n";
 
 export function GuardScreen() {
   const [, forceRender] = useState(0);

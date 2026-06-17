@@ -1,5 +1,5 @@
-﻿/* ============================================================
-   TokenFence Studio — Installed Models v1.0.22
+/* ============================================================
+   TokenFence Studio — Installed Models v1.2.3
    User-managed model library: add/remove/enable/disable
    Storage key: tokenfence.installedModels
    ============================================================ */

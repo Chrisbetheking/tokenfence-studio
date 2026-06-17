@@ -1,4 +1,4 @@
-﻿import { tk, onLangChange } from "@tokenfence/shared/src/i18n";
+import { tk, onLangChange } from "@tokenfence/shared/src/i18n";
 
 export function StorageScreen() {
   const [, forceRender] = useState(0);

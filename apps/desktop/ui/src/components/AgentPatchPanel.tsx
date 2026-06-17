@@ -1,4 +1,4 @@
-﻿import { useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { tk, onLangChange } from "@tokenfence/shared/src/i18n";
 import { applyPatch, undoLastPatch, createBackup, appendOperationLog, readFile, fileExists } from "../desktop-bridge";
 

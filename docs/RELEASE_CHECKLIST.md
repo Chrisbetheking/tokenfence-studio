@@ -1,4 +1,4 @@
-﻿# TokenFence Studio Release Checklist
+# TokenFence Studio Release Checklist
 
 Use this checklist before every release to prevent source/release mismatches.
 

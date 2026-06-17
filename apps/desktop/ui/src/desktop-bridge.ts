@@ -92,3 +92,46 @@ export async function isTauri(): Promise<boolean> {
   const invoke = await getInvoke();
   return invoke !== null;
 }
+export interface PatchResult {
+  file_path: string;
+  success: boolean;
+  error?: string;
+  backup_path?: string;
+}
+
+export interface BackupResult {
+  original_path: string;
+  backup_path: string;
+  timestamp: number;
+}
+
+export async function createBackup(filePath: string): Promise<BackupResult> {
+  const invoke = await getInvoke();
+  if (!invoke) throw new Error("Desktop runtime unavailable");
+  return invoke("create_backup", { filePath }) as Promise<BackupResult>;
+}
+
+export async function applyPatch(filePath: string, newContent: string, createBackupBefore?: boolean): Promise<PatchResult> {
+  const invoke = await getInvoke();
+  if (!invoke) throw new Error("Desktop runtime unavailable");
+  return invoke("apply_patch", { filePath, newContent, createBackupBefore: createBackupBefore ?? true }) as Promise<PatchResult>;
+}
+
+export async function undoLastPatch(filePath: string): Promise<PatchResult> {
+  const invoke = await getInvoke();
+  if (!invoke) throw new Error("Desktop runtime unavailable");
+  return invoke("undo_last_patch", { filePath }) as Promise<PatchResult>;
+}
+
+export async function appendOperationLog(operation: string, files: string[], success: boolean, error?: string): Promise<string> {
+  const invoke = await getInvoke();
+  if (!invoke) return "";
+  return invoke("append_operation_log", { operation, files, success, error }) as Promise<string>;
+}
+
+export async function openLogsFolder(): Promise<void> {
+  const invoke = await getInvoke();
+  if (!invoke) return;
+  const logsDir = "E:\Dev\tokenfence-studio-final\.tokenfence\logs";
+  await invoke("execute_command", { command: "explorer", args: [logsDir], cwd: ".", timeoutMs: 5000 });
+}

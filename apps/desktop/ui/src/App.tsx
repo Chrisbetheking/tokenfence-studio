@@ -19,6 +19,8 @@ import { RoutingScreen } from "./screens/RoutingScreen";
 import { ArchiveScreen } from "./screens/ArchiveScreen";
 import { StorageScreen } from "./screens/StorageScreen";
 import { Dashboard } from "./screens/Dashboard";
+import { ToolboxScreen } from "./screens/ToolboxScreen";
+import { AgentPatchPanel } from "./components/AgentPatchPanel";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
 
 type Screen = "chat" | "projects" | "models" | "toolbox" | "settings" | "about"
@@ -27,7 +29,7 @@ type Screen = "chat" | "projects" | "models" | "toolbox" | "settings" | "about"
 
 type FeatureStatus = "working" | "preview" | "coming_soon" | "needs_runtime";
 
-const VERSION = "v1.0.24";
+const VERSION = "v1.1.0";
 
 const primaryNav: { id: Screen; icon: string }[] = [
   { id: "chat", icon: "\u{1F4AC}" },
@@ -121,6 +123,7 @@ const screens: Record<string, React.ReactNode> = {
   computer: <ComputerControlScreen />,
   routing: <RoutingScreen />,
   dashboard: <Dashboard />,
+  toolbox: <ToolboxScreen />,
 };
 
 /* ---- ToolboxScreen —independent full-page layout ---- */
@@ -292,3 +295,4 @@ export function App() {
     </ThemeProvider>
   );
 }
+

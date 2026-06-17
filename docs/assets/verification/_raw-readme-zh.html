@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Raw</title><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1e1e1e;color:#d4d4d4;font-family:Consolas,monospace;font-size:13px;line-height:1.5}
+.addr-bar{background:#2d2d2d;padding:8px 12px;border-bottom:1px solid #444;display:flex;align-items:center;gap:8px}
+.addr-icon{color:#888;font-size:16px}
+.addr-text{background:#1e1e1e;color:#ccc;padding:4px 10px;border-radius:4px;flex:1;font-family:Consolas,monospace;font-size:13px}
+.content{padding:12px 16px}
+.line{display:flex}
+.line-num{color:#858585;text-align:right;padding-right:12px;min-width:48px;user-select:none;border-right:1px solid #333;margin-right:12px}
+.line-text{white-space:pre}
+</style></head><body>
+<div class="addr-bar"><span class="addr-icon">&#128274;</span><span class="addr-text">https://raw.githubusercontent.com/Chrisbetheking/tokenfence-studio/main/README.zh-CN.md</span></div>
+<div class="content"><div class="line"><span class="line-num">1</span><span class="line-text"># TokenFence Studio</span></div>
+<div class="line"><span class="line-num">2</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">3</span><span class="line-text">**语言：** [English](README.md) | [简体中文](README.zh-CN.md)</span></div>
+<div class="line"><span class="line-num">4</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">5</span><span class="line-text">![TokenFence Studio Banner](docs/images/banner.png)</span></div>
+<div class="line"><span class="line-num">6</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">7</span><span class="line-text">面向大语言模型的本地优先 Prompt 安全、文档智能处理与多模型编排工作台。</span></div>
+<div class="line"><span class="line-num">8</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">9</span><span class="line-text">**Prompt Guard** | **文档处理管线** | **模型矩阵** | **文件级路由** | **面向 Agent 的工作流**</span></div>
+<div class="line"><span class="line-num">10</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">11</span><span class="line-text">## 最新下载</span></div>
+<div class="line"><span class="line-num">12</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">13</span><span class="line-text">- [Android APK（推荐）](https://github.com/Chrisbetheking/tokenfence-studio/releases/download/v0.5.24/TokenFence-Mobile-Lite-Android-v0.5.24-internal-release.apk)</span></div>
+<div class="line"><span class="line-num">14</span><span class="line-text">- [Windows 便携版 EXE（推荐）](https://github.com/Chrisbetheking/tokenfence-studio/releases/download/v0.5.24/tokenfence-studio-windows-v0.5.24-i686-unsigned.exe)</span></div>
+<div class="line"><span class="line-num">15</span><span class="line-text">- [Windows MSI 安装包](https://github.com/Chrisbetheking/tokenfence-studio/releases/download/v0.5.24/TokenFence-Studio-Windows-v0.5.24-i686-unsigned.msi)</span></div>
+<div class="line"><span class="line-num">16</span><span class="line-text">- [Windows Setup EXE 安装包](https://github.com/Chrisbetheking/tokenfence-studio/releases/download/v0.5.24/TokenFence-Studio-Windows-v0.5.24-i686-unsigned-setup.exe)</span></div>
+<div class="line"><span class="line-num">17</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">18</span><span class="line-text">&gt; Android APK 是已在模拟器中验证的 internal release 构建。Windows Desktop 是 unsigned experimental i686 构建。Windows x64 和 macOS artifacts 仍待完成。</span></div>
+<div class="line"><span class="line-num">19</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">20</span><span class="line-text">[更新日志](CHANGELOG.md) | [GitHub](https://github.com/Chrisbetheking/tokenfence-studio) | [English](README.md)</span></div>
+<div class="line"><span class="line-num">21</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">22</span><span class="line-text">---</span></div>
+<div class="line"><span class="line-num">23</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">24</span><span class="line-text">## 项目简介</span></div>
+<div class="line"><span class="line-num">25</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">26</span><span class="line-text">**TokenFence Studio** 是一个面向大语言模型（LLM）的本地优先安全编排工作台，提供 Prompt 安全扫描、文档智能处理、模型矩阵对比和上下文安全路由。</span></div>
+<div class="line"><span class="line-num">27</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">28</span><span class="line-text">不是又一个聊天界面。核心思路是在用户输入到达 LLM 之前，构建一个可检查、可清洗、可保护、可分块、可路由的 Pre-LLM 层。</span></div>
+<div class="line"><span class="line-num">29</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">30</span><span class="line-text">## 功能矩阵</span></div>
+<div class="line"><span class="line-num">31</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">32</span><span class="line-text">| 功能区域 | 能力 | 状态 |</span></div>
+<div class="line"><span class="line-num">33</span><span class="line-text">|---|---|---|</span></div>
+<div class="line"><span class="line-num">34</span><span class="line-text">| Prompt Guard | 检测密钥、凭据、Token、邮箱、手机号、数据库 URL 及危险 Prompt 内容 | 正常 |</span></div>
+<div class="line"><span class="line-num">35</span><span class="line-text">| 脱敏 | 将敏感值替换为安全占位符 | 正常 |</span></div>
+<div class="line"><span class="line-num">36</span><span class="line-text">| 文档智能 | PDF / DOCX / 图片 OCR 解析、清洗和分块 | 正常 / 部分实验 |</span></div>
+<div class="line"><span class="line-num">37</span><span class="line-text">| 输出生成 | Markdown、HTML、JSON、PDF、ZIP-wrapped DOCX | 验收已验证 |</span></div>
+<div class="line"><span class="line-num">38</span><span class="line-text">| 模型矩阵 | 并排对比多个模型响应 | 正常 |</span></div>
+<div class="line"><span class="line-num">39</span><span class="line-text">| 文件级路由 | 按文件类型、风险和任务意图路由 | 正常 |</span></div>
+<div class="line"><span class="line-num">40</span><span class="line-text">| Provider Hub | OpenAI、Claude、Gemini、DeepSeek、通义千问、Kimi、豆包、智谱、Ollama、LM Studio、自定义端点 | 正常；需用户提供密钥 |</span></div>
+<div class="line"><span class="line-num">41</span><span class="line-text">| 本地运行时 | 执行已批准的本地任务并保存日志 | 已验证 |</span></div>
+<div class="line"><span class="line-num">42</span><span class="line-text">| Obsidian 记忆 | 将输出笔记写入 test vault | 已验证 |</span></div>
+<div class="line"><span class="line-num">43</span><span class="line-text">| API 连接器 | 测试真实或模拟 HTTP 连接器 | 已验证 |</span></div>
+<div class="line"><span class="line-num">44</span><span class="line-text">| Computer Use | 权限门控操作流 | 实验功能 |</span></div>
+<div class="line"><span class="line-num">45</span><span class="line-text">| Android Mobile Lite | 移动优先配套应用 | internal APK 已验证 |</span></div>
+<div class="line"><span class="line-num">46</span><span class="line-text">| Windows Desktop | Tauri 桌面应用 | 实验性 i686 构建 |</span></div>
+<div class="line"><span class="line-num">47</span><span class="line-text">| i18n | 英文 / 简体中文 UI 和 README | 正常 |</span></div>
+<div class="line"><span class="line-num">48</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">49</span><span class="line-text">## 已验证工作流</span></div>
+<div class="line"><span class="line-num">50</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">51</span><span class="line-text">当前产品候选验收流程验证了：</span></div>
+<div class="line"><span class="line-num">52</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">53</span><span class="line-text">1. 本地运行时执行</span></div>
+<div class="line"><span class="line-num">54</span><span class="line-text">2. Markdown / HTML / JSON / PDF / DOCX 输出生成</span></div>
+<div class="line"><span class="line-num">55</span><span class="line-text">3. ZIP-wrapped DOCX 包结构</span></div>
+<div class="line"><span class="line-num">56</span><span class="line-text">4. Obsidian test-vault 笔记写入与读回</span></div>
+<div class="line"><span class="line-num">57</span><span class="line-text">5. Provider Hub 预设加载</span></div>
+<div class="line"><span class="line-num">58</span><span class="line-text">6. 路由器主/回退规则加载</span></div>
+<div class="line"><span class="line-num">59</span><span class="line-text">7. API 连接器测试流</span></div>
+<div class="line"><span class="line-num">60</span><span class="line-text">8. Computer Use 已批准操作的权限门控</span></div>
+<div class="line"><span class="line-num">61</span><span class="line-text">9. 危险命令拦截</span></div>
+<div class="line"><span class="line-num">62</span><span class="line-text">10. README UTF-8 和直接下载链接检查</span></div>
+<div class="line"><span class="line-num">63</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">64</span><span class="line-text">## 已知限制</span></div>
+<div class="line"><span class="line-num">65</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">66</span><span class="line-text">- 这是发布候选版，不是 v1.0 最终生产版本。</span></div>
+<div class="line"><span class="line-num">67</span><span class="line-text">- Windows Desktop 是 unsigned i686 实验性构建。</span></div>
+<div class="line"><span class="line-num">68</span><span class="line-text">- Windows x64 因当前构建环境缺少 MSVC linker / 64-bit MinGW-w64 而被阻塞。</span></div>
+<div class="line"><span class="line-num">69</span><span class="line-text">- macOS artifact 的 CI 已配置但尚未验证。</span></div>
+<div class="line"><span class="line-num">70</span><span class="line-text">- Android 为 Mobile Lite，不是完整桌面对等功能。</span></div>
+<div class="line"><span class="line-num">71</span><span class="line-text">- 不提供 Play Store 生产签名。</span></div>
+<div class="line"><span class="line-num">72</span><span class="line-text">- 提供商调用需要用户提供 API 密钥。</span></div>
+<div class="line"><span class="line-num">73</span><span class="line-text">- Computer Use 完整控制仍为实验功能。</span></div>
+<div class="line"><span class="line-num">74</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">75</span><span class="line-text">## 平台支持</span></div>
+<div class="line"><span class="line-num">76</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">77</span><span class="line-text">| 平台 | 状态 | 说明 |</span></div>
+<div class="line"><span class="line-num">78</span><span class="line-text">|---|---|---|</span></div>
+<div class="line"><span class="line-num">79</span><span class="line-text">| Web | 可用 | 完整 Next.js 工作台 |</span></div>
+<div class="line"><span class="line-num">80</span><span class="line-text">| Android | 可用 | Expo React Native Mobile Lite。APK 可从 GitHub Releases 下载。 |</span></div>
+<div class="line"><span class="line-num">81</span><span class="line-text">| Windows Desktop | 实验性 | Tauri 封装，unsigned experimental i686 |</span></div>
+<div class="line"><span class="line-num">82</span><span class="line-text">| macOS Desktop | 实验性 | Tauri 封装，CI 已配置但 artifact 未验证 |</span></div>
+<div class="line"><span class="line-num">83</span><span class="line-text">| iOS | 仅源码 | 用户需自行签名 |</span></div>
+<div class="line"><span class="line-num">84</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">85</span><span class="line-text">## 快速开始</span></div>
+<div class="line"><span class="line-num">86</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">87</span><span class="line-text">```bash</span></div>
+<div class="line"><span class="line-num">88</span><span class="line-text">git clone https://github.com/Chrisbetheking/tokenfence-studio.git</span></div>
+<div class="line"><span class="line-num">89</span><span class="line-text">cd tokenfence-studio</span></div>
+<div class="line"><span class="line-num">90</span><span class="line-text">npm install --legacy-peer-deps</span></div>
+<div class="line"><span class="line-num">91</span><span class="line-text">npm run dev</span></div>
+<div class="line"><span class="line-num">92</span><span class="line-text">```</span></div>
+<div class="line"><span class="line-num">93</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">94</span><span class="line-text">### API 密钥</span></div>
+<div class="line"><span class="line-num">95</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">96</span><span class="line-text">本项目需要用户自行提供 API 密钥。支持的提供商包括 OpenAI、Anthropic Claude、Google Gemini、DeepSeek、火山引擎/豆包、阿里云/通义千问、Kimi/Moonshot、智谱 GLM、Ollama、LM Studio 以及自定义 OpenAI 兼容端点。</span></div>
+<div class="line"><span class="line-num">97</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">98</span><span class="line-text">## 项目结构</span></div>
+<div class="line"><span class="line-num">99</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">100</span><span class="line-text">| 目录 | 说明 |</span></div>
+<div class="line"><span class="line-num">101</span><span class="line-text">|---|---|</span></div>
+<div class="line"><span class="line-num">102</span><span class="line-text">| apps/web | Next.js Web 工作台 |</span></div>
+<div class="line"><span class="line-num">103</span><span class="line-text">| apps/android | Expo React Native Android Mobile Lite |</span></div>
+<div class="line"><span class="line-num">104</span><span class="line-text">| apps/desktop | Tauri 桌面封装 (Windows + macOS) |</span></div>
+<div class="line"><span class="line-num">105</span><span class="line-text">| packages/shared | 跨平台共享逻辑 |</span></div>
+<div class="line"><span class="line-num">106</span><span class="line-text">| docs | 产品文档 |</span></div>
+<div class="line"><span class="line-num">107</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">108</span><span class="line-text">## 许可证</span></div>
+<div class="line"><span class="line-num">109</span><span class="line-text"></span></div>
+<div class="line"><span class="line-num">110</span><span class="line-text">MIT License</span></div>
+<div class="line"><span class="line-num">111</span><span class="line-text"></span></div>
+</div></body></html>

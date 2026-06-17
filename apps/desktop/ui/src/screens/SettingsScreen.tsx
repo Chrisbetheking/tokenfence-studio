@@ -43,11 +43,78 @@ export function SettingsScreen() {
   const [editModel, setEditModel] = useState("");
   const { theme, setTheme } = useTheme();
 
+  const [updateStatus, setUpdateStatus] = useState("");
+  const isZh = tk("common.yes") !== "Yes";
+
+  const handleExportSettings = () => {
+    try {
+      const data: Record<string, string> = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("tokenfence")) {
+          data[key] = localStorage.getItem(key) || "";
+        }
+      }
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "tokenfence-settings-backup.json"; a.click();
+      URL.revokeObjectURL(url);
+      setUpdateStatus(isZh ? "导出成功" : "Exported successfully");
+    } catch (e: any) {
+      setUpdateStatus(`${isZh ? "导出失败" : "Export failed"}: ${e.message}`);
+    }
+  };
+
+  const handleImportSettings = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result as string);
+        for (const [key, value] of Object.entries(data)) {
+          if (key.startsWith("tokenfence")) {
+            localStorage.setItem(key, value as string);
+          }
+        }
+        setUpdateStatus(isZh ? "导入成功，请刷新页面" : "Imported successfully. Please refresh.");
+      } catch (ex: any) {
+        setUpdateStatus(`${isZh ? "导入失败" : "Import failed"}: ${ex.message}`);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleCheckUpdates = async () => {
+    setUpdateStatus(isZh ? "正在检查..." : "Checking...");
+    try {
+      const resp = await fetch("https://api.github.com/repos/Chrisbetheking/tokenfence-studio/releases/latest");
+      const data = await resp.json();
+      const latest = data.tag_name || "";
+      setUpdateStatus(`${isZh ? "最新版本" : "Latest"}: ${latest} ${latest === "v1.1.0" ? "✅" : ""}`);
+    } catch {
+      setUpdateStatus(isZh ? "无法检查更新" : "Unable to check for updates");
+    }
+  };
+
+  const handleOpenLogs = async () => {
+    try {
+      const { openLogsFolder } = await import("../desktop-bridge");
+      await openLogsFolder();
+      setUpdateStatus(isZh ? "已打开日志文件夹" : "Logs folder opened");
+    } catch {
+      setUpdateStatus(isZh ? "无法打开日志文件夹" : "Cannot open logs folder");
+    }
+  };
+
+
   const sections = [
     { id: "general", label: tk("settings.general") },
     { id: "providers", label: tk("settings.providers") },
     { id: "routing", label: tk("settings.modelRouting") },
     { id: "privacy", label: tk("settings.privacy") },
+    { id: "maintenance", label: tk("settings.maintenance") || "Maintenance" },
   ];
 
   const saveSetting = useCallback((key: keyof AppSettings, value: any) => {
@@ -235,6 +302,68 @@ export function SettingsScreen() {
               </label>
               <div style={{ fontSize: "0.75rem", color: "var(--tf-text-muted)", marginTop: 16, borderTop: "1px solid var(--tf-border)", paddingTop: 12 }}>
                 {tk("settings.routingRulesDesc")}
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeSection === "maintenance" && (
+          <>
+            <h1 className="page-title">{tk("settings.maintenance") || "Maintenance"}</h1>
+            <div className="tf-card">
+              {/* Export Settings */}
+              <div style={{ padding: "12px 0", borderBottom: "1px solid var(--tf-border)" }}>
+                <div style={{ fontWeight: 600, fontSize: "0.85rem", color: "var(--tf-text)", marginBottom: 4 }}>
+                  {isZh ? "导出设置" : "Export Settings"}
+                </div>
+                <p style={{ fontSize: "0.75rem", color: "var(--tf-text-muted)", marginBottom: 8 }}>
+                  {isZh ? "将所有设置导出为 JSON 文件" : "Export all settings as a JSON file"}
+                </p>
+                <button className="btn btn-secondary" style={{ fontSize: "0.78rem" }} onClick={handleExportSettings}>
+                  {isZh ? "导出" : "Export"}
+                </button>
+              </div>
+
+              {/* Import Settings */}
+              <div style={{ padding: "12px 0", borderBottom: "1px solid var(--tf-border)" }}>
+                <div style={{ fontWeight: 600, fontSize: "0.85rem", color: "var(--tf-text)", marginBottom: 4 }}>
+                  {isZh ? "导入设置" : "Import Settings"}
+                </div>
+                <p style={{ fontSize: "0.75rem", color: "var(--tf-text-muted)", marginBottom: 8 }}>
+                  {isZh ? "从 JSON 文件导入设置" : "Import settings from a JSON file"}
+                </p>
+                <input type="file" accept=".json" onChange={handleImportSettings} style={{ fontSize: "0.78rem" }} />
+              </div>
+
+              {/* Check for Updates */}
+              <div style={{ padding: "12px 0", borderBottom: "1px solid var(--tf-border)" }}>
+                <div style={{ fontWeight: 600, fontSize: "0.85rem", color: "var(--tf-text)", marginBottom: 4 }}>
+                  {isZh ? "检查更新" : "Check for Updates"}
+                </div>
+                <p style={{ fontSize: "0.75rem", color: "var(--tf-text-muted)", marginBottom: 8 }}>
+                  {isZh ? "查看最新版本" : "Check for the latest release"}
+                </p>
+                <button className="btn btn-secondary" style={{ fontSize: "0.78rem" }} onClick={handleCheckUpdates}>
+                  {isZh ? "检查" : "Check"}
+                </button>
+                {updateStatus && (
+                  <div style={{ marginTop: 8, fontSize: "0.75rem", color: updateStatus.includes("v1.1.0") ? "var(--tf-success)" : "var(--tf-warning)" }}>
+                    {updateStatus}
+                  </div>
+                )}
+              </div>
+
+              {/* Open Logs */}
+              <div style={{ padding: "12px 0" }}>
+                <div style={{ fontWeight: 600, fontSize: "0.85rem", color: "var(--tf-text)", marginBottom: 4 }}>
+                  {isZh ? "操作日志" : "Operation Logs"}
+                </div>
+                <p style={{ fontSize: "0.75rem", color: "var(--tf-text-muted)", marginBottom: 8 }}>
+                  {isZh ? "打开本地日志文件夹" : "Open local logs folder"}
+                </p>
+                <button className="btn btn-secondary" style={{ fontSize: "0.78rem" }} onClick={handleOpenLogs}>
+                  {isZh ? "打开日志文件夹" : "Open Logs Folder"}
+                </button>
               </div>
             </div>
           </>

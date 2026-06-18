@@ -18,7 +18,7 @@ var coreFiles = [
   { file: "apps/desktop/ui/src/screens/ToolboxScreen.tsx", min: 180 },
   { file: "apps/desktop/ui/src/desktop-bridge.ts", min: 100 },
   { file: "apps/desktop/src-tauri/src/main.rs", min: 100 },
-  { file: "apps/desktop/ui/src/data/active-model.ts", min: 300 },
+  { file: "apps/desktop/ui/src/data/active-model.ts", min: 400 },
   { file: "apps/desktop/ui/src/components/CustomModelModal.tsx", min: 100 },
   { file: "apps/desktop/ui/src/components/ProviderConfigModal.tsx", min: 200 },
   { file: "apps/desktop/ui/src/components/ProviderSetupWizard.tsx", min: 180 },
@@ -96,6 +96,14 @@ if (fs.existsSync(atbPath)) {
     }
   }
 }
+
+
+// Check active-model has normalizeDisplayText and migrateActiveModelStorage
+var amCheck = fs.readFileSync(path.join(ROOT, "apps/desktop/ui/src/data/active-model.ts"), "utf-8");
+if (amCheck.indexOf("normalizeDisplayText") < 0) fail("active-model.ts MISSING normalizeDisplayText");
+else ok("active-model contains normalizeDisplayText");
+if (amCheck.indexOf("migrateActiveModelStorage") < 0) fail("active-model.ts MISSING migrateActiveModelStorage");
+else ok("active-model contains migrateActiveModelStorage");
 
 // ===== 3. Bad pattern check (mojibake, leaked i18n keys) =====
 console.log("\n--- Bad pattern check ---");
@@ -183,4 +191,4 @@ console.log("\n=== RESULT: " + errors.length + " error(s) ===");
 if (errors.length > 0) { console.log("Failures:"); errors.forEach(function(e) { console.log("  - " + e); }); process.exit(1); }
 else { console.log("All checks passed."); process.exit(0);
 }
-// source_guard.js v1.3.4 - protects against flattened/minified source files
+// source_guard.js v1.3.5 - protects against flattened/minified source files

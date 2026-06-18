@@ -227,8 +227,8 @@ export function validateModelForSend(): ModelValidationResult {
     return {
       valid: false,
       errorKey: "model.notConfigured",
-      errorEn: "Provider "" + resolved.providerId + "" is not configured. Please configure the API key first.",
-      errorZh: "提供商 "" + resolved.providerId + "" 未配置，请先配置 API Key。",
+      errorEn: `Provider "${resolved.providerId}" is not configured. Please configure the API key first.`,
+      errorZh: `提供商 "${resolved.providerId}" 未配置，请先配置 API Key。`,
     };
   }
 
@@ -236,8 +236,8 @@ export function validateModelForSend(): ModelValidationResult {
     return {
       valid: false,
       errorKey: "model.noApiKey",
-      errorEn: "No API key configured for " + resolved.providerId + ". Please add your API key in Models > Providers.",
-      errorZh: resolved.providerId + " 未配置 API Key，请在模型 > 提供商中添加。",
+      errorEn: `No API key configured for ${resolved.providerId}. Please add your API key in Models > Providers.`,
+      errorZh: `${resolved.providerId} 未配置 API Key，请在模型 > 提供商中添加。`,
     };
   }
 
@@ -245,8 +245,8 @@ export function validateModelForSend(): ModelValidationResult {
     return {
       valid: false,
       errorKey: "model.noBaseUrl",
-      errorEn: "No base URL configured for " + resolved.providerId + ".",
-      errorZh: resolved.providerId + " 未配置 Base URL。",
+      errorEn: `No base URL configured for ${resolved.providerId}.`,
+      errorZh: `${resolved.providerId} 未配置 Base URL。`,
     };
   }
 

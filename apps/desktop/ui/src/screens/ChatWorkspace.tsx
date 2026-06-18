@@ -1158,7 +1158,7 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
 
         </div>
 
-        <div style={{ padding: "8px 12px", borderTop: "1px solid var(--border)", fontSize: "0.65rem", color: "var(--text-muted)" }}>{conversations.length} {isZh ? "个会�? : "conversations"}</div>
+        <div style={{ padding: "8px 12px", borderTop: "1px solid var(--border)", fontSize: "0.65rem", color: "var(--text-muted)" }}>{conversations.length} {isZh ? "个会话" : "conversations"}</div>
           </>
         )}
 
@@ -1171,11 +1171,11 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
                 <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginBottom: 4 }}>{isZh ? "当前项目" : "Active Project"}</div>
                 <div style={{ fontWeight: 600, fontSize: "0.8rem", color: "var(--text)" }}>{activeProject.name}</div>
                 <div style={{ fontSize: "0.6rem", color: "var(--text-muted)", marginTop: 2, wordBreak: "break-all" }}>{activeProject.folderPath}</div>
-                <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginTop: 4 }}>{activeProject.files?.length ?? 0} {isZh ? "个文�? : "files"}</div>
+                <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginTop: 4 }}>{activeProject.files?.length ?? 0} {isZh ? "个文件" : "files"}</div>
               </div>
             ) : (
               <div style={{ padding: "8px", color: "var(--text-muted)", fontSize: "0.75rem", textAlign: "center", marginBottom: 10 }}>
-                {isZh ? "未加载项�? : "No project loaded"}
+                {isZh ? "未加载项目" : "No project loaded"}
               </div>
             )}
 
@@ -1199,7 +1199,7 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
             {/* Recent Projects */}
             {savedProjects.length > 0 && (
               <div style={{ marginBottom: 10 }}>
-                <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginBottom: 4 }}>{isZh ? "最近项�? : "Recent Projects"}</div>
+                <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginBottom: 4 }}>{isZh ? "最近项目" : "Recent Projects"}</div>
                 {savedProjects.slice(0, 5).map((p: any) => (
                   <div
                     key={p.id}
@@ -1232,7 +1232,7 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
                 <div style={{ maxHeight: 260, overflowY: "auto", marginBottom: 6 }}>
                   {filteredProjectFiles.length === 0 ? (
                     <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", textAlign: "center", padding: 8 }}>
-                      {projectSearchQ.trim() ? (isZh ? "无匹配文�? : "No matching files") : (isZh ? "无文�? : "No files")}
+                      {projectSearchQ.trim() ? (isZh ? "无匹配文件" : "No matching files") : (isZh ? "无文件" : "No files")}
                     </div>
                   ) : (
                     filteredProjectFiles.map((f: any) => (
@@ -1246,7 +1246,7 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
                           color: f.selected ? "var(--primary)" : "var(--text)",
                         }}
                       >
-                        <span style={{ fontSize: "0.6rem", flexShrink: 0 }}>{f.selected ? "�? : "�?}</span>
+                        <span style={{ fontSize: "0.6rem", flexShrink: 0 }}>{f.selected ? "●" : "○"}</span>
                         <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
                       </div>
                     ))
@@ -1256,14 +1256,14 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
                 {/* Selected count + actions */}
                 <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
                   <span style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>
-                    {selectedFileCount} {isZh ? "已�? : "selected"}
+                    {selectedFileCount} {isZh ? "已选择" : "selected"}
                   </span>
                   <button onClick={handleAddSelectedToContext} className="btn btn-primary" style={{ fontSize: "0.68rem", padding: "4px 10px" }}>
-                    {isZh ? "加入上下�? : "Add to Context"}
+                    {isZh ? "加入上下文" : "Add to Context"}
                   </button>
                   {projectFilesInContext.length > 0 && (
                     <button onClick={handleRemoveAllProjectContext} className="btn btn-ghost" style={{ fontSize: "0.68rem", padding: "4px 10px", color: "var(--red)" }}>
-                      {isZh ? "清除项目上下�? : "Clear Project Context"}
+                      {isZh ? "清除项目上下文" : "Clear Project Context"}
                     </button>
                   )}
                 </div>
@@ -1497,7 +1497,7 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
 
             <h4 style={{ margin: 0, color: "var(--text)", fontSize: "0.8rem", fontWeight: 600 }}>{tk("chat.tokenBudget")}</h4>
 
-            <span style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>{collapsedSections.has("budget") ? "�? : "�?}</span>
+            <span style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>{collapsedSections.has("budget") ? "▶" : "▼"}</span>
 
           </div>
 
@@ -1625,7 +1625,7 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
 
             <h4 style={{ margin: 0, color: "var(--text)", fontSize: "0.8rem", fontWeight: 600 }}>{tk("chat.inspector")}</h4>
 
-            <span style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>{collapsedSections.has("inspector") ? "�? : "�?}</span>
+            <span style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>{collapsedSections.has("inspector") ? "▶" : "▼"}</span>
 
           </div>
 
@@ -1698,7 +1698,7 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
 
                       <div style={{ color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{f.name}</div>
 
-                      <div style={{ color: "var(--text-muted)", fontSize: "0.6rem" }}>{f.type} �?{(f.size / 1024).toFixed(1)} KB</div>
+                      <div style={{ color: "var(--text-muted)", fontSize: "0.6rem" }}>{f.type} · {(f.size / 1024).toFixed(1)} KB</div>
 
                     </div>
 

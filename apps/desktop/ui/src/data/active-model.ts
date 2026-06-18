@@ -6,7 +6,7 @@ import {
 } from "@tokenfence/shared/src/model-registry";
 
 /* ============================================================
-   active-model.ts â€” Unified Active Model State v1.2.8
+   active-model.ts â€?Unified Active Model State v1.2.8
    Storage key: tokenfence.activeModel
    ============================================================ */
 
@@ -365,4 +365,11 @@ export function customModelToProviderConfig(entry: CustomModelEntry): ProviderCo
     model: entry.modelId,
     lastHealthStatus: "unknown" as const,
   };
+}
+
+/* ---------- Has Any Configured Provider ---------- */
+
+export function hasAnyConfiguredProvider(): boolean {
+  const configs = loadProviderConfigs();
+  return configs.some((c) => c.enabled && c.apiKey);
 }

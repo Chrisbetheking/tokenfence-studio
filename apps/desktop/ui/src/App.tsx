@@ -30,7 +30,7 @@ type Screen = "chat" | "projects" | "models" | "toolbox" | "settings" | "about"
 
 type FeatureStatus = "working" | "preview" | "coming_soon" | "needs_runtime";
 
-const VERSION = "v1.3.0";
+const VERSION = "v1.3.1";
 
 const primaryNav: { id: Screen; icon: string }[] = [
   { id: "chat", icon: "\u{1F4AC}" },
@@ -223,6 +223,16 @@ function AppInner() {
 
   useEffect(() => {
     return onLangChange(() => forceRender((n) => n + 1));
+  }, []);
+
+  // Listen for cross-component navigation events (e.g. Chat "Configure provider")
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.screen) setScreen(detail.screen as Screen);
+    };
+    window.addEventListener("tokenfence:navigate", handler);
+    return () => window.removeEventListener("tokenfence:navigate", handler);
   }, []);
 
   const toggleMascot = useCallback(() => {

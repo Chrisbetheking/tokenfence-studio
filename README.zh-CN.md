@@ -1,61 +1,56 @@
 # TokenFence Studio
 
-**璇█锛?* [English](README.md) | [绠€浣撲腑鏂嘳(README.zh-CN.md)
+**鐠囶叀鈻堥敍?* [English](README.md) | [缁犫偓娴ｆ挷鑵戦弬鍢?README.zh-CN.md)
 
 ![TokenFence Studio Banner](docs/images/banner.png)
 
-闈㈠悜澶ц瑷€妯″瀷鐨勬湰鍦颁紭鍏?AI 宸ヤ綔鍙帮紝鍖呭惈绫讳技 Codex 鐨勮亰澶╃晫闈€丳rompt 闃叉姢銆佷笂涓嬫枃鍖呫€佹ā鍨嬭矾鐢卞拰 Token 棰勭畻銆?
-**鑱婂ぉ宸ヤ綔鍙?* | **Prompt 闃叉姢** | **涓婁笅鏂囧寘** | **妯″瀷璺敱** | **Token 棰勭畻**
+闂堛垹鎮滄径褑顕㈢懛鈧Ο鈥崇€烽惃鍕拱閸﹂绱崗?AI 瀹搞儰缍旈崣甯礉閸栧懎鎯堢猾璁虫妧 Codex 閻ㄥ嫯浜版径鈺冩櫕闂堫潿鈧赋rompt 闂冨弶濮㈤妴浣风瑐娑撳鏋冮崠鍛偓浣鼓侀崹瀣熅閻㈠崬鎷?Token 妫板嫮鐣婚妴?
+**閼卞﹤銇夊銉ょ稊閸?* | **Prompt 闂冨弶濮?* | **娑撳﹣绗呴弬鍥у瘶** | **濡€崇€风捄顖滄暠** | **Token 妫板嫮鐣?*
 
-## 鏈€鏂颁笅杞?
-- [Android APK](https://github.com/Chrisbetheking/tokenfence-studio/releases/download/v1.2.4/TokenFence-Studio-Android-v1.2.0-release.apk)
-- [Windows 渚挎惡鐗?ZIP](https://github.com/Chrisbetheking/tokenfence-studio/releases/download/v1.2.4/TokenFence-Studio-Windows-v1.2.4-portable.zip)
+## 閺堚偓閺傞绗呮潪?
+- [Android APK](https://github.com/Chrisbetheking/tokenfence-studio/releases/download/v1.2.5/TokenFence-Studio-Android-v1.2.0-release.apk)
+- [Windows 娓氭寧鎯￠悧?ZIP](https://github.com/Chrisbetheking/tokenfence-studio/releases/download/v1.2.5/TokenFence-Studio-Windows-v1.2.5-portable.zip)
 
-> Windows 鐢ㄦ埛锛氳涓嬭浇 portable ZIP锛屽厛瀹屾暣瑙ｅ帇锛屽啀杩愯瑙ｅ帇鏂囦欢澶归噷鐨?`tokenfence-studio.exe`銆備笉瑕佺洿鎺ュ湪 ZIP 鍘嬬缉鍖呴瑙堥噷鍙屽嚮 EXE銆?
-[Releases](https://github.com/Chrisbetheking/tokenfence-studio/releases) | [鏇存柊鏃ュ織](CHANGELOG.md) | [English](README.md)
+> Windows 閻劍鍩涢敍姘愁嚞娑撳娴?portable ZIP閿涘苯鍘涚€瑰本鏆ｇ憴锝呭竾閿涘苯鍟€鏉╂劘顢戠憴锝呭竾閺傚洣娆㈡径褰掑櫡閻?`tokenfence-studio.exe`閵嗗倷绗夌憰浣烘纯閹恒儱婀?ZIP 閸樺缂夐崠鍛搭暕鐟欏牓鍣烽崣灞藉毊 EXE閵?
+[Releases](https://github.com/Chrisbetheking/tokenfence-studio/releases) | [閺囧瓨鏌婇弮銉ョ箶](CHANGELOG.md) | [English](README.md)
 
 ---
 
-## 椤圭洰绠€浠?
-TokenFence Studio 鏄竴涓湰鍦颁紭鍏?AI 宸ヤ綔鍙帮紝榛樿鎻愪緵绫讳技 Codex 鐨勮亰澶╁伐浣滅晫闈€?
-瀹冨彲浠ュ府鍔╃敤鎴峰鐞?Prompt銆佹枃浠躲€佷笂涓嬫枃鍖呫€佹ā鍨嬭矾鐢便€乀oken 棰勭畻鍜屽鎻愪緵鍟?AI 宸ヤ綔娴併€?
-## 宸插寘鍚姛鑳?
-- 绫?Codex 鑱婂ぉ宸ヤ綔鍙?- 鏂囦欢闄勫姞涓庝笂涓嬫枃鍖?- Agent 浠诲姟鐘舵€佸尯
-- Prompt 闃叉姢闆嗘垚
-- Token 棰勭畻 / Token 璁＄畻鍣?- 妯″瀷閰嶇疆鐘舵€佹爣璇?- 鑷畾涔夋ā鍨?ID 鍜屽埆鍚?- 鎸夋枃浠剁被鍨嬭繘琛屾ā鍨嬭矾鐢?- Provider Hub
-- 杈撳嚭鐢熸垚
-- 鑻辨枃 / 绠€浣撲腑鏂囩晫闈?
-## 鍔熻兘鐭╅樀
+## 妞ゅ湱娲扮粻鈧禒?
+TokenFence Studio 閺勵垯绔存稉顏呮拱閸﹂绱崗?AI 瀹搞儰缍旈崣甯礉姒涙顓婚幓鎰返缁鎶€ Codex 閻ㄥ嫯浜版径鈺佷紣娴ｆ粎鏅棃顫偓?
+鐎瑰啫褰叉禒銉ュ簻閸斺晝鏁ら幋宄邦槱閻?Prompt閵嗕焦鏋冩禒韬测偓浣风瑐娑撳鏋冮崠鍛偓浣鼓侀崹瀣熅閻究鈧箑oken 妫板嫮鐣婚崪灞筋樋閹绘劒绶甸崯?AI 瀹搞儰缍斿ù浣碘偓?
+## 瀹告彃瀵橀崥顐㈠閼?
+- 缁?Codex 閼卞﹤銇夊銉ょ稊閸?- 閺傚洣娆㈤梽鍕娑撳簼绗傛稉瀣瀮閸?- Agent 娴犺濮熼悩鑸碘偓浣稿隘
+- Prompt 闂冨弶濮㈤梿鍡樺灇
+- Token 妫板嫮鐣?/ Token 鐠侊紕鐣婚崳?- 濡€崇€烽柊宥囩枂閻樿埖鈧焦鐖ｇ拠?- 閼奉亜鐣炬稊澶嬆侀崹?ID 閸滃苯鍩嗛崥?- 閹稿鏋冩禒鍓佽閸ㄥ绻樼悰灞灸侀崹瀣熅閻?- Provider Hub
+- 鏉堟挸鍤悽鐔稿灇
+- 閼昏鲸鏋?/ 缁犫偓娴ｆ挷鑵戦弬鍥╂櫕闂?
+## 閸旂喕鍏橀惌鈺呮█
 
-| 棰嗗煙 | 鑳藉姏 | 鐘舵€?|
+| 妫板棗鐓?| 閼宠棄濮?| 閻樿埖鈧?|
 |---|---|---|
-| 鑱婂ぉ宸ヤ綔鍙?| 渚ц竟鏍忋€佸璇濆垪琛ㄣ€佽緭鍏ユ銆佹鏌ュ櫒 | 鍙敤 |
-| 鏂囦欢闄勫姞 | 闄勫姞鏂囨湰鏂囦欢骞跺姞鍏ヤ笂涓嬫枃鍖?| 鍙敤 |
-| 涓婁笅鏂囧寘 | 鏂囦欢銆佸瓧绗︽暟銆佷及绠?tokens銆佷笂涓嬫枃鎽樿 | 鍙敤 |
-| Agent 浠诲姟 | 绌洪棽銆佹壂鎻忋€佸噯澶囥€佺瓑寰呫€佸搷搴斻€佸畬鎴?| 鍙敤 |
-| Prompt 闃叉姢 | 鎵弿鐢ㄦ埛杈撳叆骞舵樉绀洪槻鎶ょ粨鏋?| 鍙敤 |
-| Token 棰勭畻 | 浼扮畻杈撳叆銆佹枃浠躲€佹秷鎭拰鎬?tokens | 鍙敤 |
-| 妯″瀷鐘舵€?| 缁胯壊/鐏拌壊/榛勮壊/绾㈣壊鐘舵€佹爣璇?| 鍙敤 |
-| 妯″瀷璺敱 | 鎸夋枃浠剁被鍨嬪拰涓婁笅鏂囪鍒欒矾鐢?| 鍙敤 |
-| Provider Hub | OpenAI銆丆laude銆丟emini銆丏eepSeek銆丵wen銆並imi銆丏oubao銆乑hipu銆丱llama銆丩M Studio銆丆ustom | 鍙敤锛岄渶閰嶇疆 Key |
-| 宸ュ叿绠?| 鎻掍欢銆佽緭鍑恒€佸獟浣撱€佽绠楁満浣跨敤鍏ュ彛 | 棰勮 |
-| 椤圭洰 | 椤圭洰宸ヤ綔鍖哄叆鍙?| 鍗冲皢鎺ㄥ嚭 |
-| 璁剧疆 | 閰嶇疆鍏ュ彛 | 鍗冲皢鎺ㄥ嚭 |
+| 閼卞﹤銇夊銉ょ稊閸?| 娓氀嗙珶閺嶅繈鈧礁顕拠婵嗗灙鐞涖劊鈧浇绶崗銉︻攱閵嗕焦顥呴弻銉ユ珤 | 閸欘垳鏁?|
+| 閺傚洣娆㈤梽鍕 | 闂勫嫬濮為弬鍥ㄦ拱閺傚洣娆㈤獮璺哄閸忋儰绗傛稉瀣瀮閸?| 閸欘垳鏁?|
+| 娑撳﹣绗呴弬鍥у瘶 | 閺傚洣娆㈤妴浣哥摟缁楋附鏆熼妴浣峰強缁?tokens閵嗕椒绗傛稉瀣瀮閹芥顩?| 閸欘垳鏁?|
+| Agent 娴犺濮?| 缁屾椽妫介妴浣瑰閹诲繈鈧礁鍣径鍥モ偓浣虹搼瀵板懌鈧礁鎼锋惔鏂烩偓浣哥暚閹?| 閸欘垳鏁?|
+| Prompt 闂冨弶濮?| 閹殿偅寮块悽銊﹀煕鏉堟挸鍙嗛獮鑸垫▔缁€娲Щ閹躲倗绮ㄩ弸?| 閸欘垳鏁?|
+| Token 妫板嫮鐣?| 娴兼壆鐣绘潏鎾冲弳閵嗕焦鏋冩禒韬测偓浣圭Х閹垰鎷伴幀?tokens | 閸欘垳鏁?|
+| 濡€崇€烽悩鑸碘偓?| 缂佽儻澹?閻忔媽澹?姒涘嫯澹?缁俱垼澹婇悩鑸碘偓浣圭垼鐠?| 閸欘垳鏁?|
+| 濡€崇€风捄顖滄暠 | 閹稿鏋冩禒鍓佽閸ㄥ鎷版稉濠佺瑓閺傚洩顫夐崚娆掔熅閻?| 閸欘垳鏁?|
+| Provider Hub | OpenAI閵嗕竼laude閵嗕笩emini閵嗕笍eepSeek閵嗕傅wen閵嗕甫imi閵嗕笍oubao閵嗕箲hipu閵嗕副llama閵嗕俯M Studio閵嗕竼ustom | 閸欘垳鏁ら敍宀勬付闁板秶鐤?Key |
+| 瀹搞儱鍙跨粻?| 閹绘帊娆㈤妴浣界翻閸戞亽鈧礁鐛熸担鎾扁偓浣筋吀缁犳婧€娴ｈ法鏁ら崗銉ュ經 | 妫板嫯顫?|
+| 妞ゅ湱娲?| 妞ゅ湱娲板銉ょ稊閸栧搫鍙嗛崣?| 閸楀啿鐨㈤幒銊ュ毉 |
+| 鐠佸墽鐤?| 闁板秶鐤嗛崗銉ュ經 | 閸楀啿鐨㈤幒銊ュ毉 |
 
-## 宸查獙璇佸伐浣滄祦
+## 瀹告煡鐛欑拠浣镐紣娴ｆ粍绁?
+1. 娴?portable ZIP 閸氼垰濮╁宀勬桨缁?2. 姒涙顓绘潻娑樺弳缁?Codex 閼卞﹤銇夊銉ょ稊閸?3. 閺傚洣娆㈤梽鍕閸忋儱褰?4. 娑撳﹣绗呴弬鍥у瘶閺勫墽銇?5. Agent 娴犺濮熼悩鑸碘偓浣规▔缁€?6. Prompt 闂冨弶濮㈢紒鎾寸亯閺勫墽銇?7. Token 妫板嫮鐣婚弰鍓с仛
+8. 濡€崇€烽悩鑸碘偓浣圭垼鐠?9. 閺傚洣娆㈢猾璇茬€风捄顖滄暠閹绘劗銇?10. 閺堫剙婀存导姘崇樈閹镐椒绠欓崠?
+## Windows 娴ｈ法鏁ら弬鐟扮础
 
-1. 浠?portable ZIP 鍚姩妗岄潰绔?2. 榛樿杩涘叆绫?Codex 鑱婂ぉ宸ヤ綔鍙?3. 鏂囦欢闄勫姞鍏ュ彛
-4. 涓婁笅鏂囧寘鏄剧ず
-5. Agent 浠诲姟鐘舵€佹樉绀?6. Prompt 闃叉姢缁撴灉鏄剧ず
-7. Token 棰勭畻鏄剧ず
-8. 妯″瀷鐘舵€佹爣璇?9. 鏂囦欢绫诲瀷璺敱鎻愮ず
-10. 鏈湴浼氳瘽鎸佷箙鍖?
-## Windows 浣跨敤鏂瑰紡
+娑撳娴?`TokenFence-Studio-Windows-v1.2.5-portable.zip`閿涘苯鍘涚€瑰本鏆ｇ憴锝呭竾閿涘苯鍟€鏉╂劘顢戠憴锝呭竾閺傚洣娆㈡径褰掑櫡閻?`tokenfence-studio.exe`閵?
+娑撳秷顩﹂惄瀛樺复閸?ZIP 閸樺缂夐崠鍛搭暕鐟欏牓鍣烽崣灞藉毊 EXE閵?
+## 瀹歌尙鐓￠梽鎰煑
 
-涓嬭浇 `TokenFence-Studio-Windows-v1.2.4-portable.zip`锛屽厛瀹屾暣瑙ｅ帇锛屽啀杩愯瑙ｅ帇鏂囦欢澶归噷鐨?`tokenfence-studio.exe`銆?
-涓嶈鐩存帴鍦?ZIP 鍘嬬缉鍖呴瑙堥噷鍙屽嚮 EXE銆?
-## 宸茬煡闄愬埗
-
-- Windows 鏋勫缓鏆傛湭绛惧悕锛屼粛涓哄疄楠岀増銆?- Provider 璋冪敤闇€瑕佺敤鎴疯嚜琛岄厤缃?API Key銆?- Android APK 娌跨敤姝ゅ墠宸查獙璇佺殑 Mobile Lite 鏋勫缓銆?- 鏆備笉鍖呭惈 macOS銆?- 閮ㄥ垎宸ュ叿绠卞姛鑳芥爣璁颁负棰勮銆?- 椤圭洰鍜岃缃〉闈粛鍦ㄦ墿灞曚腑銆?
-## 璁稿彲璇?
+- Windows 閺嬪嫬缂撻弳鍌涙弓缁涙儳鎮曢敍灞肩矝娑撳搫鐤勬宀€澧楅妴?- Provider 鐠嬪啰鏁ら棁鈧憰浣烘暏閹寸柉鍤滅悰宀勫帳缂?API Key閵?- Android APK 濞岃法鏁ゅ銈呭瀹告煡鐛欑拠浣烘畱 Mobile Lite 閺嬪嫬缂撻妴?- 閺嗗倷绗夐崠鍛儓 macOS閵?- 闁劌鍨庡銉ュ徔缁犲崬濮涢懗鑺ョ垼鐠侀璐熸０鍕潔閵?- 妞ゅ湱娲伴崪宀冾啎缂冾噣銆夐棃顫矝閸︺劍澧跨仦鏇氳厬閵?
+## 鐠佺褰茬拠?
 MIT License

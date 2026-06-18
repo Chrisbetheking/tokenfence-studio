@@ -16,7 +16,8 @@
     "desktop:dev": "npm --workspace apps/desktop run dev",
     "desktop:build": "npm --workspace apps/desktop run build",
     "guard:source": "node scripts/source_guard.js",
-    "release:sanity": "node scripts/release_sanity.js"
+    "release:sanity": "node scripts/release_sanity.js",
+    "verify:raw": "node scripts/verify_raw_commit.js"
   },
   "workspaces": [
     "apps/*",

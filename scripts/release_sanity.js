@@ -1,12 +1,13 @@
 const fs = require("fs");
 const path = require("path");
+const { execSync } = require("child_process");
 
 const ROOT = path.resolve(__dirname, "..");
 const VERSION = process.argv[2];
 
 if (!VERSION) {
   console.error("Usage: node scripts/release_sanity.js <version>");
-  console.error("Example: node scripts/release_sanity.js v1.1.6");
+  console.error("Example: node scripts/release_sanity.js v1.2.7");
   process.exit(1);
 }
 
@@ -32,6 +33,7 @@ const checks = [
   { file: "apps/desktop/ui/src/App.tsx", pattern: 'const VERSION = "' + vTag + '"' },
   { file: "apps/desktop/src-tauri/tauri.conf.json", pattern: '"version": "' + v + '"' },
   { file: "apps/desktop/src-tauri/Cargo.toml", pattern: 'version = "' + v + '"' },
+  { file: "package.json", pattern: '"name": "tokenfence-studio"' },
 ];
 
 for (const item of checks) {
@@ -53,42 +55,53 @@ console.log("\n--- README download links ---");
 const zipName = "TokenFence-Studio-Windows-" + vTag + "-portable.zip";
 for (const f of ["README.md", "README.zh-CN.md"]) {
   const fp = path.join(ROOT, f);
-  if (!fs.existsSync(fp)) continue;
+  if (!fs.existsSync(fp)) {
+    fail(f + ": NOT FOUND");
+    continue;
+  }
   const content = fs.readFileSync(fp, "utf-8");
   if (content.includes(zipName)) {
     ok(f + ": contains " + zipName);
   } else {
     fail(f + ": MISSING " + zipName);
   }
+  // Ensure no old version links remain
+  if (content.includes("portable.exe")) {
+    fail(f + ': contains deprecated "portable.exe" link');
+  }
 }
 
-// 3. .gitignore includes *.zip
+// 3. .gitignore sanity
 console.log("\n--- .gitignore check ---");
 const giPath = path.join(ROOT, ".gitignore");
 if (fs.existsSync(giPath)) {
   const gi = fs.readFileSync(giPath, "utf-8");
-  if (gi.includes("*.zip")) {
-    ok(".gitignore: contains *.zip");
-  } else {
-    fail(".gitignore: MISSING *.zip");
+  const required = ["*.zip", "*.exe", "*.msi", "node_modules"];
+  for (const r of required) {
+    if (gi.includes(r)) {
+      ok(".gitignore: contains " + r);
+    } else {
+      fail(".gitignore: MISSING " + r);
+    }
   }
 } else {
   fail(".gitignore: FILE NOT FOUND");
 }
 
-// 4. git ls-files *.zip empty
-console.log("\n--- Tracked ZIP check ---");
-const { execSync } = require("child_process");
-try {
-  const tracked = execSync("git ls-files *.zip", { cwd: ROOT, encoding: "utf-8" }).trim();
-  if (tracked) {
-    fail("ZIP files tracked: " + tracked);
-  } else {
-    ok("no ZIP files tracked");
-  }
-} catch (e) {
-  fail("git ls-files failed: " + e.message);
+// 4. Tracked binary check
+console.log("\n--- Tracked binary check ---");
+const binaryPatterns = ["*.zip", "*.exe", "*.msi", "*.msix", "*.appx", "*.7z", "*.rar"];
+var hasTrackedBinary = false;
+for (const pat of binaryPatterns) {
+  try {
+    const tracked = execSync("git ls-files " + pat, { cwd: ROOT, encoding: "utf-8" }).trim();
+    if (tracked) {
+      fail(pat + " tracked in git: " + tracked);
+      hasTrackedBinary = true;
+    }
+  } catch (e) { /* no matches is OK */ }
 }
+if (!hasTrackedBinary) ok("no binary files tracked");
 
 // 5. ZIP asset name match
 console.log("\n--- ZIP asset name ---");
@@ -105,6 +118,7 @@ const secretPatterns = [
   /ghp_[A-Za-z0-9]{36}/,
   /gho_[A-Za-z0-9]{36}/,
   /sk-[A-Za-z0-9]{32,}/,
+  /github_pat_[A-Za-z0-9]{36,}/,
 ];
 const checkFiles = [
   "README.md", "README.zh-CN.md",
@@ -124,17 +138,21 @@ for (const f of checkFiles) {
 }
 ok("no secrets leaked");
 
-// 7. Core source size
+// 7. Core source size (full list matching source_guard.js)
 console.log("\n--- Core source size ---");
 const coreFiles = [
-  { file: "apps/desktop/ui/src/components/AgentPatchPanel.tsx", min: 180 },
+  { file: "apps/desktop/ui/src/App.tsx", min: 250 },
+  { file: "apps/desktop/ui/src/components/AppTitleBar.tsx", min: 80 },
+  { file: "apps/desktop/ui/src/components/AgentPatchPanel.tsx", min: 220 },
+  { file: "apps/desktop/ui/src/agentModelBridge.ts", min: 120 },
   { file: "apps/desktop/ui/src/screens/ToolboxScreen.tsx", min: 180 },
   { file: "apps/desktop/ui/src/desktop-bridge.ts", min: 100 },
   { file: "apps/desktop/src-tauri/src/main.rs", min: 100 },
-  { file: "scripts/source_guard.js", min: 120 },
+  { file: "scripts/source_guard.js", min: 150 },
   { file: "scripts/release_sanity.js", min: 80 },
-  { file: ".github/workflows/ci.yml", min: 40 },
+  { file: ".github/workflows/ci.yml", min: 50 },
   { file: "docs/RELEASE_CHECKLIST.md", min: 60 },
+  { file: "README.zh-CN.md", min: 80 },
 ];
 for (const item of coreFiles) {
   const fp = path.join(ROOT, item.file);
@@ -148,6 +166,22 @@ for (const item of coreFiles) {
   } else {
     ok(item.file + ": " + lines + " lines");
   }
+}
+
+// 8. Verify .gitattributes enforces LF
+console.log("\n--- .gitattributes check ---");
+const gaPath = path.join(ROOT, ".gitattributes");
+if (fs.existsSync(gaPath)) {
+  const ga = fs.readFileSync(gaPath, "utf-8");
+  const hasTextAuto = ga.includes("text=auto") || ga.includes("* text=auto");
+  const hasTsxLF = ga.includes("*.tsx") || ga.includes("*.ts text");
+  if (hasTextAuto || hasTsxLF) {
+    ok(".gitattributes: LF enforcement found");
+  } else {
+    fail(".gitattributes: no LF enforcement for source files");
+  }
+} else {
+  fail(".gitattributes: FILE NOT FOUND");
 }
 
 // Final

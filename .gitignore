@@ -26,3 +26,5 @@ ios/
 
 # Build artifacts
 *.zip
+*.exe
+*.msi

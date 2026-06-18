@@ -6,7 +6,7 @@ import {
 } from "@tokenfence/shared/src/model-registry";
 
 /* ============================================================
-   active-model.ts â€?Unified Active Model State v1.2.8
+   active-model.ts â€” Unified Active Model State v1.2.8
    Storage key: tokenfence.activeModel
    ============================================================ */
 
@@ -22,6 +22,23 @@ export interface ActiveModel {
 
 const STORAGE_KEY = "tokenfence.activeModel";
 
+
+/* ---------- Normalize display text (fix escaped unicode in localStorage) ---------- */
+
+function normalizeDisplayText(value: string): string {
+  if (!value) return value;
+  try {
+    if (/\\u[0-9a-fA-F]{4}/.test(value)) {
+      return value.replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) =>
+        String.fromCharCode(parseInt(hex, 16))
+      );
+    }
+  } catch {
+    return value;
+  }
+  return value;
+}
+
 /* ---------- Persistence ---------- */
 
 export function loadActiveModel(): ActiveModel | null {
@@ -30,6 +47,8 @@ export function loadActiveModel(): ActiveModel | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed?.providerId || !parsed?.modelId) return null;
+    // Normalize display name (fix old escaped unicode)
+    if (parsed.displayName) parsed.displayName = normalizeDisplayText(String(parsed.displayName));
     return parsed as ActiveModel;
   } catch {
     return null;
@@ -39,6 +58,7 @@ export function loadActiveModel(): ActiveModel | null {
 export function saveActiveModel(am: ActiveModel): void {
   try {
     am.lastSetAt = Date.now();
+    if (am.displayName) am.displayName = normalizeDisplayText(am.displayName);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(am));
   } catch { /* ignore */ }
 }

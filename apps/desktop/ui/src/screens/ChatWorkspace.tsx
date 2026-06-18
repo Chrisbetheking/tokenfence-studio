@@ -224,8 +224,8 @@ export function ChatWorkspace() {
 
   const [activeModel, setActiveModelState] = useState<ResolvedModel | null>(() => resolveActiveModel());
 
-  const selectedProvider = activeModel?.providerId ?? "OpenAI";
-  const selectedModel = activeModel?.modelId ?? "gpt-4o";
+  const selectedProvider = activeModel?.providerId ?? "";
+  const selectedModel = activeModel?.modelId ?? "";
 
   const handleSetActiveModel = (providerId: string, modelId: string, displayName?: string) => {
     setActiveModel(providerId, modelId, displayName, "installed");
@@ -702,13 +702,15 @@ export function ChatWorkspace() {
 
     setTaskStatus("responding"); setTaskSteps(prev => prev.map(s => s.id==="select" ? {...s,status:"done"} : s.id==="send" ? {...s,status:"running"} : s));
 
-    const responseText = await callProviderAPI(apiMessages, { ...config, model: activeModel?.modelId ?? config.model });
+    const usedModel = activeModel?.modelId ?? config.model ?? selectedModel;
+    const usedProvider = activeModel?.providerId ?? config.provider ?? selectedProvider;
+    const responseText = await callProviderAPI(apiMessages, { ...config, model: usedModel });
 
     setTaskStatus("done"); setTaskSteps(prev => prev.map(s => s.id==="send" ? {...s,status:"done"} : s.id==="respond" ? {...s,status:"done"} : s.id==="save" ? {...s,status:"done"} : s));
 
 
 
-    const assistantMsg: ChatMessage = { id: uid(), role: "assistant", content: responseText, timestamp: Date.now(), provider: selectedProvider, model: selectedModel };
+    const assistantMsg: ChatMessage = { id: uid(), role: "assistant", content: responseText, timestamp: Date.now(), provider: usedProvider, model: usedModel };
 
     const finalConv = { ...withUserMsg, messages: [...withUserMsg.messages, assistantMsg], updatedAt: Date.now() };
 

@@ -24,7 +24,7 @@ import { getEnabledModels, loadInstalledModels, type InstalledModel } from "@tok
 import { readFile } from "../desktop-bridge";
 import { storeGet, storeSet } from "@tokenfence/shared/src/agent-runtime/safeStorage";
 import { ModelPickerPanel } from "../components/ModelPickerPanel";
-import { resolveActiveModel, setActiveModel, validateModelForSend, hasAnyConfiguredProvider, migrateActiveModelStorage, getActiveModelViewState, normalizeDisplayText, type ResolvedModel } from "../data/active-model";
+import { resolveActiveModel, setActiveModel, validateModelForSend, hasAnyConfiguredProvider, migrateActiveModelStorageV2, getActiveModelViewState, normalizeDisplayText, canonicalizeProviderId, getProviderDisplayName, dispatchActiveModelChanged, type ResolvedModelV2 } from "../data/active-model";
 
 
 
@@ -222,16 +222,26 @@ export function ChatWorkspace() {
 
   const [sending, setSending] = useState(false);
 
-  const [activeModel, setActiveModelState] = useState<ResolvedModel | null>(() => { migrateActiveModelStorage(); return resolveActiveModel(); });
+  const [activeModel, setActiveModelState] = useState<ResolvedModelV2 | null>(() => { migrateActiveModelStorageV2(); return resolveActiveModel(); });
 
   const viewState = getActiveModelViewState();
-  const selectedProvider = viewState.hasModel ? normalizeDisplayText(activeModel?.providerId || "") : "";
-  const selectedModel = viewState.hasModel ? normalizeDisplayText(activeModel?.modelId || "") : "";
+
+  // Listen for external model changes (e.g. from Models page, Settings)
+  useEffect(() => {
+    const handler = () => {
+      migrateActiveModelStorageV2();
+      const resolved = resolveActiveModel();
+      setActiveModelState(resolved);
+    };
+    window.addEventListener("tokenfence:active-model-changed", handler);
+    return () => window.removeEventListener("tokenfence:active-model-changed", handler);
+  }, []);
 
   const handleSetActiveModel = (providerId: string, modelId: string, displayName?: string) => {
     setActiveModel(providerId, modelId, displayName, "installed");
     const resolved = resolveActiveModel();
     setActiveModelState(resolved);
+    dispatchActiveModelChanged();
   };
 
   const [guardEnabled, setGuardEnabled] = useState(true);
@@ -317,7 +327,7 @@ export function ChatWorkspace() {
 
   // Get models for current provider from registry
 
-  const providerModels = useMemo(() => getModelsForProvider(activeModel?.providerId || "OpenAI"), [activeModel]);
+  const providerModels = useMemo(() => getModelsForProvider(activeModel?.providerId || ""), [activeModel]);
 
 
 
@@ -329,9 +339,9 @@ export function ChatWorkspace() {
 
   const currentRegistryModel = useMemo(
 
-    () => getModelById(selectedProvider, selectedModel) ?? providerModels[0],
+    () => getModelById(viewState.providerLabel, viewState.modelLabel) ?? providerModels[0],
 
-    [selectedProvider, selectedModel, providerModels],
+    [viewState.providerLabel, viewState.modelLabel, providerModels],
 
   );
 
@@ -647,7 +657,7 @@ export function ChatWorkspace() {
 
 
 
-    const userMsg: ChatMessage = { id: uid(), role: "user", content: fullContent, timestamp: Date.now(), provider: selectedProvider, model: selectedModel, guardResult };
+    const userMsg: ChatMessage = { id: uid(), role: "user", content: fullContent, timestamp: Date.now(), provider: viewState.providerLabel, model: viewState.modelLabel, guardResult };
 
 
 
@@ -689,7 +699,7 @@ export function ChatWorkspace() {
       return;
     }
 
-    const config = configs.find((c) => c.provider === (activeModel?.providerId ?? selectedProvider)) ?? { provider: (activeModel?.providerId ?? selectedProvider), model: selectedModel, deployment: "cloud" } as ProviderConfig;
+    const config = configs.find((c) => c.provider === (activeModel?.providerId ?? viewState.providerLabel)) ?? { provider: (activeModel?.providerId ?? viewState.providerLabel), model: viewState.modelLabel, deployment: "cloud" } as ProviderConfig;
 
 
 
@@ -704,8 +714,8 @@ export function ChatWorkspace() {
     setTaskStatus("responding"); setTaskSteps(prev => prev.map(s => s.id==="select" ? {...s,status:"done"} : s.id==="send" ? {...s,status:"running"} : s));
 
     const resolvedForSend = resolveActiveModel();
-    const usedModel = resolvedForSend?.modelId ?? config.model ?? "gpt-4o";
-    const usedProvider = resolvedForSend?.providerId ?? config.provider ?? "OpenAI";
+    const usedModel = resolvedForSend?.modelId ?? config.model ?? "";
+    const usedProvider = resolvedForSend?.providerId ?? config.provider ?? "";
     const responseText = await callProviderAPI(apiMessages, { ...config, model: usedModel });
 
     setTaskStatus("done"); setTaskSteps(prev => prev.map(s => s.id==="send" ? {...s,status:"done"} : s.id==="respond" ? {...s,status:"done"} : s.id==="save" ? {...s,status:"done"} : s));
@@ -724,7 +734,7 @@ export function ChatWorkspace() {
 
     setTimeout(() => setTaskStatus("idle"), 2000);
 
-  }, [composerText, sending, guardEnabled, activeConv, selectedProvider, selectedModel, conversations, attachedFiles, isProviderConfigured]);
+  }, [composerText, sending, guardEnabled, activeConv, viewState.providerLabel, viewState.modelLabel, conversations, attachedFiles, isProviderConfigured]);
 
 
 
@@ -1298,9 +1308,9 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
             <span style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--text)" }}>{activeConv?.title || tk("chat.newConversation")}</span>
             {/* Model pill */}
             <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--surface-alt)", border: "1px solid var(--border)", borderRadius: 8, padding: "4px 10px", fontSize: "0.75rem" }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: isProviderConfigured(selectedProvider) ? "var(--green)" : "var(--text-muted)" }}></span>
-              <span style={{ fontWeight: 500, color: "var(--text)" }}>{selectedProvider}</span>
-              <span style={{ color: "var(--text-muted)" }}>/ {currentRegistryModel?.displayName ?? selectedModel}</span>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: viewState.hasModel && viewState.configured ? (viewState.status === "healthy" ? "var(--green)" : "var(--amber)") : "var(--text-muted)" }}></span>
+              <span style={{ fontWeight: 500, color: "var(--text)" }}>{viewState.hasModel ? viewState.providerLabel : (tk("chat.noModel") || "No Model")}</span>
+              <span style={{ color: "var(--text-muted)" }}>/ {viewState.hasModel ? viewState.modelLabel : ""}</span>
             </div>
             {/* Switch Model button */}
             <button onClick={() => { setInstalledModels(getEnabledModels()); setShowModelPanel(true); }} className="btn btn-ghost" style={{ fontSize: "0.75rem", padding: "4px 10px", color: "var(--primary)" }}>
@@ -1320,9 +1330,9 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
         {showModelPanel && (
           <ModelPickerPanel
             onClose={() => setShowModelPanel(false)}
-            onSelect={(pid: string, mid: string) => { setSelectedProvider(pid); setSelectedModel(mid); setShowModelPanel(false); }}
-            selectedProvider={selectedProvider}
-            selectedModel={selectedModel}
+            onSelect={(pid: string, mid: string) => { handleSetActiveModel(pid, mid); setShowModelPanel(false); dispatchActiveModelChanged(); }}
+            selectedProvider={viewState.providerLabel}
+            selectedModel={viewState.modelLabel}
             providerConfigs={providerConfigs}
           />
         )}
@@ -1641,11 +1651,11 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
                 <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginBottom: 4 }}>{tk("chat.activeModel")}</div>
                 {hasConfigured ? (
                   <>
-                    <div style={{ fontSize: "0.8rem", color: "var(--text)", fontWeight: 500 }}>{selectedProvider} / {currentRegistryModel?.displayName ?? selectedModel}</div>
+                    <div style={{ fontSize: "0.8rem", color: "var(--text)", fontWeight: 500 }}>{viewState.hasModel ? viewState.displayLabel : (tk("chat.noConfiguredModel") || "Not configured")}</div>
                     <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
-                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: isProviderConfigured(selectedProvider) ? "var(--green)" : "var(--text-muted)" }}></span>
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: viewState.hasModel && viewState.configured ? (viewState.status === "healthy" ? "var(--green)" : "var(--amber)") : "var(--text-muted)" }}></span>
                       <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
-                        {isProviderConfigured(selectedProvider) ? tk("common.configured") : tk("common.notConfigured")}
+                        {viewState.hasModel && viewState.configured ? tk("common.configured") : tk("common.notConfigured")}
                       </span>
                     </div>
                   </>

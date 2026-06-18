@@ -18,6 +18,7 @@ import { CustomModelModal } from "../components/CustomModelModal";
 import { ProviderConfigModal } from "../components/ProviderConfigModal";
 import { ProviderSetupWizard } from "../components/ProviderSetupWizard";
 import { runProviderHealthCheck, saveHealthResult, loadHealthResults, loadCustomModels, removeCustomModel, type HealthResult } from "../data/active-model";
+import { ModelRuntimeSelfTest } from "../components/ModelRuntimeSelfTest";
 
 /* ============================================================
    Provider Config helpers (from ProvidersScreen)
@@ -39,13 +40,14 @@ function getHealthLabel(status?: string): string {
 /* ============================================================
    ModelsScreen — 4 Tabs
    ============================================================ */
-type ModelsTab = "installed" | "library" | "providers" | "routing";
+type ModelsTab = "installed" | "library" | "providers" | "routing" | "selftest";
 
 const tabDefs: { id: ModelsTab; labelKeyEn: string; labelKeyZh: string }[] = [
   { id: "installed", labelKeyEn: "Installed Models", labelKeyZh: "\u5DF2\u6DFB\u52A0\u6A21\u578B" },
   { id: "library", labelKeyEn: "Model Library", labelKeyZh: "\u6A21\u578B\u5E93" },
   { id: "providers", labelKeyEn: "Providers", labelKeyZh: "\u63D0\u4F9B\u5546" },
   { id: "routing", labelKeyEn: "Routing", labelKeyZh: "\u8DEF\u7531" },
+  { id: "selftest", labelKeyEn: "Self Test", labelKeyZh: "\u81EA\u68C0" },
 ];
 
 export function ModelsScreen() {
@@ -549,6 +551,7 @@ export function ModelsScreen() {
         {activeTab === "library" && renderModelLibrary()}
         {activeTab === "providers" && renderProviders()}
         {activeTab === "routing" && renderRouting()}
+        {activeTab === "selftest" && <ModelRuntimeSelfTest />}
       </div>
       <ProviderSetupWizard open={showSetupWizard} onClose={() => setShowSetupWizard(false)} onComplete={() => { setProviderConfigs(loadProviderConfigs()); setShowSetupWizard(false); }} />
       <ProviderConfigModal

@@ -6,103 +6,264 @@ import {
 } from "@tokenfence/shared/src/model-registry";
 
 /* ============================================================
-   active-model.ts — Unified Active Model State v1.3.5
+   active-model.ts — ActiveModelV2 Schema v1.3.6
    Storage key: tokenfence.activeModel
+   Event: tokenfence:active-model-changed
    ============================================================ */
 
-export interface ActiveModel {
+// ---------------------------------------------------------------------------
+// ActiveModelV2 — schemaVersion: 2
+// ---------------------------------------------------------------------------
+
+export interface ActiveModelV2 {
+  schemaVersion: 2;
   providerId: string;
   modelId: string;
-  displayName: string;
+  /** canonical provider display name (e.g. "OpenAI", "Anthropic") */
+  providerDisplayName: string;
+  /** canonical model display name (e.g. "GPT-5.5", "Claude Sonnet 4.5") */
+  modelDisplayName: string;
+  /** unified label: "OpenAI / GPT-5.5" */
+  displayLabel: string;
   source: "installed" | "custom" | "library" | "fallback";
   configured: boolean;
   healthy: boolean;
   lastSetAt: number;
 }
 
-const STORAGE_KEY = "tokenfence.activeModel";
+// ---------------------------------------------------------------------------
+// Canonical provider display-name mapping (16 providers)
+// ---------------------------------------------------------------------------
 
-/* ---------- Normalize display text (fix escaped unicode in localStorage) ---------- */
+const CANONICAL_PROVIDER_NAMES: Record<string, string> = {
+  "OpenAI":   "OpenAI",
+  "Claude":   "Anthropic",
+  "Gemini":   "Google",
+  "DeepSeek": "DeepSeek",
+  "Qwen":     "Alibaba",
+  "Kimi":     "Moonshot",
+  "Zhipu":    "Zhipu AI",
+  "Doubao":   "ByteDance",
+  "Groq":     "Groq",
+  "Ollama":   "Ollama",
+  "LM Studio":"LM Studio",
+  "Azure":    "Azure",
+  "Grok":     "xAI",
+  "Cohere":   "Cohere",
+  "Mistral":  "Mistral",
+  "Reka":     "Reka",
+};
+
+export function canonicalizeProviderId(raw: string): string {
+  const trimmed = String(raw ?? "").trim();
+  // direct match
+  if (CANONICAL_PROVIDER_NAMES[trimmed]) return trimmed;
+  // case-insensitive match
+  const lower = trimmed.toLowerCase();
+  for (const [key, _] of Object.entries(CANONICAL_PROVIDER_NAMES)) {
+    if (key.toLowerCase() === lower) return key;
+  }
+  // return as-is if unknown
+  return trimmed || "Unknown";
+}
+
+export function getProviderDisplayName(providerId: string): string {
+  const canon = canonicalizeProviderId(providerId);
+  return CANONICAL_PROVIDER_NAMES[canon] ?? canon;
+}
+
+// ---------------------------------------------------------------------------
+// Normalize display text (fix escaped unicode in localStorage)
+// ---------------------------------------------------------------------------
 
 export function normalizeDisplayText(value: unknown): string {
   if (value == null) return "";
   const text = String(value);
+  // Quick check: does it look like escaped unicode?
+  if (!/\\u[0-9a-fA-F]{4}/.test(text)) return text;
   try {
-    if (/\\u[0-9a-fA-F]{4}/.test(text)) {
-      return text.replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) =>
-        String.fromCharCode(parseInt(hex, 16))
-      );
-    }
+    return text.replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) =>
+      String.fromCharCode(parseInt(hex, 16))
+    );
   } catch {
     return text;
   }
-  return text;
 }
 
-/* ---------- Persistence ---------- */
+/** Check if a string still contains raw unicode escapes (garbled). */
+export function hasRawUnicodeEscapes(value: unknown): boolean {
+  if (value == null) return false;
+  return /\\u[0-9a-fA-F]{4}/.test(String(value));
+}
 
-export function loadActiveModel(): ActiveModel | null {
+// ---------------------------------------------------------------------------
+// Storage
+// ---------------------------------------------------------------------------
+
+const STORAGE_KEY = "tokenfence.activeModel";
+
+export function loadActiveModel(): ActiveModelV2 | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
+    // Accept both v1 and v2 schemas
     if (!parsed?.providerId || !parsed?.modelId) return null;
-    // Normalize all string fields to fix legacy escaped unicode
-    parsed.providerId = normalizeDisplayText(parsed.providerId);
-    parsed.modelId = normalizeDisplayText(parsed.modelId);
-    parsed.displayName = normalizeDisplayText(parsed.displayName);
-    return parsed as ActiveModel;
+    return normalizeActiveModelV2(parsed);
   } catch {
     return null;
   }
 }
 
-export function saveActiveModel(am: ActiveModel): void {
+function normalizeActiveModelV2(parsed: any): ActiveModelV2 {
+  const providerId = normalizeDisplayText(canonicalizeProviderId(parsed.providerId));
+  const modelId = normalizeDisplayText(parsed.modelId);
+  const providerDisplayName = normalizeDisplayText(
+    parsed.providerDisplayName || getProviderDisplayName(providerId)
+  );
+  const modelDisplayName = normalizeDisplayText(
+    parsed.modelDisplayName || parsed.displayName || modelId
+  );
+  return {
+    schemaVersion: 2,
+    providerId,
+    modelId,
+    providerDisplayName,
+    modelDisplayName,
+    displayLabel: normalizeDisplayText(
+      parsed.displayLabel || `${providerDisplayName} / ${modelDisplayName}`
+    ),
+    source: parsed.source || "installed",
+    configured: !!parsed.configured,
+    healthy: !!parsed.healthy,
+    lastSetAt: parsed.lastSetAt || Date.now(),
+  };
+}
+
+export function saveActiveModel(am: ActiveModelV2): void {
   try {
-    am.lastSetAt = Date.now();
-    am.providerId = normalizeDisplayText(am.providerId);
-    am.modelId = normalizeDisplayText(am.modelId);
-    am.displayName = normalizeDisplayText(am.displayName);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(am));
+    const normalized: ActiveModelV2 = {
+      schemaVersion: 2,
+      providerId: canonicalizeProviderId(normalizeDisplayText(am.providerId)),
+      modelId: normalizeDisplayText(am.modelId),
+      providerDisplayName: normalizeDisplayText(
+        am.providerDisplayName || getProviderDisplayName(am.providerId)
+      ),
+      modelDisplayName: normalizeDisplayText(am.modelDisplayName || am.displayLabel || am.modelId),
+      displayLabel: normalizeDisplayText(
+        am.displayLabel || `${am.providerDisplayName} / ${am.modelDisplayName}`
+      ),
+      source: am.source || "installed",
+      configured: !!am.configured,
+      healthy: !!am.healthy,
+      lastSetAt: Date.now(),
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+    dispatchActiveModelChanged();
   } catch { /* ignore */ }
 }
 
 export function clearActiveModel(): void {
-  try { localStorage.removeItem(STORAGE_KEY); } catch {}
+  try { localStorage.removeItem(STORAGE_KEY); dispatchActiveModelChanged(); } catch {}
 }
 
-/* ---------- Resolve ---------- */
+// ---------------------------------------------------------------------------
+// Migration — clean old/broken localStorage data on startup
+// ---------------------------------------------------------------------------
 
-export interface ResolvedModel {
+export function migrateActiveModelStorageV2(): void {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+
+    // Already v2 with all fields normalized?
+    if (parsed.schemaVersion === 2
+      && parsed.providerDisplayName
+      && parsed.modelDisplayName
+      && parsed.displayLabel
+      && !hasRawUnicodeEscapes(parsed.providerDisplayName)
+      && !hasRawUnicodeEscapes(parsed.modelDisplayName)
+      && !hasRawUnicodeEscapes(parsed.displayLabel)) {
+      return; // clean — no migration needed
+    }
+
+    // Migrate
+    const configs = loadProviderConfigs();
+    const providerId = normalizeDisplayText(canonicalizeProviderId(parsed.providerId));
+    const cfg = configs.find((c) => c.provider === providerId && c.enabled && c.apiKey);
+
+    if (cfg) {
+      const reg = MODEL_REGISTRY.find(
+        (m) => m.providerId === providerId && m.modelId === normalizeDisplayText(parsed.modelId)
+      );
+      const am: ActiveModelV2 = {
+        schemaVersion: 2,
+        providerId,
+        modelId: normalizeDisplayText(parsed.modelId),
+        providerDisplayName: getProviderDisplayName(providerId),
+        modelDisplayName: normalizeDisplayText(reg?.displayName || parsed.modelDisplayName || parsed.displayName || parsed.modelId),
+        displayLabel: `${getProviderDisplayName(providerId)} / ${normalizeDisplayText(reg?.displayName || parsed.modelDisplayName || parsed.displayName || parsed.modelId)}`,
+        source: parsed.source || "installed",
+        configured: true,
+        healthy: cfg.lastHealthStatus === "ok",
+        lastSetAt: Date.now(),
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(am));
+    } else {
+      // No configured provider — clear stale data
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  } catch {
+    try { localStorage.removeItem(STORAGE_KEY); } catch {}
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Resolve — NO fake OpenAI fallback
+// ---------------------------------------------------------------------------
+
+export interface ResolvedModelV2 {
   providerId: string;
   modelId: string;
-  displayName: string;
-  source: ActiveModel["source"];
+  providerDisplayName: string;
+  modelDisplayName: string;
+  displayLabel: string;
+  source: ActiveModelV2["source"];
   configured: boolean;
   healthy: boolean;
   providerConfig: ProviderConfig | null;
   registryItem: ModelRegistryItem | null;
 }
 
-export function resolveActiveModel(): ResolvedModel | null {
-  // 1. Try localStorage activeModel
+export function resolveActiveModel(): ResolvedModelV2 | null {
+  // 1. Try localStorage active model
   const saved = loadActiveModel();
   if (saved) {
     const configs = loadProviderConfigs();
-    const cfg = configs.find((c) => c.provider === saved.providerId && c.enabled && c.apiKey);
+    const cfg = configs.find(
+      (c) => c.provider === saved.providerId && c.enabled && c.apiKey
+    );
     if (cfg) {
-      const reg = MODEL_REGISTRY.find((m) => m.providerId === saved.providerId && m.modelId === saved.modelId);
+      const reg = MODEL_REGISTRY.find(
+        (m) => m.providerId === saved.providerId && m.modelId === saved.modelId
+      );
       return {
-        providerId: normalizeDisplayText(saved.providerId),
-        modelId: normalizeDisplayText(saved.modelId),
-        displayName: normalizeDisplayText(saved.displayName || reg?.displayName || saved.modelId),
-        source: saved.source || "installed",
+        providerId: saved.providerId,
+        modelId: saved.modelId,
+        providerDisplayName: saved.providerDisplayName,
+        modelDisplayName: saved.modelDisplayName,
+        displayLabel: saved.displayLabel,
+        source: saved.source,
         configured: true,
         healthy: cfg.lastHealthStatus === "ok",
         providerConfig: cfg,
         registryItem: reg || null,
       };
     }
+    // Saved provider no longer configured — clear and return null
+    localStorage.removeItem(STORAGE_KEY);
+    return null;
   }
 
   // 2. Fallback: find any enabled + configured provider
@@ -113,12 +274,15 @@ export function resolveActiveModel(): ResolvedModel | null {
 
   if (pool.length > 0) {
     const cfg = pool[0];
-    const defModel = getDefaultModelForProvider(cfg.provider) ?? getModelsForProvider(cfg.provider)[0];
+    const defModel = getDefaultModelForProvider(cfg.provider)
+      ?? getModelsForProvider(cfg.provider)[0];
     if (defModel) {
-      const resolved: ResolvedModel = {
+      const resolved: ResolvedModelV2 = {
         providerId: normalizeDisplayText(cfg.provider),
         modelId: normalizeDisplayText(defModel.modelId),
-        displayName: normalizeDisplayText(defModel.displayName),
+        providerDisplayName: getProviderDisplayName(cfg.provider),
+        modelDisplayName: normalizeDisplayText(defModel.displayName),
+        displayLabel: `${getProviderDisplayName(cfg.provider)} / ${normalizeDisplayText(defModel.displayName)}`,
         source: "library",
         configured: true,
         healthy: cfg.lastHealthStatus === "ok",
@@ -127,9 +291,12 @@ export function resolveActiveModel(): ResolvedModel | null {
       };
       // Auto-save fallback
       saveActiveModel({
+        schemaVersion: 2,
         providerId: resolved.providerId,
         modelId: resolved.modelId,
-        displayName: resolved.displayName,
+        providerDisplayName: resolved.providerDisplayName,
+        modelDisplayName: resolved.modelDisplayName,
+        displayLabel: resolved.displayLabel,
         source: "fallback",
         configured: true,
         healthy: resolved.healthy,
@@ -139,11 +306,23 @@ export function resolveActiveModel(): ResolvedModel | null {
     }
   }
 
-  // 3. No configured provider: return null (no fake OpenAI fallback)
+  // 3. No configured provider — return null (no fake OpenAI)
   return null;
 }
 
-/* ---------- Unified View State ---------- */
+// ---------------------------------------------------------------------------
+// Event dispatch
+// ---------------------------------------------------------------------------
+
+export function dispatchActiveModelChanged(): void {
+  try {
+    window.dispatchEvent(new CustomEvent("tokenfence:active-model-changed"));
+  } catch { /* ignore */ }
+}
+
+// ---------------------------------------------------------------------------
+// Unified View State
+// ---------------------------------------------------------------------------
 
 export interface ActiveModelViewState {
   hasModel: boolean;
@@ -152,7 +331,7 @@ export interface ActiveModelViewState {
   displayLabel: string;
   status: "healthy" | "configured" | "degraded" | "not_configured";
   configured: boolean;
-  resolved: ResolvedModel | null;
+  resolved: ResolvedModelV2 | null;
 }
 
 export function getActiveModelViewState(): ActiveModelViewState {
@@ -170,31 +349,58 @@ export function getActiveModelViewState(): ActiveModelViewState {
     };
   }
 
+  // Check for raw unicode escapes — if found, treat as degraded
+  if (
+    hasRawUnicodeEscapes(resolved.providerDisplayName)
+    || hasRawUnicodeEscapes(resolved.modelDisplayName)
+    || hasRawUnicodeEscapes(resolved.displayLabel)
+  ) {
+    return {
+      hasModel: true,
+      providerLabel: resolved.providerDisplayName,
+      modelLabel: resolved.modelDisplayName,
+      displayLabel: "[Escaped Unicode — needs migration]",
+      status: "degraded",
+      configured: true,
+      resolved,
+    };
+  }
+
   return {
     hasModel: true,
-    providerLabel: normalizeDisplayText(resolved.providerId),
-    modelLabel: normalizeDisplayText(resolved.displayName || resolved.modelId),
-    displayLabel: normalizeDisplayText(resolved.providerId + " / " + (resolved.displayName || resolved.modelId)),
+    providerLabel: resolved.providerDisplayName,
+    modelLabel: resolved.modelDisplayName,
+    displayLabel: resolved.displayLabel,
     status: resolved.healthy ? "healthy" : "configured",
     configured: true,
     resolved,
   };
 }
 
-/* ---------- Set Active Model ---------- */
+// ---------------------------------------------------------------------------
+// Set Active Model
+// ---------------------------------------------------------------------------
 
 export function setActiveModel(
   providerId: string,
   modelId: string,
   displayName?: string,
-  source: ActiveModel["source"] = "installed",
+  source: ActiveModelV2["source"] = "installed",
 ): void {
+  const canonId = canonicalizeProviderId(normalizeDisplayText(providerId));
+  const mid = normalizeDisplayText(modelId);
   const configs = loadProviderConfigs();
-  const cfg = configs.find((c) => c.provider === providerId && c.enabled && c.apiKey);
+  const cfg = configs.find((c) => c.provider === canonId && c.enabled && c.apiKey);
+  const providerDisplay = getProviderDisplayName(canonId);
+  const modelDisplay = normalizeDisplayText(displayName || mid);
+
   saveActiveModel({
-    providerId: normalizeDisplayText(providerId),
-    modelId: normalizeDisplayText(modelId),
-    displayName: normalizeDisplayText(displayName || modelId),
+    schemaVersion: 2,
+    providerId: canonId,
+    modelId: mid,
+    providerDisplayName: providerDisplay,
+    modelDisplayName: modelDisplay,
+    displayLabel: `${providerDisplay} / ${modelDisplay}`,
     source,
     configured: !!cfg,
     healthy: cfg?.lastHealthStatus === "ok",
@@ -202,7 +408,9 @@ export function setActiveModel(
   });
 }
 
-/* ---------- Pre-send Validation ---------- */
+// ---------------------------------------------------------------------------
+// Pre-send Validation
+// ---------------------------------------------------------------------------
 
 export interface ModelValidationResult {
   valid: boolean;
@@ -262,63 +470,9 @@ export function validateModelForSend(): ModelValidationResult {
   return { valid: true, errorKey: "", errorEn: "", errorZh: "" };
 }
 
-/* ---------- Storage Migration ---------- */
-
-export function migrateActiveModelStorage(): void {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
-    const parsed = JSON.parse(raw);
-    if (!parsed?.providerId || !parsed?.modelId) {
-      localStorage.removeItem(STORAGE_KEY);
-      return;
-    }
-    // Normalize all fields
-    parsed.providerId = normalizeDisplayText(parsed.providerId);
-    parsed.modelId = normalizeDisplayText(parsed.modelId);
-    parsed.displayName = normalizeDisplayText(parsed.displayName);
-
-    // Validate provider exists in configs or registry
-    const configs = loadProviderConfigs();
-    const providerKnown = configs.some((c) => c.provider === parsed.providerId) ||
-      MODEL_REGISTRY.some((m) => m.providerId === parsed.providerId);
-    if (!providerKnown) {
-      // Provider unknown — clear and let resolveActiveModel find a configured one
-      localStorage.removeItem(STORAGE_KEY);
-      return;
-    }
-
-    // Check if configured; if not, try auto-fallback
-    const cfg = configs.find((c) => c.provider === parsed.providerId && c.enabled && c.apiKey);
-    if (!cfg) {
-      const enabled = configs.filter((c) => c.enabled && c.apiKey);
-      if (enabled.length > 0) {
-        const fb = enabled[0];
-        const defModel = getDefaultModelForProvider(fb.provider) ?? getModelsForProvider(fb.provider)[0];
-        if (defModel) {
-          parsed.providerId = fb.provider;
-          parsed.modelId = defModel.modelId;
-          parsed.displayName = defModel.displayName;
-          parsed.configured = true;
-          parsed.healthy = fb.lastHealthStatus === "ok";
-        } else {
-          localStorage.removeItem(STORAGE_KEY);
-          return;
-        }
-      } else {
-        // No configured provider — clear
-        localStorage.removeItem(STORAGE_KEY);
-        return;
-      }
-    }
-
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
-  } catch {
-    try { localStorage.removeItem(STORAGE_KEY); } catch {}
-  }
-}
-
-/* ---------- Health Check ---------- */
+// ---------------------------------------------------------------------------
+// Health Check
+// ---------------------------------------------------------------------------
 
 export interface HealthResult {
   status: "ok" | "degraded" | "failed" | "unknown" | "not_configured";
@@ -365,7 +519,9 @@ export async function runProviderHealthCheck(config: ProviderConfig): Promise<He
   }
 }
 
-/* ---------- Persist health results ---------- */
+// ---------------------------------------------------------------------------
+// Persist health results
+// ---------------------------------------------------------------------------
 
 const HEALTH_KEY = "tokenfence.providerHealth";
 export interface SavedHealth { [providerId: string]: HealthResult; }
@@ -378,7 +534,9 @@ export function saveHealthResult(providerId: string, result: HealthResult): void
   try { localStorage.setItem(HEALTH_KEY, JSON.stringify(all)); } catch {}
 }
 
-/* ---------- Custom Models ---------- */
+// ---------------------------------------------------------------------------
+// Custom Models
+// ---------------------------------------------------------------------------
 
 const CUSTOM_KEY = "tokenfence.customModels";
 export interface CustomModelEntry {
@@ -409,7 +567,9 @@ export function customModelToProviderConfig(entry: CustomModelEntry): ProviderCo
   };
 }
 
-/* ---------- Has Any Configured Provider ---------- */
+// ---------------------------------------------------------------------------
+// Has Any Configured Provider
+// ---------------------------------------------------------------------------
 
 export function hasAnyConfiguredProvider(): boolean {
   const configs = loadProviderConfigs();

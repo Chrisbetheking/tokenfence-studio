@@ -18,11 +18,13 @@ var coreFiles = [
   { file: "apps/desktop/ui/src/screens/ToolboxScreen.tsx", min: 180 },
   { file: "apps/desktop/ui/src/desktop-bridge.ts", min: 100 },
   { file: "apps/desktop/src-tauri/src/main.rs", min: 100 },
-  { file: "apps/desktop/ui/src/data/active-model.ts", min: 400 },
+  { file: "apps/desktop/ui/src/data/active-model.ts", min: 450 },
   { file: "apps/desktop/ui/src/components/CustomModelModal.tsx", min: 100 },
   { file: "apps/desktop/ui/src/components/ProviderConfigModal.tsx", min: 200 },
   { file: "apps/desktop/ui/src/components/ProviderSetupWizard.tsx", min: 180 },
   { file: "apps/desktop/ui/src/screens/ModelsScreen.tsx", min: 500 },
+  { file: "apps/desktop/ui/src/screens/ChatWorkspace.tsx", min: 1755 },
+  { file: "apps/desktop/ui/src/components/ModelRuntimeSelfTest.tsx", min: 150 },
   { file: "scripts/source_guard.js", min: 150 },
   { file: "scripts/release_sanity.js", min: 80 },
   { file: ".github/workflows/ci.yml", min: 40 },
@@ -98,12 +100,36 @@ if (fs.existsSync(atbPath)) {
 }
 
 
+// Check ChatWorkspace for hardcoded fallbacks
+var cwPath = path.join(ROOT, "apps/desktop/ui/src/screens/ChatWorkspace.tsx");
+if (fs.existsSync(cwPath)) {
+  var cwContent = fs.readFileSync(cwPath, "utf-8");
+  if (cwContent.indexOf("\"OpenAI\"") >= 0 || cwContent.indexOf("'OpenAI'") >= 0) fail("ChatWorkspace.tsx has hardcoded OpenAI");
+  else ok("ChatWorkspace has no hardcoded OpenAI");
+  if (cwContent.indexOf("\"gpt-4o\"") >= 0 || cwContent.indexOf("'gpt-4o'") >= 0) fail("ChatWorkspace.tsx has hardcoded gpt-4o");
+  else ok("ChatWorkspace has no hardcoded gpt-4o");
+  if (cwContent.indexOf("tokenfence:active-model-changed") < 0) fail("ChatWorkspace.tsx MISSING event listener");
+  else ok("ChatWorkspace has active-model-changed listener");
+  if (cwContent.indexOf("getActiveModelViewState") < 0) fail("ChatWorkspace.tsx MISSING getActiveModelViewState");
+  else ok("ChatWorkspace uses getActiveModelViewState");
+}
+// Check ModelRuntimeSelfTest exists
+var selfTestPath = path.join(ROOT, "apps/desktop/ui/src/components/ModelRuntimeSelfTest.tsx");
+if (!fs.existsSync(selfTestPath)) fail("ModelRuntimeSelfTest.tsx NOT FOUND");
+else ok("ModelRuntimeSelfTest.tsx exists");
+
 // Check active-model has normalizeDisplayText and migrateActiveModelStorage
 var amCheck = fs.readFileSync(path.join(ROOT, "apps/desktop/ui/src/data/active-model.ts"), "utf-8");
 if (amCheck.indexOf("normalizeDisplayText") < 0) fail("active-model.ts MISSING normalizeDisplayText");
 else ok("active-model contains normalizeDisplayText");
-if (amCheck.indexOf("migrateActiveModelStorage") < 0) fail("active-model.ts MISSING migrateActiveModelStorage");
-else ok("active-model contains migrateActiveModelStorage");
+if (amCheck.indexOf("migrateActiveModelStorageV2") < 0) fail("active-model.ts MISSING migrateActiveModelStorageV2");
+else ok("active-model contains migrateActiveModelStorageV2");
+if (amCheck.indexOf("ActiveModelV2") < 0) fail("active-model.ts MISSING ActiveModelV2 interface");
+else ok("active-model contains ActiveModelV2");
+if (amCheck.indexOf("canonicalizeProviderId") < 0) fail("active-model.ts MISSING canonicalizeProviderId");
+else ok("active-model contains canonicalizeProviderId");
+if (amCheck.indexOf("getActiveModelViewState") < 0) fail("active-model.ts MISSING getActiveModelViewState");
+else ok("active-model contains getActiveModelViewState");
 
 // ===== 3. Bad pattern check (mojibake, leaked i18n keys) =====
 console.log("\n--- Bad pattern check ---");
@@ -191,4 +217,4 @@ console.log("\n=== RESULT: " + errors.length + " error(s) ===");
 if (errors.length > 0) { console.log("Failures:"); errors.forEach(function(e) { console.log("  - " + e); }); process.exit(1); }
 else { console.log("All checks passed."); process.exit(0);
 }
-// source_guard.js v1.3.5 - protects against flattened/minified source files
+// source_guard.js v1.3.6 - protects against flattened/minified source files

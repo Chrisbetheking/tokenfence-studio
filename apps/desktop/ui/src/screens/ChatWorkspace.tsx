@@ -226,6 +226,16 @@ export function ChatWorkspace() {
 
   const viewState = getActiveModelViewState();
 
+  // Debug state for Self-Test verification
+  (window as any).__TOKENFENCE_MODEL_RUNTIME__ = {
+    headerLabel: viewState.displayLabel,
+    inspectorLabel: viewState.displayLabel,
+    sendTargetLabel: viewState.resolved?.displayLabel || viewState.displayLabel,
+    viewState: viewState,
+    hasRawUnicode: /\\u[0-9a-fA-F]{4}/.test(JSON.stringify(viewState)),
+    updatedAt: Date.now(),
+  };
+
   // Listen for external model changes (e.g. from Models page, Settings)
   useEffect(() => {
     const handler = () => {
@@ -1651,19 +1661,19 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
                 <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginBottom: 4 }}>{tk("chat.activeModel")}</div>
                 {hasConfigured ? (
                   <>
-                    <div style={{ fontSize: "0.8rem", color: "var(--text)", fontWeight: 500 }}>{viewState.hasModel ? viewState.displayLabel : (tk("chat.noConfiguredModel") || "Not configured")}</div>
+                    <div style={{ fontSize: "0.8rem", color: "var(--text)", fontWeight: 500 }}>{viewState.hasModel ? viewState.displayLabel : normalizeDisplayText(tk("chat.noConfiguredModel") || "Not configured")}</div>
                     <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
                       <span style={{ width: 6, height: 6, borderRadius: "50%", background: viewState.hasModel && viewState.configured ? (viewState.status === "healthy" ? "var(--green)" : "var(--amber)") : "var(--text-muted)" }}></span>
                       <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
-                        {viewState.hasModel && viewState.configured ? tk("common.configured") : tk("common.notConfigured")}
+                        {viewState.hasModel && viewState.configured ? normalizeDisplayText(tk("common.configured")) : normalizeDisplayText(tk("common.notConfigured"))}
                       </span>
                     </div>
                   </>
                 ) : (
                   <>
-                    <div style={{ fontSize: "0.8rem", color: "var(--text)", fontWeight: 500 }}>{tk("chat.noConfiguredModel")}</div>
+                    <div style={{ fontSize: "0.8rem", color: "var(--text)", fontWeight: 500 }}>{normalizeDisplayText(tk("chat.noConfiguredModel"))}</div>
                     <div style={{ marginTop: 4, fontSize: "0.7rem", color: "var(--text-muted)" }}>
-                      {tk("status.notConfigured")}
+                      {normalizeDisplayText(tk("status.notConfigured"))}
                     </div>
                     <button onClick={() => { window.dispatchEvent(new CustomEvent('tokenfence:navigate', { detail: { screen: 'models' } })) }} className="btn btn-ghost" style={{ marginTop: 6, fontSize: "0.7rem", padding: "3px 10px", color: "var(--primary)" }}>
                       {tk("chat.configureProvider")} &rarr;

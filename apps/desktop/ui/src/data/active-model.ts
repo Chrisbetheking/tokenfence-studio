@@ -97,6 +97,42 @@ export function hasRawUnicodeEscapes(value: unknown): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// No-configured-model label constants
+// ---------------------------------------------------------------------------
+
+export const NO_CONFIGURED_MODEL_LABEL_EN = "No configured model";
+export const NO_CONFIGURED_MODEL_LABEL_ZH = "未配置模型";
+
+export function getNoConfiguredModelLabel(): string {
+  const lang = localStorage.getItem("tokenfence.language") || "";
+  return lang.toLowerCase().startsWith("zh")
+    ? NO_CONFIGURED_MODEL_LABEL_ZH
+    : NO_CONFIGURED_MODEL_LABEL_EN;
+}
+
+// ---------------------------------------------------------------------------
+// Recursive normalize (objects, arrays)
+// ---------------------------------------------------------------------------
+
+export function normalizeRuntimeText<T>(value: T): T {
+  if (typeof value === "string") {
+    return normalizeDisplayText(value) as T;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeRuntimeText(item)) as T;
+  }
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+      out[key] = normalizeRuntimeText(item);
+    }
+    return out as T;
+  }
+  return value;
+}
+
+
+// ---------------------------------------------------------------------------
 // Storage
 // ---------------------------------------------------------------------------
 
@@ -211,8 +247,9 @@ export function migrateActiveModelStorageV2(): void {
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(am));
     } else {
-      // No configured provider — clear stale data
+      // No configured provider - clear stale data (normal state, not an error)
       localStorage.removeItem(STORAGE_KEY);
+      dispatchActiveModelChanged();
     }
   } catch {
     try { localStorage.removeItem(STORAGE_KEY); } catch {}
@@ -338,11 +375,16 @@ export function getActiveModelViewState(): ActiveModelViewState {
   const resolved = resolveActiveModel();
 
   if (!resolved || !resolved.configured) {
+    const label = getNoConfiguredModelLabel();
     return {
       hasModel: false,
-      providerLabel: "",
+      providerId: "",
+      providerDisplayName: label,
+      modelId: "",
+      modelDisplayName: "",
+      providerLabel: label,
       modelLabel: "",
-      displayLabel: "",
+      displayLabel: label,
       status: "not_configured",
       configured: false,
       resolved: null,
@@ -526,7 +568,7 @@ export async function runProviderHealthCheck(config: ProviderConfig): Promise<He
 const HEALTH_KEY = "tokenfence.providerHealth";
 export interface SavedHealth { [providerId: string]: HealthResult; }
 export function loadHealthResults(): SavedHealth {
-  try { const raw = localStorage.getItem(HEALTH_KEY); return raw ? JSON.parse(raw) : {}; } catch { return {}; }
+  try { const raw = localStorage.getItem(HEALTH_KEY); if (raw) { const parsed = JSON.parse(raw); return normalizeRuntimeText(parsed); } return {}; } catch { return {}; }
 }
 export function saveHealthResult(providerId: string, result: HealthResult): void {
   const all = loadHealthResults();
@@ -545,7 +587,7 @@ export interface CustomModelEntry {
   contextLength: number; modelType: "chat" | "reasoning" | "coding" | "vision"; addedAt: number;
 }
 export function loadCustomModels(): CustomModelEntry[] {
-  try { const raw = localStorage.getItem(CUSTOM_KEY); return raw ? JSON.parse(raw) : []; } catch { return []; }
+  try { const raw = localStorage.getItem(CUSTOM_KEY); if (raw) { const parsed = JSON.parse(raw); return normalizeRuntimeText(parsed); } return []; } catch { return []; }
 }
 export function saveCustomModel(entry: CustomModelEntry): void {
   const models = loadCustomModels();

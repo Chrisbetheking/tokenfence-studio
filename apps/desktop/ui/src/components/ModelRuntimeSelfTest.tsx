@@ -70,14 +70,31 @@ export function ModelRuntimeSelfTest() {
         <h3 style={{ margin: 0, fontSize: "1rem", color: "var(--text)" }}>
           {tk("models.selfTest") || "Model Runtime Self Test"}
         </h3>
-        <button
-          onClick={runTests}
-          disabled={running}
-          className="btn btn-primary"
-          style={{ fontSize: "0.8rem", padding: "6px 14px" }}
-        >
-          {running ? (tk("common.running") || "Running...") : (tk("common.runTests") || "Run Tests")}
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={runTests}
+            disabled={running}
+            className="btn btn-primary"
+            style={{ fontSize: "0.8rem", padding: "6px 14px" }}
+          >
+            {running ? (tk("common.running") || "Running...") : (tk("common.runTests") || "Run Tests")}
+          </button>
+          <button
+            onClick={() => {
+              try {
+                localStorage.removeItem("tokenfence.activeModel");
+                migrateActiveModelStorageV2();
+                window.dispatchEvent(new Event("tokenfence:active-model-changed"));
+                setResults([]);
+                setRan(false);
+              } catch { /* ignore */ }
+            }}
+            className="btn btn-ghost"
+            style={{ fontSize: "0.8rem", padding: "6px 14px", color: "var(--amber)" }}
+          >
+            Reset Model Runtime State
+          </button>
+        </div>
       </div>
 
       {ran && (
@@ -165,11 +182,11 @@ function buildTestCases(): TestCase[] {
     // --- 1. Schema / Structure ---
     {
       id: "schema_version",
-      name: "ActiveModel uses schemaVersion 2",
+      name: "valid not_configured state",
       fn: () => {
         try {
           const raw = localStorage.getItem("tokenfence.activeModel");
-          if (!raw) return { pass: false, detail: "No active model in localStorage" };
+          if (!raw) return { pass: true, detail: "No active model - valid not_configured state" };
           const parsed = JSON.parse(raw);
           if (parsed.schemaVersion !== 2) {
             return { pass: false, detail: `schemaVersion is ${parsed.schemaVersion}, expected 2` };

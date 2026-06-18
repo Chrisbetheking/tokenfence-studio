@@ -212,6 +212,30 @@ for (var r=0;r<2;r++) {
   } catch(e) { fail(rf+": invalid UTF-8"); }
 }
 
+
+// ===== 7. v1.3.7 Active Model Runtime checks =====
+console.log("\n--- v1.3.7 Active Model Runtime checks ---");
+if (amCheck.indexOf("NO_CONFIGURED_MODEL_LABEL_EN") < 0) fail("active-model.ts MISSING NO_CONFIGURED_MODEL_LABEL_EN");
+else ok("active-model contains NO_CONFIGURED_MODEL_LABEL_EN");
+if (amCheck.indexOf("normalizeRuntimeText") < 0) fail("active-model.ts MISSING normalizeRuntimeText");
+else ok("active-model contains normalizeRuntimeText");
+if (amCheck.indexOf("getNoConfiguredModelLabel") < 0) fail("active-model.ts MISSING getNoConfiguredModelLabel");
+else ok("active-model contains getNoConfiguredModelLabel");
+if (cwContent.indexOf("__TOKENFENCE_MODEL_RUNTIME__") < 0) fail("ChatWorkspace.tsx MISSING __TOKENFENCE_MODEL_RUNTIME__");
+else ok("ChatWorkspace contains __TOKENFENCE_MODEL_RUNTIME__");
+if (cwContent.indexOf("/ GPT-5.5") >= 0) fail("ChatWorkspace.tsx contains hardcoded '/ GPT-5.5' fallback");
+else ok("ChatWorkspace has no '/ GPT-5.5' fallback");
+if (/provider\s*\|\|\s*["'\`]OpenAI["'\`]/.test(cwContent)) fail("ChatWorkspace.tsx contains provider || OpenAI fallback");
+else ok("ChatWorkspace has no provider || OpenAI fallback");
+if (/model\s*\|\|\s*["'\`]GPT-5\.5["'\`]/.test(cwContent)) fail("ChatWorkspace.tsx contains model || GPT-5.5 fallback");
+else ok("ChatWorkspace has no model || GPT-5.5 fallback");
+if (fs.existsSync(selfTestPath)) {
+  var stContent = fs.readFileSync(selfTestPath, "utf-8");
+  if (stContent.indexOf("valid not_configured state") < 0) fail("ModelRuntimeSelfTest.tsx MISSING 'valid not_configured state'");
+  else ok("ModelRuntimeSelfTest has 'valid not_configured state' test");
+  if (stContent.indexOf("Reset Model Runtime State") < 0) fail("ModelRuntimeSelfTest.tsx MISSING 'Reset Model Runtime State' button");
+  else ok("ModelRuntimeSelfTest has Reset button");
+}
 // ===== Final =====
 console.log("\n=== RESULT: " + errors.length + " error(s) ===");
 if (errors.length > 0) { console.log("Failures:"); errors.forEach(function(e) { console.log("  - " + e); }); process.exit(1); }

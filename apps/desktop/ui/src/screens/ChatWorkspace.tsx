@@ -24,6 +24,7 @@ import { getEnabledModels, loadInstalledModels, type InstalledModel } from "@tok
 import { readFile } from "../desktop-bridge";
 import { storeGet, storeSet } from "@tokenfence/shared/src/agent-runtime/safeStorage";
 import { ModelPickerPanel } from "../components/ModelPickerPanel";
+import { resolveActiveModel, setActiveModel, validateModelForSend, type ResolvedModel } from "../data/active-model";
 
 
 
@@ -221,20 +222,16 @@ export function ChatWorkspace() {
 
   const [sending, setSending] = useState(false);
 
-  const [selectedProvider, setSelectedProvider] = useState(() => {
-    try {
-      const cfgs = loadProviderConfigs();
-      const best = pickBestAvailableModel(cfgs.map(c => ({ provider: c.provider, enabled: c.enabled, apiKey: c.apiKey, lastHealthStatus: c.lastHealthStatus })));
-      return best?.providerId ?? "OpenAI";
-    } catch { return "OpenAI"; }
-  });
-  const [selectedModel, setSelectedModel] = useState(() => {
-    try {
-      const cfgs = loadProviderConfigs();
-      const best = pickBestAvailableModel(cfgs.map(c => ({ provider: c.provider, enabled: c.enabled, apiKey: c.apiKey, lastHealthStatus: c.lastHealthStatus })));
-      return best?.modelId ?? "gpt-4o";
-    } catch { return "gpt-4o"; }
-  });
+  const [activeModel, setActiveModelState] = useState<ResolvedModel | null>(() => resolveActiveModel());
+
+  const selectedProvider = activeModel?.providerId ?? "OpenAI";
+  const selectedModel = activeModel?.modelId ?? "gpt-4o";
+
+  const handleSetActiveModel = (providerId: string, modelId: string, displayName?: string) => {
+    setActiveModel(providerId, modelId, displayName, "installed");
+    const resolved = resolveActiveModel();
+    setActiveModelState(resolved);
+  };
 
   const [guardEnabled, setGuardEnabled] = useState(true);
 
@@ -321,7 +318,7 @@ export function ChatWorkspace() {
 
   // Get models for current provider from registry
 
-  const providerModels = useMemo(() => getModelsForProvider(selectedProvider), [selectedProvider]);
+  const providerModels = useMemo(() => getModelsForProvider(activeModel?.providerId ?? "OpenAI"), [activeModel]);
 
 
 
@@ -489,9 +486,8 @@ export function ChatWorkspace() {
 
                 if (bestModel) {
 
-                  setSelectedProvider(bestModel.providerId);
+                  handleSetActiveModel(bestModel.providerId, bestModel.modelId);
 
-                  setSelectedModel(bestModel.modelId);
 
                   setRoutingNote(`Switched to ${bestModel.providerName} / ${bestModel.displayName} for ${rule.name}`);
 
@@ -585,7 +581,7 @@ export function ChatWorkspace() {
 
   const handleSelectModel = useCallback((providerId: string, modelId: string) => {
 
-    setSelectedProvider(providerId); setSelectedModel(modelId);
+    handleSetActiveModel(providerId, modelId);
 
     setShowModelPanel(false);
 
@@ -698,7 +694,16 @@ export function ChatWorkspace() {
 
     const configs = loadProviderConfigs();
 
-    const config = configs.find((c) => c.provider === selectedProvider) ?? { provider: selectedProvider, model: selectedModel, deployment: "cloud" } as ProviderConfig;
+    // Pre-send validation
+    const validation = validateModelForSend();
+    if (!validation.valid) {
+      const assistantMsg: ChatMessage = { id: uid(), role: "assistant", content: validation.errorEn, timestamp: Date.now(), provider: selectedProvider, model: selectedModel };
+      setConversations((prev) => prev.map((c) => c.id === activeConvId ? { ...c, messages: [...c.messages, userMsg, assistantMsg] } : c));
+      setSending(false);
+      return;
+    }
+
+    const config = configs.find((c) => c.provider === (activeModel?.providerId ?? selectedProvider)) ?? { provider: (activeModel?.providerId ?? selectedProvider), model: selectedModel, deployment: "cloud" } as ProviderConfig;
 
 
 
@@ -712,7 +717,7 @@ export function ChatWorkspace() {
 
     setTaskStatus("responding"); setTaskSteps(prev => prev.map(s => s.id==="select" ? {...s,status:"done"} : s.id==="send" ? {...s,status:"running"} : s));
 
-    const responseText = await callProviderAPI(apiMessages, config);
+    const responseText = await callProviderAPI(apiMessages, { ...config, model: activeModel?.modelId ?? config.model });
 
     setTaskStatus("done"); setTaskSteps(prev => prev.map(s => s.id==="send" ? {...s,status:"done"} : s.id==="respond" ? {...s,status:"done"} : s.id==="save" ? {...s,status:"done"} : s));
 

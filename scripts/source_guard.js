@@ -24,6 +24,8 @@ var coreFiles = [
   { file: "apps/desktop/ui/src/screens/ToolboxScreen.tsx", min: 180 },
   { file: "apps/desktop/ui/src/desktop-bridge.ts", min: 100 },
   { file: "apps/desktop/src-tauri/src/main.rs", min: 100 },
+  { file: "apps/desktop/ui/src/data/active-model.ts", min: 200 },
+  { file: "apps/desktop/ui/src/components/CustomModelModal.tsx", min: 100 },
   { file: "scripts/source_guard.js", min: 150 },
   { file: "scripts/release_sanity.js", min: 80 },
   { file: ".github/workflows/ci.yml", min: 50 },
@@ -98,6 +100,8 @@ var checkFiles = [
   "apps/desktop/src-tauri/src/main.rs",
   "apps/desktop/ui/src/App.tsx",
   "apps/desktop/ui/src/components/AppTitleBar.tsx",
+  "apps/desktop/ui/src/data/active-model.ts",
+  "apps/desktop/ui/src/components/CustomModelModal.tsx",
 ];
 
 for (var j = 0; j < checkFiles.length; j++) {
@@ -129,7 +133,7 @@ for (var j = 0; j < checkFiles.length; j++) {
 }
 ok("bad patterns checked");
 
-// ===== 4. Bare # and ### in source files (not ##) =====
+// ===== 4. Bare # / ### in source files =====
 console.log("\n--- Bare # / ### in source files ---");
 var sourceFiles = [
   "apps/desktop/ui/src/App.tsx",
@@ -139,18 +143,18 @@ var sourceFiles = [
   "apps/desktop/ui/src/agentModelBridge.ts",
   "apps/desktop/ui/src/desktop-bridge.ts",
   "apps/desktop/src-tauri/src/main.rs",
+  "apps/desktop/ui/src/data/active-model.ts",
+  "apps/desktop/ui/src/components/CustomModelModal.tsx",
   "scripts/source_guard.js",
   "scripts/release_sanity.js",
 ];
 
 // In a template literal, ## headings are normal string content - skip those lines.
-// Only flag bare # (single hash with space) and ### (triple hash) outside template literals.
 function isInTemplateLiteral(lines, idx) {
   var backtickCount = 0;
   for (var i = 0; i < idx; i++) {
     var l = lines[i];
-    // Count unescaped backticks
-    var matches = l.match(/(?<!\\)/g);
+    var matches = l.match(/(?<!\\)`/g);
     if (matches) backtickCount += matches.length;
   }
   return (backtickCount % 2) === 1;
@@ -166,21 +170,17 @@ for (var t = 0; t < sourceFiles.length; t++) {
     var line = lines[li];
     var trimmed = line.trimStart();
 
-    // Skip template literal content
     if (isInTemplateLiteral(lines, li)) continue;
 
-    // Rust: allow #[derive(...)], #![cfg_attr(...)], etc.
     if (tf.endsWith(".rs")) {
       if (trimmed.startsWith("#[") || trimmed.startsWith("#![")) continue;
     }
 
-    // Check for bare # (single hash + space, not shebang, not comment)
     if (/^#[^#!\[\/]/.test(trimmed) && !/^\s*\/\//.test(line)) {
       fail(tf + ":" + (li+1) + ': bare #: "' + line.trim() + '"');
       found = true;
     }
 
-    // Check for bare ### (triple hash)
     if (/^###[^#]/.test(trimmed) && !/^\s*\/\//.test(line)) {
       fail(tf + ":" + (li+1) + ': bare ###: "' + line.trim() + '"');
       found = true;

@@ -14,6 +14,8 @@ import {
   healthCheckProvider, type ProviderConfig,
 } from "@tokenfence/shared/src/providers";
 import { ROUTING_RULES, findRoutingRule, type RoutingRule } from "@tokenfence/shared/src/model-registry";
+import { CustomModelModal } from "../components/CustomModelModal";
+import { runProviderHealthCheck, saveHealthResult, loadHealthResults, loadCustomModels, removeCustomModel, type HealthResult } from "../data/active-model";
 
 /* ============================================================
    Provider Config helpers (from ProvidersScreen)
@@ -24,12 +26,12 @@ function persistConfigs(configs: ProviderConfig[]) {
   try { saveProviderConfigs(configs); } catch {}
 }
 
-function healthBadge(status?: string): string {
-  switch (status) { case "ok": return "badge-green"; case "degraded": return "badge-amber"; case "error": return "badge-red"; default: return "badge-muted"; }
+function getHealthBadge(status?: string): string {
+  switch (status) { case "ok": return "badge-green"; case "degraded": return "badge-amber"; case "failed": case "error": return "badge-red"; case "not_configured": return "badge-muted"; default: return "badge-muted"; }
 }
 
-function healthLabel(status?: string): string {
-  switch (status) { case "ok": return tk("status.healthy"); case "degraded": return tk("status.degraded"); case "error": return tk("status.failed"); default: return tk("common.unknown"); }
+function getHealthLabel(status?: string): string {
+  switch (status) { case "ok": return tk("status.healthy"); case "degraded": return tk("status.degraded"); case "failed": case "error": return tk("status.failed"); case "not_configured": return tk("status.notConfigured") || "Not configured"; default: return tk("common.unknown"); }
 }
 
 /* ============================================================
@@ -57,6 +59,9 @@ export function ModelsScreen() {
   const [editingProvider, setEditingProvider] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<ProviderConfig>>({});
   const [fetchingProvider, setFetchingProvider] = useState<string | null>(null);
+  const [showCustomModelModal, setShowCustomModelModal] = useState(false);
+  const [healthResults, setHealthResults] = useState<Record<string, HealthResult>>(() => loadHealthResults());
+  const [customModels, setCustomModels] = useState(() => loadCustomModels());
   const [fetchedModels, setFetchedModels] = useState<{id:string}[]>([]);
 
   const isZh = tk("app.title") !== "TokenFence Studio" || tk("common.yes") !== "Yes";
@@ -114,8 +119,10 @@ export function ModelsScreen() {
       const configs = [...providerConfigs];
       const idx = configs.findIndex((c) => c.provider === provider);
       if (idx >= 0) {
-        const result = await healthCheckProvider(configs[idx]);
-        configs[idx] = { ...configs[idx], lastHealthCheck: Date.now(), lastHealthStatus: result.status ?? "unknown", lastHealthError: result.error };
+        const result = await runProviderHealthCheck(configs[idx]);
+        configs[idx] = { ...configs[idx], lastHealthCheck: Date.now(), lastHealthStatus: result.status === "ok" ? "ok" : "failed", lastHealthError: result.error };
+        saveHealthResult(provider, result);
+        setHealthResults((prev) => ({ ...prev, [provider]: result }));
         setProviderConfigs(configs);
         persistConfigs(configs);
       }
@@ -420,7 +427,7 @@ export function ModelsScreen() {
                     <span className={`badge ${config.deployment === "local" ? "badge-green" : "badge-blue"}`} style={{ fontSize: "0.68rem" }}>
                       {config.deployment === "local" ? tk("providers.local") : tk("providers.cloud")}
                     </span>
-                    <span className={`badge ${healthBadge(config.lastHealthStatus)}`} style={{ fontSize: "0.68rem" }}>{healthLabel(config.lastHealthStatus)}</span>
+                    <span className={`badge ${getHealthBadge(healthResults[config.provider]?.status ?? config.lastHealthStatus)}`} style={{ fontSize: "0.68rem" }}>{getHealthLabel(healthResults[config.provider]?.status ?? config.lastHealthStatus)}</span>
                     <span className={`badge ${config.enabled ? "badge-green" : "badge-muted"}`} style={{ fontSize: "0.68rem" }}>{config.enabled ? tk("status.enabled") : tk("status.disabled")}</span>
                   </div>
                 </div>
@@ -481,6 +488,17 @@ export function ModelsScreen() {
         </p>
       </div>
 
+            {/* Top Bar: Add Model */}
+      <div style={{ padding: "8px 24px 0", display: "flex", justifyContent: "flex-end" }}>
+        <button
+          className="btn btn-primary"
+          onClick={() => setShowCustomModelModal(true)}
+          style={{ padding: "7px 16px", fontSize: "0.8rem", fontWeight: 500 }}
+        >
+          + {isZh ? "添加模型" : "Add Model"}
+        </button>
+      </div>
+
       {/* Tabs */}
       <div style={{ display: "flex", borderBottom: "1px solid var(--border)", padding: "0 24px", gap: 0 }}>
         {tabDefs.map((tab) => (
@@ -506,6 +524,14 @@ export function ModelsScreen() {
         {activeTab === "providers" && renderProviders()}
         {activeTab === "routing" && renderRouting()}
       </div>
+      <CustomModelModal
+        open={showCustomModelModal}
+        onClose={() => setShowCustomModelModal(false)}
+        onAdded={() => {
+          setProviderConfigs(loadProviderConfigs());
+          setCustomModels(loadCustomModels());
+        }}
+      />
     </div>
   );
 }

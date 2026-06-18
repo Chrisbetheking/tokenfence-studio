@@ -153,6 +153,8 @@ const coreFiles = [
   { file: ".github/workflows/ci.yml", min: 50 },
   { file: "docs/RELEASE_CHECKLIST.md", min: 60 },
   { file: "README.zh-CN.md", min: 80 },
+  { file: "apps/desktop/ui/src/data/active-model.ts", min: 200 },
+  { file: "apps/desktop/ui/src/components/CustomModelModal.tsx", min: 100 },
 ];
 for (const item of coreFiles) {
   const fp = path.join(ROOT, item.file);

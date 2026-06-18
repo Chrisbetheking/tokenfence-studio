@@ -155,6 +155,7 @@ const coreFiles = [
   { file: "README.zh-CN.md", min: 80 },
   { file: "apps/desktop/ui/src/data/active-model.ts", min: 200 },
   { file: "apps/desktop/ui/src/components/CustomModelModal.tsx", min: 100 },
+  { file: "apps/desktop/ui/src/components/ProviderConfigModal.tsx", min: 150 },
 ];
 for (const item of coreFiles) {
   const fp = path.join(ROOT, item.file);

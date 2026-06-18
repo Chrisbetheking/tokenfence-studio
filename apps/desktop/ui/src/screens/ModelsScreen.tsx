@@ -15,6 +15,7 @@ import {
 } from "@tokenfence/shared/src/providers";
 import { ROUTING_RULES, findRoutingRule, type RoutingRule } from "@tokenfence/shared/src/model-registry";
 import { CustomModelModal } from "../components/CustomModelModal";
+import { ProviderConfigModal } from "../components/ProviderConfigModal";
 import { runProviderHealthCheck, saveHealthResult, loadHealthResults, loadCustomModels, removeCustomModel, type HealthResult } from "../data/active-model";
 
 /* ============================================================
@@ -60,6 +61,8 @@ export function ModelsScreen() {
   const [editForm, setEditForm] = useState<Partial<ProviderConfig>>({});
   const [fetchingProvider, setFetchingProvider] = useState<string | null>(null);
   const [showCustomModelModal, setShowCustomModelModal] = useState(false);
+  const [showProviderConfigModal, setShowProviderConfigModal] = useState(false);
+  const [configTargetProvider, setConfigTargetProvider] = useState<string | undefined>(undefined);
   const [healthResults, setHealthResults] = useState<Record<string, HealthResult>>(() => loadHealthResults());
   const [customModels, setCustomModels] = useState(() => loadCustomModels());
   const [fetchedModels, setFetchedModels] = useState<{id:string}[]>([]);
@@ -436,7 +439,7 @@ export function ModelsScreen() {
                 <button className="btn btn-secondary" style={{ fontSize: "0.78rem", padding: "5px 14px" }} disabled={testing} onClick={() => runHealthCheck(config.provider)}>
                   {testing ? "..." : tk("providers.healthCheck")}
                 </button>
-                <button className="btn btn-ghost" style={{ fontSize: "0.78rem", padding: "5px 14px" }} onClick={() => { setEditingProvider(config.provider); }}>
+                <button className="btn btn-ghost" style={{ fontSize: "0.78rem", padding: "5px 14px" }} onClick={() => { setConfigTargetProvider(config.provider); setShowProviderConfigModal(true); }}>
                   {isZh ? "\u7F16\u8F91" : "Edit"}
                 </button>
               </div>
@@ -524,6 +527,15 @@ export function ModelsScreen() {
         {activeTab === "providers" && renderProviders()}
         {activeTab === "routing" && renderRouting()}
       </div>
+      <ProviderConfigModal
+        open={showProviderConfigModal}
+        initialProviderId={configTargetProvider}
+        onClose={() => { setShowProviderConfigModal(false); setConfigTargetProvider(undefined); }}
+        onSaved={() => {
+          setProviderConfigs(loadProviderConfigs());
+          setShowProviderConfigModal(false);
+        }}
+      />
       <CustomModelModal
         open={showCustomModelModal}
         onClose={() => setShowCustomModelModal(false)}

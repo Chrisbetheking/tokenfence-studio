@@ -16,6 +16,7 @@ import {
 import { ROUTING_RULES, findRoutingRule, type RoutingRule } from "@tokenfence/shared/src/model-registry";
 import { CustomModelModal } from "../components/CustomModelModal";
 import { ProviderConfigModal } from "../components/ProviderConfigModal";
+import { ProviderSetupWizard } from "../components/ProviderSetupWizard";
 import { runProviderHealthCheck, saveHealthResult, loadHealthResults, loadCustomModels, removeCustomModel, type HealthResult } from "../data/active-model";
 
 /* ============================================================
@@ -62,6 +63,7 @@ export function ModelsScreen() {
   const [fetchingProvider, setFetchingProvider] = useState<string | null>(null);
   const [showCustomModelModal, setShowCustomModelModal] = useState(false);
   const [showProviderConfigModal, setShowProviderConfigModal] = useState(false);
+  const [showSetupWizard, setShowSetupWizard] = useState(false);
   const [configTargetProvider, setConfigTargetProvider] = useState<string | undefined>(undefined);
   const [healthResults, setHealthResults] = useState<Record<string, HealthResult>>(() => loadHealthResults());
   const [customModels, setCustomModels] = useState(() => loadCustomModels());
@@ -491,7 +493,28 @@ export function ModelsScreen() {
         </p>
       </div>
 
-            {/* Top Bar: Add Model */}
+            {/* Top Bar: Onboarding + Add Model */}
+      {providerConfigs.filter(c => c.enabled && c.apiKey).length === 0 && (
+        <div style={{
+          margin: "16px 24px 0", padding: "16px 20px", borderRadius: 10,
+          background: "linear-gradient(135deg, rgba(79,140,255,0.08), rgba(0,200,100,0.05))",
+          border: "1px solid var(--primary)", display: "flex", alignItems: "center", gap: 16,
+        }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--text)", marginBottom: 4 }}>
+              {isZh ? "还没有配置模型提供商" : "No provider configured yet"}
+            </div>
+            <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+              {isZh ? "请先配置一个模型提供商，然后开始聊天。" : "Set up your first model provider to start chatting."}
+            </div>
+          </div>
+          <button className="btn btn-primary" onClick={() => setShowSetupWizard(true)}
+            style={{ padding: "8px 18px", fontSize: "0.82rem", whiteSpace: "nowrap", fontWeight: 500 }}>
+            {isZh ? "配置模型提供商" : "Set up provider"}
+          </button>
+        </div>
+      )}
+      {/* Top Bar: Add Model */}
       <div style={{ padding: "8px 24px 0", display: "flex", justifyContent: "flex-end" }}>
         <button
           className="btn btn-primary"
@@ -527,6 +550,7 @@ export function ModelsScreen() {
         {activeTab === "providers" && renderProviders()}
         {activeTab === "routing" && renderRouting()}
       </div>
+      <ProviderSetupWizard open={showSetupWizard} onClose={() => setShowSetupWizard(false)} onComplete={() => { setProviderConfigs(loadProviderConfigs()); setShowSetupWizard(false); }} />
       <ProviderConfigModal
         open={showProviderConfigModal}
         initialProviderId={configTargetProvider}

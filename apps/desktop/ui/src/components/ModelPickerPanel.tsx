@@ -1,4 +1,4 @@
-import { getEnabledModels, type InstalledModel } from "@tokenfence/shared/src/installed-models";
+﻿import { getEnabledModels, type InstalledModel } from "@tokenfence/shared/src/installed-models";
 import { useState, useEffect, useMemo } from "react";
 import { getEnabledModels, type InstalledModel } from "@tokenfence/shared/src/installed-models";
 import { tk, onLangChange } from "@tokenfence/shared/src/i18n";
@@ -12,6 +12,7 @@ import {
 } from "@tokenfence/shared/src/model-registry";
 import { getEnabledModels, type InstalledModel } from "@tokenfence/shared/src/installed-models";
 import { loadProviderConfigs, type ProviderConfig } from "@tokenfence/shared/src/providers";
+import { resolveActiveModel } from "../data/active-model";
 import { ProviderConfigModal } from "./ProviderConfigModal";
 
 interface ModelPickerPanelProps {
@@ -29,6 +30,19 @@ export function ModelPickerPanel({
   useEffect(() => { return onLangChange(() => forceRender((n) => n + 1)); }, []);
 
   const [searchText, setSearchText] = useState("");
+  const [activeModelInfo, setActiveModelInfo] = useState<{providerId:string;modelId:string}|null>(() => {
+    const resolved = resolveActiveModel();
+    return resolved ? { providerId: resolved.providerId, modelId: resolved.modelId } : null;
+  });
+
+  useEffect(() => {
+    const handler = () => {
+      const resolved = resolveActiveModel();
+      setActiveModelInfo(resolved ? { providerId: resolved.providerId, modelId: resolved.modelId } : null);
+    };
+    window.addEventListener("tokenfence:active-model-changed", handler);
+    return () => window.removeEventListener("tokenfence:active-model-changed", handler);
+  }, []);
   const [activeProvider, setActiveProvider] = useState(selectedProvider);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [configureTarget, setConfigureTarget] = useState("");
@@ -255,6 +269,9 @@ export function ModelPickerPanel({
                       <span style={{ color: "var(--text)", flex: 1 }}>{m.displayName}</span>
                       {m.isRecommended && (
                         <span style={{ fontSize: "0.6rem", background: "var(--primary)", color: "white", padding: "1px 5px", borderRadius: 8 }}>REC</span>
+                      )}
+                      {activeModelInfo && activeModelInfo.providerId === activeProvider && activeModelInfo.modelId === m.modelId && (
+                        <span style={{ fontSize: "0.6rem", background: "var(--green, #22c55e)", color: "white", padding: "1px 5px", borderRadius: 8, fontWeight: 600 }}>{tk("chat.inUse") || "In use"}</span>
                       )}
                       <span style={{ fontSize: "0.6rem", color: "var(--text-muted)" }}>
                         {m.contextWindow ? (m.contextWindow >= 1000000 ? (m.contextWindow / 1000000).toFixed(1) + "M" : (m.contextWindow / 1000).toFixed(0) + "K") : ""}

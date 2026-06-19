@@ -1319,7 +1319,7 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
             {/* Model pill */}
             <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--surface-alt)", border: "1px solid var(--border)", borderRadius: 8, padding: "4px 10px", fontSize: "0.75rem" }}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: viewState.hasModel && viewState.configured ? (viewState.status === "healthy" ? "var(--green)" : "var(--amber)") : "var(--text-muted)" }}></span>
-              <span style={{ fontWeight: 500, color: "var(--text)" }}>{viewState.hasModel ? viewState.providerLabel : (tk("chat.noModel") || "No Model")}</span>
+              <span style={{ fontWeight: 500, color: "var(--text)" }}>{viewState.hasModel ? viewState.providerLabel : (tk("chat.noConfiguredModel"))}</span>
               <span style={{ color: "var(--text-muted)" }}>/ {viewState.hasModel ? viewState.modelLabel : ""}</span>
             </div>
             {/* Switch Model button */}

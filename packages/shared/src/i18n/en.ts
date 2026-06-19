@@ -1,4 +1,4 @@
-/* English translations for TokenFence Studio */
+﻿/* English translations for TokenFence Studio */
 
 const en = {
   app: {
@@ -135,7 +135,7 @@ const en = {
     fileIO: "File I/O",
     outputGeneration: "Output Generation",
     tauriConnected: "Tauri Connected",
-    tauriNotConnected: "Browser mode 鈥攏o filesystem access",
+    tauriNotConnected: "Browser mode — no filesystem access",
   },
 
   outputs: {
@@ -410,7 +410,7 @@ const en = {
     toolboxContextPack: 'Context Pack Inspector',
     tools: 'Tools',
     toolGroups: 'Tool Groups',
-    toolGroupDesc: 'Tools and utilities �?status labels show readiness.',
+    toolGroupDesc: 'Tools and utilities — status labels show readiness.',
     security: 'Security',
     documents: 'Documents',
     knowledge: 'Knowledge',
@@ -493,3 +493,5 @@ settings: {
 
 export type Translations = typeof en;
 export default en;
+
+    inUse: 'In use',

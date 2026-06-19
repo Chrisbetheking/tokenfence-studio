@@ -1,4 +1,4 @@
-/* Simplified Chinese translations for TokenFence Studio */
+﻿/* Simplified Chinese translations for TokenFence Studio */
 
 import type { Translations } from "./en";
 
@@ -300,6 +300,8 @@ const zhCN: Translations = {
     modelNotConfigured: "\u672A\u914D\u7F6E",
     noConfiguredModel: "未配置模型",
     configureProvider: "配置模型提供商",
+    inUse: "正在使用",
+    setAsActive: "设为当前模型",
     setupProviderHint: "请先配置一个模型提供商，然后开始聊天。",
     modelConfigured: "\u5DF2\u914D\u7F6E",
     fileRouted: "\u5DF2\u6839\u636E\u6587\u4EF6\u7C7B\u578B\u8DEF\u7531",

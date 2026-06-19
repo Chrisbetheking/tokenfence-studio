@@ -213,18 +213,24 @@ for (var r=0;r<2;r++) {
 }
 
 
-// ===== 7. v1.3.7 Active Model Runtime checks =====
-console.log("\n--- v1.3.7 Active Model Runtime checks ---");
+// ===== 7. v1.3.8 Active Model Runtime checks =====
+console.log("\n--- v1.3.8 Active Model Runtime checks ---");
 if (amCheck.indexOf("NO_CONFIGURED_MODEL_LABEL_EN") < 0) fail("active-model.ts MISSING NO_CONFIGURED_MODEL_LABEL_EN");
 else ok("active-model contains NO_CONFIGURED_MODEL_LABEL_EN");
 if (amCheck.indexOf("normalizeRuntimeText") < 0) fail("active-model.ts MISSING normalizeRuntimeText");
 else ok("active-model contains normalizeRuntimeText");
 if (amCheck.indexOf("getNoConfiguredModelLabel") < 0) fail("active-model.ts MISSING getNoConfiguredModelLabel");
 else ok("active-model contains getNoConfiguredModelLabel");
+if (amCheck.indexOf("NO_CONFIGURED_MODEL_LABEL_ZH") < 0) fail("active-model.ts MISSING NO_CONFIGURED_MODEL_LABEL_ZH");
+else ok("active-model contains NO_CONFIGURED_MODEL_LABEL_ZH");
+if (amCheck.indexOf('displayLabel: ""') >= 0 || amCheck.indexOf("displayLabel: ''") >= 0) fail("active-model.ts returns displayLabel: empty string");
+else ok("active-model has no empty displayLabel fallback")
 if (cwContent.indexOf("__TOKENFENCE_MODEL_RUNTIME__") < 0) fail("ChatWorkspace.tsx MISSING __TOKENFENCE_MODEL_RUNTIME__");
 else ok("ChatWorkspace contains __TOKENFENCE_MODEL_RUNTIME__");
 if (cwContent.indexOf("/ GPT-5.5") >= 0) fail("ChatWorkspace.tsx contains hardcoded '/ GPT-5.5' fallback");
 else ok("ChatWorkspace has no '/ GPT-5.5' fallback");
+if (cwContent.indexOf('"No Model"') >= 0) fail("ChatWorkspace.tsx contains hardcoded 'No Model'");
+else ok("ChatWorkspace has no 'No Model' fallback")
 if (/provider\s*\|\|\s*["'\`]OpenAI["'\`]/.test(cwContent)) fail("ChatWorkspace.tsx contains provider || OpenAI fallback");
 else ok("ChatWorkspace has no provider || OpenAI fallback");
 if (/model\s*\|\|\s*["'\`]GPT-5\.5["'\`]/.test(cwContent)) fail("ChatWorkspace.tsx contains model || GPT-5.5 fallback");
@@ -235,7 +241,24 @@ if (fs.existsSync(selfTestPath)) {
   else ok("ModelRuntimeSelfTest has 'valid not_configured state' test");
   if (stContent.indexOf("Reset Model Runtime State") < 0) fail("ModelRuntimeSelfTest.tsx MISSING 'Reset Model Runtime State' button");
   else ok("ModelRuntimeSelfTest has Reset button");
+  if (stContent.indexOf("Active model apply indicator is consistent") < 0) fail("ModelRuntimeSelfTest.tsx MISSING active model apply indicator consistency test");
+  else ok("ModelRuntimeSelfTest has active model apply indicator test");
 }
+// ===== 8. i18n file checks =====
+console.log("\n--- i18n file checks ---");
+var zhCNPath = path.join(ROOT, "packages/shared/src/i18n/zh-CN.ts");
+if (fs.existsSync(zhCNPath)) {
+  var zhContent = fs.readFileSync(zhCNPath, "utf-8");
+  if (zhContent.indexOf("\u672A\u914D\u7F6E\u6A21\u578B") < 0) fail("zh-CN.ts MISSING no-configured-model label");
+  else ok("zh-CN.ts contains no-configured-model label");
+} else { fail("zh-CN.ts NOT FOUND"); }
+var enPath = path.join(ROOT, "packages/shared/src/i18n/en.ts");
+if (fs.existsSync(enPath)) {
+  var enContent = fs.readFileSync(enPath, "utf-8");
+  if (enContent.indexOf("No configured model") < 0) fail("en.ts MISSING No configured model");
+  else ok("en.ts contains No configured model");
+} else { fail("en.ts NOT FOUND"); }
+
 // ===== Final =====
 console.log("\n=== RESULT: " + errors.length + " error(s) ===");
 if (errors.length > 0) { console.log("Failures:"); errors.forEach(function(e) { console.log("  - " + e); }); process.exit(1); }

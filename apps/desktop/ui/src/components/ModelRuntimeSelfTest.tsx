@@ -373,5 +373,46 @@ function buildTestCases(): TestCase[] {
         }
       },
     },
+
+    // --- 10. Active model apply indicator is consistent ---
+    {
+      id: "active_model_indicator_consistency",
+      name: "Active model apply indicator is consistent",
+      fn: () => {
+        const runtime = (window as any).__TOKENFENCE_MODEL_RUNTIME__;
+        if (!runtime) {
+          return { pass: false, detail: "__TOKENFENCE_MODEL_RUNTIME__ not found (ChatWorkspace may not be mounted)" };
+        }
+        const hl = String(runtime.headerLabel ?? "");
+        const il = String(runtime.inspectorLabel ?? "");
+        const st = String(runtime.sendTargetLabel ?? "");
+        const hasRaw = !!(runtime.hasRawUnicode);
+
+        if (hasRaw) {
+          return { pass: false, detail: "UI contains raw unicode escapes" };
+        }
+        if (hl.indexOf("/ GPT-5.5") >= 0 || il.indexOf("/ GPT-5.5") >= 0 || st.indexOf("/ GPT-5.5") >= 0) {
+          return { pass: false, detail: "UI contains hardcoded / GPT-5.5" };
+        }
+
+        if (hl !== il || il !== st) {
+          return { pass: false, detail: "Labels inconsistent: Header=" + hl + " Inspector=" + il + " SendTarget=" + st };
+        }
+
+        const hasConfigured = hasAnyConfiguredProvider();
+        if (!hasConfigured) {
+          if (hl === "" || hl === "No Model") {
+            return { pass: false, detail: "No-configured-model label is empty or No Model: " + hl };
+          }
+          return { pass: true, detail: "No configured model state consistent: " + hl };
+        }
+
+        if (hl === "" || hl.indexOf("u672A") >= 0 || hl === "No configured model") {
+          return { pass: false, detail: "Has configured provider but label shows not-configured: " + hl };
+        }
+
+        return { pass: true, detail: "Active model consistent: Header=" + hl + " Inspector=" + il + " SendTarget=" + st };
+      },
+    }
   ];
 }

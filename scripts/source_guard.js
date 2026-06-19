@@ -249,6 +249,15 @@ if (fs.existsSync(mppPath)) {
   var mppContent = fs.readFileSync(mppPath, "utf-8");
   if (mppContent.indexOf("chat.setAsActive") < 0 && mppContent.indexOf("chat.inUse") < 0) fail("ModelPickerPanel.tsx MISSING setAsActive or inUse i18n");
   else ok("ModelPickerPanel has setAsActive/inUse i18n");
+// ===== 7.5. v1.3.9 setActiveModelV2 check =====
+console.log("\n--- v1.3.9 setActiveModelV2 check ---");
+if (amCheck.indexOf("export function setActiveModelV2") < 0) fail("active-model.ts MISSING setActiveModelV2 export");
+else ok("active-model.ts exports setActiveModelV2");
+if (amCheck.indexOf("saveActiveModel(activeModel);") >= 0 && amCheck.indexOf("dispatchActiveModelChanged();") >= 0) ok("setActiveModelV2 calls saveActiveModel + dispatchActiveModelChanged");
+else fail("setActiveModelV2 MISSING save or dispatch call");
+if (mppContent.indexOf("setActiveModelV2") < 0) fail("ModelPickerPanel.tsx MISSING setActiveModelV2 call");
+else ok("ModelPickerPanel calls setActiveModelV2");
+
 }
 // ===== 8. i18n file checks =====
 console.log("\n--- i18n file checks ---");

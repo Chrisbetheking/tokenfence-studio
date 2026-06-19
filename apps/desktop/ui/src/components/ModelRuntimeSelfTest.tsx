@@ -3,7 +3,8 @@ import {
   getActiveModelViewState,
   resolveActiveModel,
   migrateActiveModelStorageV2,
-  hasRawUnicodeEscapes,
+  resolveActiveModel,
+  setActiveModelV2,
   normalizeDisplayText,
   hasAnyConfiguredProvider,
   canonicalizeProviderId,
@@ -355,19 +356,49 @@ function buildTestCases(): TestCase[] {
     // --- 9. setActiveModel produces valid state ---
     {
       id: "set_active_model",
-      name: "Setting active model produces consistent state",
+      id: "set_active_model",
+      name: "setActiveModelV2 writes localStorage and dispatches event",
       fn: () => {
         try {
-          const configsRaw = localStorage.getItem("tokenfence.providerConfigs");
-          if (!configsRaw) {
-            return { pass: true, detail: "No provider configs — skipping set test" };
+          if (typeof setActiveModelV2 !== "function") {
+            return { pass: false, detail: "setActiveModelV2 is not a function" };
           }
-          // Use dynamic import to avoid circular issues
-          return { pass: true, detail: "Exports verified at compile-time by import statements" };
-          // Functions verified at compile time
-          if (typeof setActiveModel !== "function") return { pass: false, detail: "setActiveModel is not a function" };
-          if (typeof resolveActiveModel !== "function") return { pass: false, detail: "resolveActiveModel is not a function" };
-          return { pass: true, detail: "Active model set/resolve functions available" };
+          // Test: set a model and verify it's written to localStorage
+          const beforeRaw = localStorage.getItem("tokenfence.activeModel");
+          let eventFired = false;
+          const handler = () => { eventFired = true; };
+          window.addEventListener("tokenfence:active-model-changed", handler);
+          
+          const result = setActiveModelV2({
+            providerId: "OpenAI",
+            modelId: "gpt-5.5",
+            source: "installed",
+            configured: false,
+          });
+          
+          window.removeEventListener("tokenfence:active-model-changed", handler);
+          
+          const afterRaw = localStorage.getItem("tokenfence.activeModel");
+          const after = afterRaw ? JSON.parse(afterRaw) : null;
+          
+          if (!after) return { pass: false, detail: "localStorage not written" };
+          if (after.providerId !== "OpenAI") return { pass: false, detail: "providerId mismatch: " + after.providerId };
+          if (after.modelId !== "gpt-5.5") return { pass: false, detail: "modelId mismatch: " + after.modelId };
+          if (!eventFired) return { pass: false, detail: "tokenfence:active-model-changed event NOT dispatched" };
+          if (result.displayLabel.indexOf("/") < 0) return { pass: false, detail: "displayLabel missing separator: " + result.displayLabel };
+          
+          // Restore previous state
+          if (beforeRaw) {
+            localStorage.setItem("tokenfence.activeModel", beforeRaw);
+          } else {
+            localStorage.removeItem("tokenfence.activeModel");
+          }
+          
+          return { pass: true, detail: "setActiveModelV2 writes localStorage AND dispatches event: " + result.displayLabel };
+        } catch (e: any) {
+          return { pass: false, detail: `Error: ${e.message}` };
+        }
+      },
         } catch (e: any) {
           return { pass: false, detail: `Error: ${e.message}` };
         }

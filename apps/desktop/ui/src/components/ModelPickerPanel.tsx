@@ -1,4 +1,4 @@
-import { getEnabledModels, type InstalledModel } from "@tokenfence/shared/src/installed-models";
+﻿import { getEnabledModels, type InstalledModel } from "@tokenfence/shared/src/installed-models";
 import { useState, useEffect, useMemo } from "react";
 import { getEnabledModels, type InstalledModel } from "@tokenfence/shared/src/installed-models";
 import { tk, onLangChange } from "@tokenfence/shared/src/i18n";
@@ -12,7 +12,7 @@ import {
 } from "@tokenfence/shared/src/model-registry";
 import { getEnabledModels, type InstalledModel } from "@tokenfence/shared/src/installed-models";
 import { loadProviderConfigs, type ProviderConfig } from "@tokenfence/shared/src/providers";
-import { resolveActiveModel, getProviderDisplayName } from "../data/active-model";
+import { resolveActiveModel, getProviderDisplayName, setActiveModelV2 } from "../data/active-model";
 import { ProviderConfigModal } from "./ProviderConfigModal";
 
 interface ModelPickerPanelProps {
@@ -73,6 +73,7 @@ export function ModelPickerPanel({
       return;
     }
     addRecentModel(pid, mid);
+    setActiveModelV2({ providerId: pid, modelId: mid });
     onSelect(pid, mid);
   };
 

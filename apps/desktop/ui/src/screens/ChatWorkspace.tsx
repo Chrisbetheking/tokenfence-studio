@@ -251,7 +251,7 @@ export function ChatWorkspace() {
     setActiveModel(providerId, modelId, displayName, "installed");
     const resolved = resolveActiveModel();
     setActiveModelState(resolved);
-    dispatchActiveModelChanged();
+    // dispatchActiveModelChanged is now handled inside setActiveModel -> setActiveModelV2
   };
 
   const [guardEnabled, setGuardEnabled] = useState(true);
@@ -1340,7 +1340,7 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
         {showModelPanel && (
           <ModelPickerPanel
             onClose={() => setShowModelPanel(false)}
-            onSelect={(pid: string, mid: string) => { handleSetActiveModel(pid, mid); setShowModelPanel(false); dispatchActiveModelChanged(); }}
+            onSelect={(pid: string, mid: string) => { handleSetActiveModel(pid, mid); setShowModelPanel(false); }}
             selectedProvider={viewState.resolved?.providerId || ""}
             selectedModel={viewState.modelLabel}
             providerConfigs={providerConfigs}

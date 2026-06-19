@@ -423,20 +423,43 @@ export function getActiveModelViewState(): ActiveModelViewState {
 // Set Active Model
 // ---------------------------------------------------------------------------
 
-export function setActiveModel(
-  providerId: string,
-  modelId: string,
-  displayName?: string,
-  source: ActiveModelV2["source"] = "installed",
-): void {
-  const canonId = canonicalizeProviderId(normalizeDisplayText(providerId));
-  const mid = normalizeDisplayText(modelId);
-  const configs = loadProviderConfigs();
-  const cfg = configs.find((c) => c.provider === canonId && c.enabled && c.apiKey);
-  const providerDisplay = getProviderDisplayName(canonId);
-  const modelDisplay = normalizeDisplayText(displayName || mid);
+export function setActiveModelV2(input: {
+  providerId: string;
+  providerDisplayName?: string;
+  modelId: string;
+  modelDisplayName?: string;
+  source?: ActiveModelV2["source"];
+  configured?: boolean;
+  healthy?: boolean;
+}): ActiveModelV2 {
+  const canonId = canonicalizeProviderId(normalizeDisplayText(input.providerId));
+  const mid = normalizeDisplayText(input.modelId);
+  const providerDisplay = normalizeDisplayText(
+    input.providerDisplayName || getProviderDisplayName(canonId),
+  );
+  const modelDisplay = normalizeDisplayText(input.modelDisplayName || mid);
+  const source: ActiveModelV2["source"] = input.source || "installed";
 
-  saveActiveModel({
+  // Determine configured status: prefer explicit flag, then check provider configs
+  let configured: boolean;
+  if (typeof input.configured === "boolean") {
+    configured = input.configured;
+  } else {
+    const configs = loadProviderConfigs();
+    const cfg = configs.find((c) => c.provider === canonId && c.enabled && c.apiKey);
+    configured = !!cfg;
+  }
+
+  // Determine health: prefer explicit flag, then check saved health
+  let healthy: boolean;
+  if (typeof input.healthy === "boolean") {
+    healthy = input.healthy;
+  } else {
+    const healthResults = loadHealthResults();
+    healthy = healthResults[canonId]?.status === "ok";
+  }
+
+  const activeModel: ActiveModelV2 = {
     schemaVersion: 2,
     providerId: canonId,
     modelId: mid,
@@ -444,12 +467,30 @@ export function setActiveModel(
     modelDisplayName: modelDisplay,
     displayLabel: `${providerDisplay} / ${modelDisplay}`,
     source,
-    configured: !!cfg,
-    healthy: cfg?.lastHealthStatus === "ok",
+    configured,
+    healthy,
     lastSetAt: Date.now(),
-  });
+  };
+
+  saveActiveModel(activeModel);
+  dispatchActiveModelChanged();
+
+  return activeModel;
 }
 
+export function setActiveModel(
+  providerId: string,
+  modelId: string,
+  displayName?: string,
+  source: ActiveModelV2["source"] = "installed",
+): void {
+  setActiveModelV2({
+    providerId,
+    modelId,
+    modelDisplayName: displayName,
+    source,
+  });
+}
 // ---------------------------------------------------------------------------
 // Pre-send Validation
 // ---------------------------------------------------------------------------

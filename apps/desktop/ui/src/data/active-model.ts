@@ -279,7 +279,7 @@ export function resolveActiveModel(): ResolvedModelV2 | null {
   if (saved) {
     const configs = loadProviderConfigs();
     const cfg = configs.find(
-      (c) => c.provider === saved.providerId && c.enabled && c.apiKey
+      (c) => canonicalizeProviderId(c.provider) === saved.providerId && c.enabled && c.apiKey
     );
     if (cfg) {
       const reg = MODEL_REGISTRY.find(
@@ -446,7 +446,7 @@ export function setActiveModelV2(input: {
     configured = input.configured;
   } else {
     const configs = loadProviderConfigs();
-    const cfg = configs.find((c) => c.provider === canonId && c.enabled && c.apiKey);
+    const cfg = configs.find((c) => canonicalizeProviderId(c.provider) === canonId && c.enabled && c.apiKey);
     configured = !!cfg;
   }
 

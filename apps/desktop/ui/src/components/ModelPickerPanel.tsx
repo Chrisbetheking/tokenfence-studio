@@ -12,7 +12,7 @@ import {
 } from "@tokenfence/shared/src/model-registry";
 import { getEnabledModels, type InstalledModel } from "@tokenfence/shared/src/installed-models";
 import { loadProviderConfigs, type ProviderConfig } from "@tokenfence/shared/src/providers";
-import { resolveActiveModel, getProviderDisplayName, setActiveModelV2 } from "../data/active-model";
+import { resolveActiveModel, getProviderDisplayName, setActiveModelV2, canonicalizeProviderId } from "../data/active-model";
 import { ProviderConfigModal } from "./ProviderConfigModal";
 
 interface ModelPickerPanelProps {
@@ -271,7 +271,7 @@ export function ModelPickerPanel({
                       {m.isRecommended && (
                         <span style={{ fontSize: "0.6rem", background: "var(--primary)", color: "white", padding: "1px 5px", borderRadius: 8 }}>REC</span>
                       )}
-                      {activeModelInfo && activeModelInfo.providerId === activeProvider && activeModelInfo.modelId === m.modelId && (
+                      {activeModelInfo && canonicalizeProviderId(activeModelInfo.providerId) === canonicalizeProviderId(activeProvider) && activeModelInfo.modelId === m.modelId && (
                         <span style={{ fontSize: "0.6rem", background: "var(--green, #22c55e)", color: "white", padding: "1px 5px", borderRadius: 8, fontWeight: 600 }}>{tk("chat.inUse") || "In use"}</span>
                       )}
                       <span style={{ fontSize: "0.6rem", color: "var(--text-muted)" }}>
@@ -280,7 +280,7 @@ export function ModelPickerPanel({
                       {!cfg && (
                         <span style={{ fontSize: "0.6rem", color: "var(--amber)" }}>{tk("common.notConfigured") || "Not configured"}</span>
                       )}
-                      {cfg && !(activeModelInfo && activeModelInfo.providerId === activeProvider && activeModelInfo.modelId === m.modelId) && (
+                      {cfg && !(activeModelInfo && canonicalizeProviderId(activeModelInfo.providerId) === canonicalizeProviderId(activeProvider) && activeModelInfo.modelId === m.modelId) && (
                         <span style={{ fontSize: "0.6rem", color: "var(--primary)", fontWeight: 500 }}>{tk("chat.setAsActive") || "Set as active"}</span>
                       )}
                     </div>

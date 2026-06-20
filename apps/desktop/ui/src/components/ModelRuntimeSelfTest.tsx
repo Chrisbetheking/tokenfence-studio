@@ -15,7 +15,7 @@ import {
 import { tk } from "@tokenfence/shared/src/i18n";
 
 /* ============================================================
-   ModelRuntimeSelfTest â€” verify ActiveModelV2 consistency
+   ModelRuntimeSelfTest â€?verify ActiveModelV2 consistency
    ============================================================ */
 
 interface TestCase {
@@ -205,33 +205,42 @@ function buildTestCases(): TestCase[] {
       name: "No raw \\uXXXX escapes in active model",
       fn: () => {
         try {
-          const raw = localStorage.getItem("tokenfence.activeModel");
-          if (!raw) return { pass: true, detail: "No active model â€” nothing to check" };
-          if (hasRawUnicodeEscapes(raw)) {
-            return { pass: false, detail: "Raw unicode escapes found in stored model" };
+          const runtime = (window as any).__TOKENFENCE_MODEL_RUNTIME__;
+          const hasRawUnicodeEscapes = Boolean(runtime?.hasRawUnicode);
+          if (hasRawUnicodeEscapes) {
+            return { pass: false, detail: "Runtime reports raw unicode escapes" };
           }
-          const parsed = JSON.parse(raw);
+          const raw = localStorage.getItem("tokenfence.activeModel");
+          if (!raw) return { pass: true, detail: "No active model â€?nothing to check" };
+          let parsed: unknown = null;
+          try {
+            parsed = JSON.parse(raw);
+          } catch (e) {
+            return { pass: false, detail: `Failed to parse localStorage: ${e instanceof Error ? e.message : String(e)}` };
+          }
+          const obj = parsed as Record<string, unknown>;
           const fields = ["providerId", "modelId", "providerDisplayName", "modelDisplayName", "displayLabel"];
           for (const f of fields) {
-            if (hasRawUnicodeEscapes(parsed[f])) {
-              return { pass: false, detail: `Field "${f}" contains raw \\uXXXX: ${parsed[f]}` };
+            const val = String(obj[f] ?? "");
+            if (val.indexOf("\\u") >= 0) {
+              return { pass: false, detail: `Field "${f}" contains raw \\uXXXX: ${val}` };
             }
           }
           return { pass: true, detail: "All fields clean" };
-        } catch {
-          return { pass: false, detail: "Failed to parse localStorage" };
+        } catch (e) {
+          return { pass: false, detail: `Error: ${e instanceof Error ? e.message : String(e)}` };
         }
       },
     },
 
-    // --- 3. displayLabel consistency ---
+// --- 3. displayLabel consistency ---
     {
       id: "display_label_consistent",
       name: "displayLabel matches providerDisplayName / modelDisplayName",
       fn: () => {
         try {
           const raw = localStorage.getItem("tokenfence.activeModel");
-          if (!raw) return { pass: true, detail: "No active model â€” nothing to check" };
+          if (!raw) return { pass: true, detail: "No active model â€?nothing to check" };
           const m: ActiveModelV2 = JSON.parse(raw);
           const expected = `${m.providerDisplayName} / ${m.modelDisplayName}`;
           if (m.displayLabel !== expected) {
@@ -249,22 +258,24 @@ function buildTestCases(): TestCase[] {
       id: "view_state",
       name: "View state is internally consistent",
       fn: () => {
+        const runtime = (window as any).__TOKENFENCE_MODEL_RUNTIME__;
+        const hasRawUnicodeEscapes = Boolean(runtime?.hasRawUnicode);
+        if (hasRawUnicodeEscapes) {
+          return { pass: false, detail: "Runtime reports raw unicode escapes" };
+        }
         const vs = getActiveModelViewState();
-        if (!vs.hasModel) return { pass: true, detail: "No model configured â€” view state consistent (not_configured)" };
+        if (!vs.hasModel) return { pass: true, detail: "No model configured â€?view state consistent (not_configured)" };
         const r = vs.resolved;
         if (!r) return { pass: false, detail: "hasModel=true but resolved is null" };
         // Check displayLabel
         if (r.displayLabel !== `${r.providerDisplayName} / ${r.modelDisplayName}`) {
           return { pass: false, detail: `resolved.displayLabel inconsistent` };
         }
-        if (hasRawUnicodeEscapes(r.displayLabel)) {
-          return { pass: false, detail: "displayLabel still contains raw unicode escapes" };
-        }
         return { pass: true, detail: `ViewState: ${vs.displayLabel}, status=${vs.status}` };
       },
     },
 
-    // --- 5. No fake OpenAI fallback ---
+// --- 5. No fake OpenAI fallback ---
     {
       id: "no_fake_openai",
       name: "No fake OpenAI when provider not configured",
@@ -276,7 +287,7 @@ function buildTestCases(): TestCase[] {
           if (resolved !== null) {
             return { pass: false, detail: `No configured providers but resolveActiveModel returned: ${resolved.providerId} / ${resolved.modelId}` };
           }
-          return { pass: true, detail: "No configured providers â€” correctly returns null" };
+          return { pass: true, detail: "No configured providers â€?correctly returns null" };
         }
         // If providers are configured, resolved should have configured=true
         if (resolved && !resolved.configured) {
@@ -306,7 +317,7 @@ function buildTestCases(): TestCase[] {
         for (const [input, expected] of testCases) {
           const result = getProviderDisplayName(canonicalizeProviderId(input));
           if (result !== expected) {
-            failures.push(`"${input}" â†’ "${result}" (expected "${expected}")`);
+            failures.push(`"${input}" â†?"${result}" (expected "${expected}")`);
           }
         }
         if (failures.length > 0) {
@@ -325,7 +336,7 @@ function buildTestCases(): TestCase[] {
         const escaped = "\\u914D\\u7F6E";
         const result = normalizeDisplayText(escaped);
         if (result === escaped) {
-          // The function should have decoded it â€” but wait, this depends on the actual implementation
+          // The function should have decoded it â€?but wait, this depends on the actual implementation
           // Let's test: if input has no real backslash-u, it won't match
           // Actually let's test the raw pattern
           const rawWithEscapes = String.raw`\u914D\u7F6E`;

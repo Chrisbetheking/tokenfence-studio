@@ -105,7 +105,7 @@ function saveConversations(convs: Conversation[]): void {
 
 function checkDeveloperIdentityQuestion(text: string): string | null {
   const isZh = tk("common.yes") !== "Yes";
-  const zhPatterns = /???|????|??|????|????|??|??.?bug|????|????/;
+  const zhPatterns = /开发者|谁开发的|作者|怎么联系|联系方式|客服|反馈.?bug|开发团队|团队开发/;
   const enPatterns = /who developed|who is the developer|who created|author of|contact developer|support email|wechat|bug report|development team/i;
   const zhMatch = zhPatterns.test(text);
   const enMatch = enPatterns.test(text);

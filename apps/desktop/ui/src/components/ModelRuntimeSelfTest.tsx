@@ -15,7 +15,7 @@ import {
 import { tk } from "@tokenfence/shared/src/i18n";
 
 /* ============================================================
-   ModelRuntimeSelfTest â€?verify ActiveModelV2 consistency
+   ModelRuntimeSelfTest ï¿?verify ActiveModelV2 consistency
    ============================================================ */
 
 interface TestCase {
@@ -189,8 +189,8 @@ function buildTestCases(): TestCase[] {
           const raw = localStorage.getItem("tokenfence.activeModel");
           if (!raw) return { pass: true, detail: "No active model - valid not_configured state" };
           const parsed = JSON.parse(raw);
-          if (parsed.schemaVersion !== 2) {
-            return { pass: false, detail: `schemaVersion is ${parsed.schemaVersion}, expected 2` };
+          if ((parsed as Record<string, unknown>).schemaVersion !== 2) {
+            return { pass: false, detail: `schemaVersion is ${(parsed as Record<string, unknown>).schemaVersion}, expected 2` };
           }
           return { pass: true, detail: "schemaVersion = 2" };
         } catch {
@@ -206,12 +206,12 @@ function buildTestCases(): TestCase[] {
       fn: () => {
         try {
           const runtime = (window as any).__TOKENFENCE_MODEL_RUNTIME__;
-          const hasRawUnicodeEscapes = Boolean(runtime?.hasRawUnicode);
-          if (hasRawUnicodeEscapes) {
+          const hasRawUnicode = Boolean(runtime?.hasRawUnicode);
+          if (hasRawUnicode) {
             return { pass: false, detail: "Runtime reports raw unicode escapes" };
           }
           const raw = localStorage.getItem("tokenfence.activeModel");
-          if (!raw) return { pass: true, detail: "No active model â€?nothing to check" };
+          if (!raw) return { pass: true, detail: "No active model ï¿?nothing to check" };
           let parsed: unknown = null;
           try {
             parsed = JSON.parse(raw);
@@ -240,8 +240,13 @@ function buildTestCases(): TestCase[] {
       fn: () => {
         try {
           const raw = localStorage.getItem("tokenfence.activeModel");
-          if (!raw) return { pass: true, detail: "No active model â€?nothing to check" };
-          const m: ActiveModelV2 = JSON.parse(raw);
+          if (!raw) return { pass: true, detail: "No active model ï¿?nothing to check" };
+          let m: ActiveModelV2;
+        try {
+          m = JSON.parse(raw) as ActiveModelV2;
+        } catch (e) {
+          return { pass: false, detail: `Failed to parse localStorage: ${e instanceof Error ? e.message : String(e)}` };
+        }
           const expected = `${m.providerDisplayName} / ${m.modelDisplayName}`;
           if (m.displayLabel !== expected) {
             return { pass: false, detail: `displayLabel "${m.displayLabel}" !== expected "${expected}"` };
@@ -259,12 +264,12 @@ function buildTestCases(): TestCase[] {
       name: "View state is internally consistent",
       fn: () => {
         const runtime = (window as any).__TOKENFENCE_MODEL_RUNTIME__;
-        const hasRawUnicodeEscapes = Boolean(runtime?.hasRawUnicode);
-        if (hasRawUnicodeEscapes) {
+        const hasRawUnicode = Boolean(runtime?.hasRawUnicode);
+        if (hasRawUnicode) {
           return { pass: false, detail: "Runtime reports raw unicode escapes" };
         }
         const vs = getActiveModelViewState();
-        if (!vs.hasModel) return { pass: true, detail: "No model configured â€?view state consistent (not_configured)" };
+        if (!vs.hasModel) return { pass: true, detail: "No model configured ï¿?view state consistent (not_configured)" };
         const r = vs.resolved;
         if (!r) return { pass: false, detail: "hasModel=true but resolved is null" };
         // Check displayLabel
@@ -287,7 +292,7 @@ function buildTestCases(): TestCase[] {
           if (resolved !== null) {
             return { pass: false, detail: `No configured providers but resolveActiveModel returned: ${resolved.providerId} / ${resolved.modelId}` };
           }
-          return { pass: true, detail: "No configured providers â€?correctly returns null" };
+          return { pass: true, detail: "No configured providers ï¿?correctly returns null" };
         }
         // If providers are configured, resolved should have configured=true
         if (resolved && !resolved.configured) {
@@ -317,7 +322,7 @@ function buildTestCases(): TestCase[] {
         for (const [input, expected] of testCases) {
           const result = getProviderDisplayName(canonicalizeProviderId(input));
           if (result !== expected) {
-            failures.push(`"${input}" â†?"${result}" (expected "${expected}")`);
+            failures.push(`"${input}" ï¿?"${result}" (expected "${expected}")`);
           }
         }
         if (failures.length > 0) {
@@ -336,7 +341,7 @@ function buildTestCases(): TestCase[] {
         const escaped = "\\u914D\\u7F6E";
         const result = normalizeDisplayText(escaped);
         if (result === escaped) {
-          // The function should have decoded it â€?but wait, this depends on the actual implementation
+          // The function should have decoded it ï¿?but wait, this depends on the actual implementation
           // Let's test: if input has no real backslash-u, it won't match
           // Actually let's test the raw pattern
           const rawWithEscapes = String.raw`\u914D\u7F6E`;

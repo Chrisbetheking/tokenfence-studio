@@ -20,7 +20,10 @@ const FILES = [
   { path: "apps/desktop/ui/src/components/AgentPatchPanel.tsx", min: 220 },
   { path: "apps/desktop/ui/src/agentModelBridge.ts", min: 120 },
   { path: "apps/desktop/ui/src/screens/ToolboxScreen.tsx", min: 180 },
-  { path: "apps/desktop/ui/src/desktop-bridge.ts", min: 100 },
+  { path: "apps/desktop/ui/src/data/project-workspace.ts", min: 120 },
+  { path: "apps/desktop/ui/src/components/RecentProjectsPanel.tsx", min: 120 },
+  { path: "apps/desktop/ui/src/components/ProjectEmptyState.tsx", min: 60 },
+
   { path: "apps/desktop/src-tauri/src/main.rs", min: 100 },
   { path: "scripts/source_guard.js", min: 150 },
   { path: "scripts/release_sanity.js", min: 80 },

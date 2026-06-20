@@ -29,7 +29,7 @@ type Screen = "chat" | "projects" | "models" | "toolbox" | "settings" | "about"
 
 type FeatureStatus = "working" | "preview" | "coming_soon" | "needs_runtime";
 
-const VERSION = "v1.3.9";
+const VERSION = "v1.4.0";
 
 const primaryNav: { id: Screen; icon: string }[] = [
   { id: "chat", icon: "\u{1F4AC}" },
@@ -128,7 +128,7 @@ const screens: Record<string, React.ReactNode> = {
   toolbox: <ToolboxScreen />,
 };
 
-/* ---- ToolboxScreen 閳ユ攰ndependent full-page layout ---- */
+/* ---- ToolboxScreen 闂佺偨鍎查弨鐨€dependent full-page layout ---- */
 function ToolboxLayout() {
   const [activeTool, setActiveTool] = useState<Screen | null>(null);
   if (activeTool && screens[activeTool]) {

@@ -24,7 +24,10 @@ var coreFiles = [
   { file: "apps/desktop/ui/src/components/ProviderSetupWizard.tsx", min: 180 },
   { file: "apps/desktop/ui/src/screens/ModelsScreen.tsx", min: 500 },
   { file: "apps/desktop/ui/src/screens/ChatWorkspace.tsx", min: 1755 },
-  { file: "apps/desktop/ui/src/components/ModelRuntimeSelfTest.tsx", min: 150 },
+  { file: "apps/desktop/ui/src/data/project-workspace.ts", min: 120 },
+  { file: "apps/desktop/ui/src/components/RecentProjectsPanel.tsx", min: 120 },
+  { file: "apps/desktop/ui/src/components/ProjectEmptyState.tsx", min: 60 },
+
   { file: "scripts/source_guard.js", min: 150 },
   { file: "scripts/release_sanity.js", min: 80 },
   { file: ".github/workflows/ci.yml", min: 40 },
@@ -278,7 +281,39 @@ if (fs.existsSync(enPath)) {
   else ok("en.ts contains Set as active");
 } else { fail("en.ts NOT FOUND"); }
 
-// ===== Final =====
+
+// ===== 8.5. Project workspace checks =====
+console.log("\n--- Project workspace checks ---");
+var pwPath = path.join(ROOT, "apps/desktop/ui/src/data/project-workspace.ts");
+if (fs.existsSync(pwPath)) {
+  var pwContent = fs.readFileSync(pwPath, "utf-8");
+  if (pwContent.indexOf("tokenfence.recentProjects") >= 0) ok("project-workspace.ts contains tokenfence.recentProjects");
+  else fail("project-workspace.ts MISSING tokenfence.recentProjects");
+  if (pwContent.indexOf("tokenfence.activeProject") >= 0) ok("project-workspace.ts contains tokenfence.activeProject");
+  else fail("project-workspace.ts MISSING tokenfence.activeProject");
+  if (pwContent.indexOf("addRecentProject") >= 0) ok("project-workspace.ts contains addRecentProject");
+  else fail("project-workspace.ts MISSING addRecentProject");
+  if (pwContent.indexOf("toggleFavoriteProject") >= 0) ok("project-workspace.ts contains toggleFavoriteProject");
+  else fail("project-workspace.ts MISSING toggleFavoriteProject");
+  if (pwContent.indexOf("pinProject") >= 0) ok("project-workspace.ts contains pinProject");
+  else fail("project-workspace.ts MISSING pinProject");
+} else { fail("project-workspace.ts NOT FOUND"); }
+
+var rppPath = path.join(ROOT, "apps/desktop/ui/src/components/RecentProjectsPanel.tsx");
+if (fs.existsSync(rppPath)) {
+  var rppContent = fs.readFileSync(rppPath, "utf-8");
+  if (rppContent.indexOf("tokenfence.recentProjects") >= 0) ok("RecentProjectsPanel.tsx references recent projects key");
+  else fail("RecentProjectsPanel.tsx MISSING recent projects reference");
+} else { fail("RecentProjectsPanel.tsx NOT FOUND"); }
+
+var cwPath = path.join(ROOT, "apps/desktop/ui/src/screens/ChatWorkspace.tsx");
+if (fs.existsSync(cwPath)) {
+  var cwContent2 = fs.readFileSync(cwPath, "utf-8");
+  if (cwContent2.indexOf("RecentProjectsPanel") >= 0) ok("ChatWorkspace.tsx imports RecentProjectsPanel");
+  else fail("ChatWorkspace.tsx MISSING RecentProjectsPanel import");
+}
+
+
 console.log("\n=== RESULT: " + errors.length + " error(s) ===");
 if (errors.length > 0) { console.log("Failures:"); errors.forEach(function(e) { console.log("  - " + e); }); process.exit(1); }
 else { console.log("All checks passed."); process.exit(0);

@@ -1,4 +1,4 @@
-﻿/* Simplified Chinese translations for TokenFence Studio */
+/* Simplified Chinese translations for TokenFence Studio */
 
 import type { Translations } from "./en";
 
@@ -366,6 +366,26 @@ const zhCN: Translations = {
     routingSettings: "\u8DEF\u7531\u8BBE\u7F6E",
     fileRoutingOn: "\u6587\u4EF6\u7C7B\u578B\u8DEF\u7531",
     fileRoutingOff: "\u6587\u4EF6\u7C7B\u578B\u8DEF\u7531\u5DF2\u5173\u95ED",
+  project: {
+    recentProjects: "\u6700\u8FD1\u9879\u76EE",
+    noRecentProjects: "\u65E0\u6700\u8FD1\u9879\u76EE",
+    addProject: "\u6DFB\u52A0\u9879\u76EE",
+    addProjectHint: "\u70B9\u51FB + \u6DFB\u52A0\u9879\u76EE\u6587\u4EF6\u5939",
+    projectNamePlaceholder: "\u9879\u76EE\u540D\u79F0...",
+    projectPathPlaceholder: "\u9879\u76EE\u6587\u4EF6\u5939\u8DEF\u5F84...",
+    open: "\u6253\u5F00",
+    openProject: "\u6253\u5F00\u9879\u76EE",
+    pin: "\u56FA\u5B9A",
+    unpin: "\u53D6\u6D88\u56FA\u5B9A",
+    favorite: "\u6536\u85CF",
+    unfavorite: "\u53D6\u6D88\u6536\u85CF",
+    remove: "\u79FB\u9664",
+    currentProject: "\u5F53\u524D\u9879\u76EE",
+    justNow: "\u521A\u521A",
+    emptyRecentTitle: "\u65E0\u6700\u8FD1\u9879\u76EE",
+    emptyRecentDescription: "\u6253\u5F00\u9879\u76EE\u6587\u4EF6\u5939\u4EE5\u5F00\u59CB\u4F7F\u7528\u3002\u6700\u8FD1\u9879\u76EE\u5C06\u663E\u793A\u5728\u8FD9\u91CC\u4EE5\u4FBF\u5FEB\u901F\u8BBF\u95EE\u3002",
+    openProjectTab: "\u6253\u5F00\u9879\u76EE\u680F",
+  },
   },
 
   modelsPage: {

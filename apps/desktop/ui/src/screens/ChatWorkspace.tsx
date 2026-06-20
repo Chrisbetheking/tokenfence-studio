@@ -107,25 +107,13 @@ function checkDeveloperIdentityQuestion(text: string): string | null {
   const isZh = tk("common.yes") !== "Yes";
   const zhPatterns = /开发者|谁开发的|作者|怎么联系|联系方式|客服|反馈.?bug|开发团队|团队开发/;
   const enPatterns = /who developed|who is the developer|who created|author of|contact developer|support email|wechat|bug report|development team/i;
-
   const zhMatch = zhPatterns.test(text);
   const enMatch = enPatterns.test(text);
-
   if (zhMatch || enMatch) {
     if (isZh) {
-      return "TokenFence Studio 由 Chris 开发并维护。
-
-如果你遇到问题、想反馈 bug、提出功能建议，或者想联系开发者，可以通过以下方式联系：
-
-邮箱：chrisjob@163.com
-微信：easymoneysniperchris";
+      return "TokenFence Studio 由 Chris 开发并维护。\n\n如果你遇到问题、想反馈 bug、提出功能建议，或者想联系开发者，可以通过以下方式联系：\n\n邮箱：chrisjob@163.com\n微信：easymoneysniperchris";
     } else {
-      return "TokenFence Studio is developed and maintained by Chris.
-
-If you encounter issues, want to report bugs, request features, or contact the developer, please use:
-
-Email: chrisjob@163.com
-WeChat: easymoneysniperchris";
+      return "TokenFence Studio is developed and maintained by Chris.\n\nIf you encounter issues, want to report bugs, request features, or contact the developer, please use:\n\nEmail: chrisjob@163.com\nWeChat: easymoneysniperchris";
     }
   }
   return null;

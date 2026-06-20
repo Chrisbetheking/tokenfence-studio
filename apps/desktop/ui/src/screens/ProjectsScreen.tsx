@@ -127,21 +127,20 @@ export function ProjectsScreen() {
     <div style={{ padding: "28px 32px", height: "100%", overflowY: "auto" }}>
       {projectLoadError && (
         <div className="card" style={{ marginBottom: 16, padding: 16, background: "rgba(255,0,0,0.06)", border: "1px solid var(--red)" }}>
-          <div style={{ fontWeight: 600, color: "var(--red)", marginBottom: 8 }}>{isZh ? "项目页面加载失败" : "Project page failed to load"}</div>
-          <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginBottom: 12 }}>{isZh ? "本地项目数据可能已损坏。清除后重新打开即可。" : "Local project data may be corrupted. Clear it and open a project again."}</p>
+          <div style={{ fontWeight: 600, color: "var(--red)", marginBottom: 8 }}>{isZh ? "椤圭洰椤甸潰鍔犺浇澶辫触" : "Project page failed to load"}</div>
+          <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginBottom: 12 }}>{isZh ? "鏈湴椤圭洰鏁版嵁鍙兘宸叉崯鍧忋€傛竻闄ゅ悗閲嶆柊鎵撳紑鍗冲彲銆? : "Local project data may be corrupted. Clear it and open a project again."}</p>
           <button className="btn btn-primary" onClick={() => { try { storeSet(STORAGE_KEY, "[]"); storeSet(ACTIVE_KEY, ""); } catch {} setProjects([]); setActiveId(null); setProjectLoadError(false); }} style={{ fontSize: "0.75rem" }}>
-            {isZh ? "清除项目状态" : "Clear project state"}
+            {isZh ? "娓呴櫎椤圭洰鐘舵€? : "Clear project state"}
           </button>
         </div>
       )}
       {!projectLoadError && projects.length === 0 && (
         <div className="card" style={{ marginBottom: 16, padding: 28, textAlign: "center" }}>
           <div style={{ fontSize: "2rem", marginBottom: 12 }}>&#128193;</div>
-          <div style={{ fontSize: "1.1rem", fontWeight: 600, color: "var(--text)", marginBottom: 8 }}>{isZh ? "还没有打开过项目" : "No project opened yet"}</div>
-          <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", maxWidth: 400, margin: "0 auto" }}>{isZh ? "打开一个本地文件夹，开始构建项目上下文。" : "Open a local folder to start building project context."}</p>
+          <div style={{ fontSize: "1.1rem", fontWeight: 600, color: "var(--text)", marginBottom: 8 }}>{isZh ? "杩樻病鏈夋墦寮€杩囬」鐩? : "No project opened yet"}</div>
+          <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", maxWidth: 400, margin: "0 auto" }}>{isZh ? "鎵撳紑涓€涓湰鍦版枃浠跺す锛屽紑濮嬫瀯寤洪」鐩笂涓嬫枃銆? : "Open a local folder to start building project context."}</p>
         </div>
       )}
-      </div>
 
       <h3 style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: 12 }}>Recent Projects</h3>
       {projects.length === 0 ? (
@@ -157,7 +156,7 @@ export function ProjectsScreen() {
                 <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--text)", marginBottom: 2 }}>{p.name}</div>
                 <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>{p.folderPath}</div>
                 <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginTop: 2 }}>
-                  {p.files.length} files · {p.files.filter(f => f.selected).length} selected · ~{selectedTokens} tokens
+                  {p.files.length} files 路 {p.files.filter(f => f.selected).length} selected 路 ~{selectedTokens} tokens
                 </div>
               </div>
               <div style={{ display: "flex", gap: 6 }}>
@@ -184,7 +183,7 @@ export function ProjectsScreen() {
             </div>
           </div>
           <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginBottom: 8 }}>
-            {selectedFiles.length} files selected · ~{selectedTokens} tokens
+            {selectedFiles.length} files selected 路 ~{selectedTokens} tokens
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 2, maxHeight: 300, overflowY: "auto", fontSize: "0.75rem" }}>
             {activeProject.files.map(f => (

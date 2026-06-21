@@ -201,7 +201,7 @@ export function RecentProjectsPanel() {
           </div>
         )}
         <div className="card" style={{ padding: 20, background: "var(--surface-alt)", textAlign: "center" }}>
-          <div style={{ fontSize: "1.2rem", marginBottom: 6, opacity: 0.5 }}>{"棣冩惃"}</div>
+          <div style={{ fontSize: "1.2rem", marginBottom: 6, opacity: 0.5 }}>{"📁"}</div>
           <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
             {tk("project.noRecentProjects")}
           </div>
@@ -344,7 +344,7 @@ export function RecentProjectsPanel() {
                   onClick={() => handleOpen(project)}
                 >
                   <div style={{ fontSize: "0.75rem", color: "var(--text)", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {project.favorite ? "鐚?" : ""}{project.pinned ? "棣冩惗 " : ""}{project.name}
+                    {project.favorite ? "★ " : ""}{project.pinned ? "📌 " : ""}{project.name}
                   </div>
                   <div style={{ fontSize: "0.6rem", color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 1 }}>
                     {project.path}
@@ -353,7 +353,7 @@ export function RecentProjectsPanel() {
                     <span>{formatTime(project.lastOpenedAt)}</span>
                     {isActive && (
                       <span style={{ color: "var(--primary)", fontWeight: 500 }}>
-                        閳?{tk("project.currentProject")}
+                        ● {tk("project.currentProject")}
                       </span>
                     )}
                   </div>

@@ -137,18 +137,18 @@ function scanAndRedact(text: string): {
 } {
   const isZh = typeof tk === "function" && tk("common.yes") !== "Yes";
   const patterns: { regex: RegExp; label: string; replacement: string }[] = [
-    { regex: /(?:\u8eab\u4efd\u8bc1|\u8eab\u4efd|ID|idNumber).{0,8}\d{8,18}[\dXx]?/i, label: "idNumber", replacement: "[" + (isZh ? "????????" : "Redacted: ID number") + "]" },
-    { regex: /\b[1-9]\d{5}(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx]\b/, label: "idNumber", replacement: "[" + (isZh ? "????????" : "Redacted: ID number") + "]" },
-    { regex: /\b1[3-9]\d{9}\b/, label: "phoneNumber", replacement: "[" + (isZh ? "???????" : "Redacted: phone") + "]" },
-    { regex: /\b\d{16,19}\b/, label: "bankCard", replacement: "[" + (isZh ? "???????" : "Redacted: bank card") + "]" },
-    { regex: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/, label: "email", replacement: "[" + (isZh ? "??????" : "Redacted: email") + "]" },
-    { regex: /\b(sk-[A-Za-z0-9]{20,})\b/, label: "apiKey", replacement: "[" + (isZh ? "????API key" : "Redacted: API key") + "]" },
-    { regex: /\b(ghp_[A-Za-z0-9]{36,})\b/, label: "apiKey", replacement: "[" + (isZh ? "????API key" : "Redacted: API key") + "]" },
-    { regex: /\b(gho_[A-Za-z0-9]{36,})\b/, label: "apiKey", replacement: "[" + (isZh ? "????API key" : "Redacted: API key") + "]" },
-    { regex: /api[_\-]?key\s*[:=]\s*['\"]?\w+/i, label: "apiKey", replacement: "[" + (isZh ? "????API key" : "Redacted: API key") + "]" },
-    { regex: /token\s*[:=]\s*['\"]?[A-Za-z0-9]{16,}/i, label: "apiKey", replacement: "[" + (isZh ? "????token" : "Redacted: token") + "]" },
-    { regex: /password\s*[:=]\s*['\"]?[^\s]{4,}/i, label: "apiKey", replacement: "[" + (isZh ? "??????" : "Redacted: password") + "]" },
-    { regex: /secret\s*[:=]\s*['\"]?\w+/i, label: "apiKey", replacement: "[" + (isZh ? "????secret" : "Redacted: secret") + "]" },
+    { regex: /(?:\u8eab\u4efd\u8bc1|\u8eab\u4efd|ID|idNumber).{0,8}\d{8,18}[\dXx]?/i, label: "idNumber", replacement: "[" + (isZh ? "已隐藏：身份证号" : "Redacted: ID number") + "]" },
+    { regex: /\b[1-9]\d{5}(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx]\b/, label: "idNumber", replacement: "[" + (isZh ? "已隐藏：身份证号" : "Redacted: ID number") + "]" },
+    { regex: /\b1[3-9]\d{9}\b/, label: "phoneNumber", replacement: "[" + (isZh ? "已隐藏：手机号" : "Redacted: phone") + "]" },
+    { regex: /\b\d{16,19}\b/, label: "bankCard", replacement: "[" + (isZh ? "已隐藏：银行卡" : "Redacted: bank card") + "]" },
+    { regex: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/, label: "email", replacement: "[" + (isZh ? "已隐藏：邮箱" : "Redacted: email") + "]" },
+    { regex: /\b(sk-[A-Za-z0-9]{20,})\b/, label: "apiKey", replacement: "[" + (isZh ? "已隐藏：API key" : "Redacted: API key") + "]" },
+    { regex: /\b(ghp_[A-Za-z0-9]{36,})\b/, label: "apiKey", replacement: "[" + (isZh ? "已隐藏：API key" : "Redacted: API key") + "]" },
+    { regex: /\b(gho_[A-Za-z0-9]{36,})\b/, label: "apiKey", replacement: "[" + (isZh ? "已隐藏：API key" : "Redacted: API key") + "]" },
+    { regex: /api[_\-]?key\s*[:=]\s*['\"]?\w+/i, label: "apiKey", replacement: "[" + (isZh ? "已隐藏：API key" : "Redacted: API key") + "]" },
+    { regex: /token\s*[:=]\s*['\"]?[A-Za-z0-9]{16,}/i, label: "apiKey", replacement: "[" + (isZh ? "已隐藏：token" : "Redacted: token") + "]" },
+    { regex: /password\s*[:=]\s*['\"]?[^\s]{4,}/i, label: "apiKey", replacement: "[" + (isZh ? "已隐藏：密码" : "Redacted: password") + "]" },
+    { regex: /secret\s*[:=]\s*['\"]?\w+/i, label: "apiKey", replacement: "[" + (isZh ? "已隐藏：secret" : "Redacted: secret") + "]" },
   ];
 
   const findings: SensitiveFinding[] = [];
@@ -172,7 +172,7 @@ function scanAndRedact(text: string): {
 
   const flagged = findings.length > 0;
   const details = flagged
-    ? (isZh ? "?????????????" : "Sensitive data detected and redacted")
+    ? (isZh ? "检测到敏感数据，已自动脱敏" : "Sensitive data detected and redacted")
     : tk("chat.guardNoSensitive");
 
   return { flagged, sanitizedText, findings, details };

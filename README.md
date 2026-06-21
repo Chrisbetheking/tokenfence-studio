@@ -1,6 +1,6 @@
 # TokenFence Studio
 
-**Languages:** [English](README.md) | [娑擃厽鏋僝(README.zh-CN.md)
+**Languages:** [English](README.md) | [简体中文](README.zh-CN.md)
 
 ![TokenFence Studio Banner](docs/images/banner.png)
 
@@ -15,7 +15,7 @@ Local-first prompt safety, document intelligence, multi-model routing, and Codex
 
 > Windows users: download the portable ZIP, extract it first, then run `tokenfence-studio.exe` from the extracted folder. Do not run the EXE directly from inside the ZIP preview.
 
-[Releases](https://github.com/Chrisbetheking/tokenfence-studio/releases) | [Update Log](CHANGELOG.md) | [缂備胶濮崑鎾趁归敐鍡樺矮闁煎灚鍨垮顒勫床?README.zh-CN.md)
+[Releases](https://github.com/Chrisbetheking/tokenfence-studio/releases) | [Update Log](CHANGELOG.md) | [简体中文](README.zh-CN.md)
 
 ---
 

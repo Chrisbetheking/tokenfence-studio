@@ -348,8 +348,8 @@ console.log("\n--- v1.4.1 version checks ---");
 var appPath = path.join(ROOT, "apps/desktop/ui/src/App.tsx");
 if (fs.existsSync(appPath)) {
   var appContent = fs.readFileSync(appPath, "utf-8");
-  if (appContent.indexOf('"v1.5.0"') >= 0) ok("App.tsx VERSION is v1.5.0");
-  else fail("App.tsx VERSION is NOT v1.5.0");
+  if (appContent.indexOf('"v1.5.1"') >= 0) ok("App.tsx VERSION is v1.5.1");
+  else fail("App.tsx VERSION is NOT v1.5.1");
 } else { fail("App.tsx NOT FOUND"); }
 
 // Check ChatWorkspace for developer identity
@@ -501,7 +501,7 @@ if (fs.existsSync(cw5Path)) {
 
 
 // ==== v1.4.4 email check ====
-console.log("\n--- v1.5.0 contact email check ---");
+console.log("\n--- v1.5.1 contact email check ---");
 var emailCheckFiles = [
   path.join(ROOT, "apps/desktop/ui/src/screens/ChatWorkspace.tsx"),
   path.join(ROOT, "apps/desktop/ui/src/screens/AboutScreen.tsx"),
@@ -529,8 +529,8 @@ if (newEmailFound) ok("New email chriswangjob@163.com found in source");
 else fail("New email chriswangjob@163.com MISSING");
 
 
-// ==== v1.5.0 diagnostics checks ====
-console.log("\n--- v1.5.0 release diagnostics checks ---");
+// ==== v1.5.1 diagnostics checks ====
+console.log("\n--- v1.5.1 release diagnostics checks ---");
 var diagPath = path.join(ROOT, "apps/desktop/ui/src/components/ReleaseDiagnosticsPanel.tsx");
 if (fs.existsSync(diagPath)) ok("ReleaseDiagnosticsPanel exists");
 else fail("ReleaseDiagnosticsPanel MISSING");
@@ -552,18 +552,18 @@ if (fs.existsSync(diagPath)) {
 var checkSc = path.join(ROOT, "scripts/check_shortcuts.ps1");
 if (fs.existsSync(checkSc)) ok("check_shortcuts.ps1 exists");
 else fail("check_shortcuts.ps1 MISSING");
-if (fs.existsSync(checkSc) && fs.readFileSync(checkSc, "utf-8").indexOf("v1.5.0") >= 0) ok("check_shortcuts.ps1 contains v1.5.0");
-else fail("check_shortcuts.ps1 MISSING v1.5.0");
+if (fs.existsSync(checkSc) && fs.readFileSync(checkSc, "utf-8").indexOf("v1.5.1") >= 0) ok("check_shortcuts.ps1 contains v1.5.1");
+else fail("check_shortcuts.ps1 MISSING v1.5.1");
 
 var updateSc = path.join(ROOT, "scripts/update_shortcuts.ps1");
 if (fs.existsSync(updateSc)) ok("update_shortcuts.ps1 exists");
 else fail("update_shortcuts.ps1 MISSING");
-if (fs.existsSync(updateSc) && fs.readFileSync(updateSc, "utf-8").indexOf("v1.5.0") >= 0) ok("update_shortcuts.ps1 contains v1.5.0");
-else fail("update_shortcuts.ps1 MISSING v1.5.0");
+if (fs.existsSync(updateSc) && fs.readFileSync(updateSc, "utf-8").indexOf("v1.5.1") >= 0) ok("update_shortcuts.ps1 contains v1.5.1");
+else fail("update_shortcuts.ps1 MISSING v1.5.1");
 
 
-// ==== v1.5.0 file tree + context pack checks ====
-console.log("\n--- v1.5.0 file tree + context pack checks ---");
+// ==== v1.5.1 file tree + context pack checks ====
+console.log("\n--- v1.5.1 file tree + context pack checks ---");
 var cpPath = path.join(ROOT, "apps/desktop/ui/src/data/context-pack.ts");
 if (fs.existsSync(cpPath)) ok("context-pack.ts exists");
 else fail("context-pack.ts MISSING");
@@ -609,6 +609,76 @@ if (fs.existsSync(cwPath5)) {
   else fail("ChatWorkspace MISSING ContextPackPanel");
 }
 
+
+// ==== v1.5.1 computer use preview checks ====
+console.log("\n--- v1.5.1 computer use preview checks ---");
+var cuPath = path.join(ROOT, "apps/desktop/ui/src/data/computer-use.ts");
+if (fs.existsSync(cuPath)) ok("computer-use.ts exists");
+else fail("computer-use.ts MISSING");
+if (fs.existsSync(cuPath)) {
+  var cuc = fs.readFileSync(cuPath, "utf-8");
+  if (cuc.indexOf("ComputerUsePlanStep") >= 0) ok("computer-use.ts contains ComputerUsePlanStep");
+  else fail("computer-use.ts MISSING ComputerUsePlanStep");
+  if (cuc.indexOf("generatePlan") >= 0) ok("computer-use.ts contains generatePlan");
+  else fail("computer-use.ts MISSING generatePlan");
+  if (cuc.indexOf("simulateStepExecution") >= 0) ok("computer-use.ts contains simulateStepExecution");
+  else fail("computer-use.ts MISSING simulateStepExecution");
+  if (cuc.indexOf("isDangerousTask") >= 0) ok("computer-use.ts contains isDangerousTask");
+  else fail("computer-use.ts MISSING isDangerousTask");
+  if (cuc.indexOf("BLOCKED_KEYWORDS") >= 0) ok("computer-use.ts contains BLOCKED_KEYWORDS");
+  else fail("computer-use.ts MISSING BLOCKED_KEYWORDS");
+  if (cuc.indexOf("ALLOWED_COMMAND_IDS") >= 0) ok("computer-use.ts contains ALLOWED_COMMAND_IDS");
+  else fail("computer-use.ts MISSING ALLOWED_COMMAND_IDS");
+}
+
+var ccPath = path.join(ROOT, "apps/desktop/ui/src/screens/ComputerControlScreen.tsx");
+if (fs.existsSync(ccPath)) {
+  var ccc = fs.readFileSync(ccPath, "utf-8");
+  if (ccc.indexOf("Computer Use Preview") >= 0 || ccc.indexOf("预览版") >= 0) ok("ComputerControlScreen contains Preview/预览版");
+  else fail("ComputerControlScreen MISSING Preview/预览版");
+  if (ccc.indexOf("generatePlan") >= 0) ok("ComputerControlScreen uses generatePlan");
+  else fail("ComputerControlScreen MISSING generatePlan usage");
+  if (ccc.indexOf("simulateStepExecution") >= 0) ok("ComputerControlScreen uses simulateStepExecution");
+  else fail("ComputerControlScreen MISSING simulateStepExecution usage");
+  if (ccc.indexOf("handleStop") >= 0) ok("ComputerControlScreen contains handleStop");
+  else fail("ComputerControlScreen MISSING handleStop");
+  if (ccc.indexOf("handleClear") >= 0) ok("ComputerControlScreen contains handleClear");
+  else fail("ComputerControlScreen MISSING handleClear");
+  if (ccc.indexOf("executeCommand") < 0) ok("ComputerControlScreen has no direct executeCommand");
+  else fail("ComputerControlScreen has direct executeCommand (unrestricted)");
+  if (ccc.indexOf("eval(") < 0) ok("ComputerControlScreen has no eval()");
+  else fail("ComputerControlScreen has eval()");
+} else {
+  fail("ComputerControlScreen.tsx MISSING");
+}
+
+var enPath = path.join(ROOT, "packages/shared/src/i18n/en.ts");
+if (fs.existsSync(enPath)) {
+  var enc = fs.readFileSync(enPath, "utf-8");
+  if (enc.indexOf("previewNotice") >= 0) ok("en.ts contains previewNotice");
+  else fail("en.ts MISSING previewNotice");
+  if (enc.indexOf("generatePlan") >= 0) ok("en.ts contains generatePlan i18n");
+  else fail("en.ts MISSING generatePlan i18n");
+  if (enc.indexOf("noScreen") >= 0) ok("en.ts contains noScreen");
+  else fail("en.ts MISSING noScreen");
+  if (enc.indexOf("noMouse") >= 0) ok("en.ts contains noMouse");
+  else fail("en.ts MISSING noMouse");
+  if (enc.indexOf("noKeyboard") >= 0) ok("en.ts contains noKeyboard");
+  else fail("en.ts MISSING noKeyboard");
+}
+
+var zhPath = path.join(ROOT, "packages/shared/src/i18n/zh-CN.ts");
+if (fs.existsSync(zhPath)) {
+  var zhc = fs.readFileSync(zhPath, "utf-8");
+  if (zhc.indexOf("预览版") >= 0) ok("zh-CN.ts contains 预览版");
+  else fail("zh-CN.ts MISSING 预览版");
+  if (zhc.indexOf("不读屏幕") >= 0) ok("zh-CN.ts contains 不读屏幕");
+  else fail("zh-CN.ts MISSING 不读屏幕");
+  if (zhc.indexOf("不控鼠标") >= 0) ok("zh-CN.ts contains 不控鼠标");
+  else fail("zh-CN.ts MISSING 不控鼠标");
+  if (zhc.indexOf("不控键盘") >= 0) ok("zh-CN.ts contains 不控键盘");
+  else fail("zh-CN.ts MISSING 不控键盘");
+}
 console.log("\n=== RESULT: " + errors.length + " error(s) ===");
 if (errors.length > 0) { console.log("Failures:"); errors.forEach(function(e) { console.log("  - " + e); }); process.exit(1); }
 else { console.log("All checks passed."); process.exit(0);

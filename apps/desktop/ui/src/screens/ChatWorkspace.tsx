@@ -24,6 +24,7 @@ import { getEnabledModels, loadInstalledModels, type InstalledModel } from "@tok
 import { readFile } from "../desktop-bridge";
 import { storeGet, storeSet } from "@tokenfence/shared/src/agent-runtime/safeStorage";
 import { RecentProjectsPanel } from "../components/RecentProjectsPanel";
+import { ContextPackPanel } from "../components/ContextPackPanel";
 import { addRecentProject } from "../data/project-workspace";
 import { ModelPickerPanel } from "../components/ModelPickerPanel";
 import { resolveActiveModel, setActiveModel, validateModelForSend, hasAnyConfiguredProvider, migrateActiveModelStorageV2, getActiveModelViewState, normalizeDisplayText, canonicalizeProviderId, getProviderDisplayName, dispatchActiveModelChanged, type ResolvedModelV2 } from "../data/active-model";
@@ -1359,6 +1360,7 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
 
             {/* Recent Projects */}
             <RecentProjectsPanel />
+            <div style={{ marginTop: 8 }}><ContextPackPanel compact /></div>
 
             {/* Active project file tree */}
             {activeProject && (

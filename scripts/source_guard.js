@@ -348,8 +348,8 @@ console.log("\n--- v1.4.1 version checks ---");
 var appPath = path.join(ROOT, "apps/desktop/ui/src/App.tsx");
 if (fs.existsSync(appPath)) {
   var appContent = fs.readFileSync(appPath, "utf-8");
-  if (appContent.indexOf('"v1.4.5"') >= 0) ok("App.tsx VERSION is v1.4.5");
-  else fail("App.tsx VERSION is NOT v1.4.5");
+  if (appContent.indexOf('"v1.5.0"') >= 0) ok("App.tsx VERSION is v1.5.0");
+  else fail("App.tsx VERSION is NOT v1.5.0");
 } else { fail("App.tsx NOT FOUND"); }
 
 // Check ChatWorkspace for developer identity
@@ -501,7 +501,7 @@ if (fs.existsSync(cw5Path)) {
 
 
 // ==== v1.4.4 email check ====
-console.log("\n--- v1.4.5 contact email check ---");
+console.log("\n--- v1.5.0 contact email check ---");
 var emailCheckFiles = [
   path.join(ROOT, "apps/desktop/ui/src/screens/ChatWorkspace.tsx"),
   path.join(ROOT, "apps/desktop/ui/src/screens/AboutScreen.tsx"),
@@ -529,8 +529,8 @@ if (newEmailFound) ok("New email chriswangjob@163.com found in source");
 else fail("New email chriswangjob@163.com MISSING");
 
 
-// ==== v1.4.5 diagnostics checks ====
-console.log("\n--- v1.4.5 release diagnostics checks ---");
+// ==== v1.5.0 diagnostics checks ====
+console.log("\n--- v1.5.0 release diagnostics checks ---");
 var diagPath = path.join(ROOT, "apps/desktop/ui/src/components/ReleaseDiagnosticsPanel.tsx");
 if (fs.existsSync(diagPath)) ok("ReleaseDiagnosticsPanel exists");
 else fail("ReleaseDiagnosticsPanel MISSING");
@@ -552,14 +552,62 @@ if (fs.existsSync(diagPath)) {
 var checkSc = path.join(ROOT, "scripts/check_shortcuts.ps1");
 if (fs.existsSync(checkSc)) ok("check_shortcuts.ps1 exists");
 else fail("check_shortcuts.ps1 MISSING");
-if (fs.existsSync(checkSc) && fs.readFileSync(checkSc, "utf-8").indexOf("v1.4.5") >= 0) ok("check_shortcuts.ps1 contains v1.4.5");
-else fail("check_shortcuts.ps1 MISSING v1.4.5");
+if (fs.existsSync(checkSc) && fs.readFileSync(checkSc, "utf-8").indexOf("v1.5.0") >= 0) ok("check_shortcuts.ps1 contains v1.5.0");
+else fail("check_shortcuts.ps1 MISSING v1.5.0");
 
 var updateSc = path.join(ROOT, "scripts/update_shortcuts.ps1");
 if (fs.existsSync(updateSc)) ok("update_shortcuts.ps1 exists");
 else fail("update_shortcuts.ps1 MISSING");
-if (fs.existsSync(updateSc) && fs.readFileSync(updateSc, "utf-8").indexOf("v1.4.5") >= 0) ok("update_shortcuts.ps1 contains v1.4.5");
-else fail("update_shortcuts.ps1 MISSING v1.4.5");
+if (fs.existsSync(updateSc) && fs.readFileSync(updateSc, "utf-8").indexOf("v1.5.0") >= 0) ok("update_shortcuts.ps1 contains v1.5.0");
+else fail("update_shortcuts.ps1 MISSING v1.5.0");
+
+
+// ==== v1.5.0 file tree + context pack checks ====
+console.log("\n--- v1.5.0 file tree + context pack checks ---");
+var cpPath = path.join(ROOT, "apps/desktop/ui/src/data/context-pack.ts");
+if (fs.existsSync(cpPath)) ok("context-pack.ts exists");
+else fail("context-pack.ts MISSING");
+if (fs.existsSync(cpPath)) {
+  var cpc = fs.readFileSync(cpPath, "utf-8");
+  if (cpc.indexOf("tokenfence.contextPack") >= 0) ok("context-pack.ts contains tokenfence.contextPack");
+  else fail("context-pack.ts MISSING tokenfence.contextPack");
+  if (cpc.indexOf("ContextPackFile") >= 0) ok("context-pack.ts contains ContextPackFile");
+  else fail("context-pack.ts MISSING ContextPackFile");
+  if (cpc.indexOf("addFilesToContextPack") >= 0) ok("context-pack.ts contains addFilesToContextPack");
+  else fail("context-pack.ts MISSING addFilesToContextPack");
+  if (cpc.indexOf("clearContextPack") >= 0) ok("context-pack.ts contains clearContextPack");
+  else fail("context-pack.ts MISSING clearContextPack");
+}
+
+var pftPath = path.join(ROOT, "apps/desktop/ui/src/data/project-file-tree.ts");
+if (fs.existsSync(pftPath)) ok("project-file-tree.ts exists");
+else fail("project-file-tree.ts MISSING");
+if (fs.existsSync(pftPath) && fs.readFileSync(pftPath, "utf-8").indexOf("ProjectFileNode") >= 0) ok("project-file-tree.ts contains ProjectFileNode");
+else fail("project-file-tree.ts MISSING ProjectFileNode");
+
+var pftComp = path.join(ROOT, "apps/desktop/ui/src/components/ProjectFileTree.tsx");
+if (fs.existsSync(pftComp)) ok("ProjectFileTree.tsx exists");
+else fail("ProjectFileTree.tsx MISSING");
+
+var ctxPanel = path.join(ROOT, "apps/desktop/ui/src/components/ContextPackPanel.tsx");
+if (fs.existsSync(ctxPanel)) ok("ContextPackPanel.tsx exists");
+else fail("ContextPackPanel.tsx MISSING");
+
+var psPath = path.join(ROOT, "apps/desktop/ui/src/screens/ProjectsScreen.tsx");
+if (fs.existsSync(psPath)) {
+  var psc = fs.readFileSync(psPath, "utf-8");
+  if (psc.indexOf("ProjectFileTree") >= 0) ok("Project UI contains ProjectFileTree");
+  else fail("Project UI MISSING ProjectFileTree");
+  if (psc.indexOf("ContextPackPanel") >= 0) ok("Project UI contains ContextPackPanel");
+  else fail("Project UI MISSING ContextPackPanel");
+}
+
+var cwPath5 = path.join(ROOT, "apps/desktop/ui/src/screens/ChatWorkspace.tsx");
+if (fs.existsSync(cwPath5)) {
+  var cw5 = fs.readFileSync(cwPath5, "utf-8");
+  if (cw5.indexOf("ContextPackPanel") >= 0) ok("ChatWorkspace contains ContextPackPanel");
+  else fail("ChatWorkspace MISSING ContextPackPanel");
+}
 
 console.log("\n=== RESULT: " + errors.length + " error(s) ===");
 if (errors.length > 0) { console.log("Failures:"); errors.forEach(function(e) { console.log("  - " + e); }); process.exit(1); }

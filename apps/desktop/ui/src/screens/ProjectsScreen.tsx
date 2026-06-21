@@ -2,6 +2,10 @@ import { useState, useEffect, useCallback } from "react";
 import { tk, onLangChange } from "@tokenfence/shared/src/i18n";
 import { storeGet, storeSet } from "@tokenfence/shared/src/agent-runtime/safeStorage";
 import { estimateTokens } from "@tokenfence/shared/src/providers";
+import { ProjectFileTree } from "../components/ProjectFileTree";
+import { ContextPackPanel } from "../components/ContextPackPanel";
+import { buildMockFileTree } from "../data/project-file-tree";
+import { addFilesToContextPack, type ContextPackFile } from "../data/context-pack";
 
 interface ProjectFile {
   path: string; name: string; extension: string;
@@ -37,6 +41,7 @@ export function ProjectsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [projectLoadError, setProjectLoadError] = useState(false);
   const [isTauri, setIsTauri] = useState(false);
+  const [cpKey, setCpKey] = useState(0);
   const isZh = tk("common.yes") !== "Yes";
 
   useEffect(() => {
@@ -115,6 +120,11 @@ export function ProjectsScreen() {
     setProjects(updated); saveProjects(updated);
   }, [projects]);
 
+  const handleAddToContext = useCallback((files: ContextPackFile[]) => {
+    addFilesToContextPack(files);
+    setCpKey(k => k + 1);
+  }, []);
+
   const toggleAll = useCallback((projectId: string, select: boolean) => {
     const updated = projects.map(p => {
       if (p.id !== projectId) return p;
@@ -173,27 +183,19 @@ export function ProjectsScreen() {
         </div>
       )}
 
-      {activeProject && activeProject.files.length > 0 && (
-        <div className="card" style={{ padding: 16, marginTop: 20 }}>
-          <div className="card-title" style={{ marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span>Project Files: {activeProject.name}</span>
-            <div style={{ display: "flex", gap: 4 }}>
-              <button onClick={() => toggleAll(activeProject.id, true)} className="btn btn-ghost" style={{ fontSize: "0.65rem", padding: "2px 8px" }}>All</button>
-              <button onClick={() => toggleAll(activeProject.id, false)} className="btn btn-ghost" style={{ fontSize: "0.65rem", padding: "2px 8px" }}>None</button>
-            </div>
+      {activeProject && (
+        <div style={{ marginTop: 20 }}>
+          <div className="card" style={{ padding: 16 }}>
+            <h3 style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: 12 }}>
+              {tk("project.projectFiles")}: {activeProject.name}
+            </h3>
+            <ProjectFileTree
+              nodes={buildMockFileTree(activeProject.folderPath)}
+              onAddToContext={handleAddToContext}
+            />
           </div>
-          <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginBottom: 8 }}>
-            {selectedFiles.length} files selected 路 ~{selectedTokens} tokens
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 2, maxHeight: 300, overflowY: "auto", fontSize: "0.75rem" }}>
-            {activeProject.files.map(f => (
-              <label key={f.name} style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 6px", borderRadius: 4, cursor: "pointer" }}>
-                <input type="checkbox" checked={f.selected} onChange={() => toggleFile(activeProject.id, f.name)} />
-                <span style={{ color: f.kind === "code" ? "var(--primary)" : "var(--text-muted)", fontSize: "0.7rem" }}>[{f.kind}]</span>
-                <span style={{ color: "var(--text)" }}>{f.name}</span>
-                <span style={{ color: "var(--text-muted)", fontSize: "0.65rem", marginLeft: "auto" }}>{(f.size / 1024).toFixed(1)}KB</span>
-              </label>
-            ))}
+          <div style={{ marginTop: 12 }}>
+            <ContextPackPanel key={cpKey} />
           </div>
         </div>
       )}

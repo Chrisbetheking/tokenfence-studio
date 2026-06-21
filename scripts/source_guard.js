@@ -348,8 +348,8 @@ console.log("\n--- v1.4.1 version checks ---");
 var appPath = path.join(ROOT, "apps/desktop/ui/src/App.tsx");
 if (fs.existsSync(appPath)) {
   var appContent = fs.readFileSync(appPath, "utf-8");
-  if (appContent.indexOf('"v1.5.1"') >= 0) ok("App.tsx VERSION is v1.5.1");
-  else fail("App.tsx VERSION is NOT v1.5.1");
+  if (appContent.indexOf('"v1.5.2"') >= 0) ok("App.tsx VERSION is v1.5.2");
+  else fail("App.tsx VERSION is NOT v1.5.2");
 } else { fail("App.tsx NOT FOUND"); }
 
 // Check ChatWorkspace for developer identity
@@ -501,7 +501,7 @@ if (fs.existsSync(cw5Path)) {
 
 
 // ==== v1.4.4 email check ====
-console.log("\n--- v1.5.1 contact email check ---");
+console.log("\n--- v1.5.2 contact email check ---");
 var emailCheckFiles = [
   path.join(ROOT, "apps/desktop/ui/src/screens/ChatWorkspace.tsx"),
   path.join(ROOT, "apps/desktop/ui/src/screens/AboutScreen.tsx"),
@@ -529,8 +529,8 @@ if (newEmailFound) ok("New email chriswangjob@163.com found in source");
 else fail("New email chriswangjob@163.com MISSING");
 
 
-// ==== v1.5.1 diagnostics checks ====
-console.log("\n--- v1.5.1 release diagnostics checks ---");
+// ==== v1.5.2 diagnostics checks ====
+console.log("\n--- v1.5.2 release diagnostics checks ---");
 var diagPath = path.join(ROOT, "apps/desktop/ui/src/components/ReleaseDiagnosticsPanel.tsx");
 if (fs.existsSync(diagPath)) ok("ReleaseDiagnosticsPanel exists");
 else fail("ReleaseDiagnosticsPanel MISSING");
@@ -552,18 +552,18 @@ if (fs.existsSync(diagPath)) {
 var checkSc = path.join(ROOT, "scripts/check_shortcuts.ps1");
 if (fs.existsSync(checkSc)) ok("check_shortcuts.ps1 exists");
 else fail("check_shortcuts.ps1 MISSING");
-if (fs.existsSync(checkSc) && fs.readFileSync(checkSc, "utf-8").indexOf("v1.5.1") >= 0) ok("check_shortcuts.ps1 contains v1.5.1");
-else fail("check_shortcuts.ps1 MISSING v1.5.1");
+if (fs.existsSync(checkSc) && fs.readFileSync(checkSc, "utf-8").indexOf("v1.5.2") >= 0) ok("check_shortcuts.ps1 contains v1.5.2");
+else fail("check_shortcuts.ps1 MISSING v1.5.2");
 
 var updateSc = path.join(ROOT, "scripts/update_shortcuts.ps1");
 if (fs.existsSync(updateSc)) ok("update_shortcuts.ps1 exists");
 else fail("update_shortcuts.ps1 MISSING");
-if (fs.existsSync(updateSc) && fs.readFileSync(updateSc, "utf-8").indexOf("v1.5.1") >= 0) ok("update_shortcuts.ps1 contains v1.5.1");
-else fail("update_shortcuts.ps1 MISSING v1.5.1");
+if (fs.existsSync(updateSc) && fs.readFileSync(updateSc, "utf-8").indexOf("v1.5.2") >= 0) ok("update_shortcuts.ps1 contains v1.5.2");
+else fail("update_shortcuts.ps1 MISSING v1.5.2");
 
 
-// ==== v1.5.1 file tree + context pack checks ====
-console.log("\n--- v1.5.1 file tree + context pack checks ---");
+// ==== v1.5.2 file tree + context pack checks ====
+console.log("\n--- v1.5.2 file tree + context pack checks ---");
 var cpPath = path.join(ROOT, "apps/desktop/ui/src/data/context-pack.ts");
 if (fs.existsSync(cpPath)) ok("context-pack.ts exists");
 else fail("context-pack.ts MISSING");
@@ -610,8 +610,8 @@ if (fs.existsSync(cwPath5)) {
 }
 
 
-// ==== v1.5.1 computer use preview checks ====
-console.log("\n--- v1.5.1 computer use preview checks ---");
+// ==== v1.5.2 computer use preview checks ====
+console.log("\n--- v1.5.2 computer use preview checks ---");
 var cuPath = path.join(ROOT, "apps/desktop/ui/src/data/computer-use.ts");
 if (fs.existsSync(cuPath)) ok("computer-use.ts exists");
 else fail("computer-use.ts MISSING");
@@ -621,8 +621,8 @@ if (fs.existsSync(cuPath)) {
   else fail("computer-use.ts MISSING ComputerUsePlanStep");
   if (cuc.indexOf("generatePlan") >= 0) ok("computer-use.ts contains generatePlan");
   else fail("computer-use.ts MISSING generatePlan");
-  if (cuc.indexOf("simulateStepExecution") >= 0) ok("computer-use.ts contains simulateStepExecution");
-  else fail("computer-use.ts MISSING simulateStepExecution");
+  if (cuc.indexOf("executeStep") >= 0) ok("computer-use.ts contains executeStep (real diagnostics)");
+  else fail("computer-use.ts MISSING executeStep");
   if (cuc.indexOf("isDangerousTask") >= 0) ok("computer-use.ts contains isDangerousTask");
   else fail("computer-use.ts MISSING isDangerousTask");
   if (cuc.indexOf("BLOCKED_KEYWORDS") >= 0) ok("computer-use.ts contains BLOCKED_KEYWORDS");
@@ -634,12 +634,12 @@ if (fs.existsSync(cuPath)) {
 var ccPath = path.join(ROOT, "apps/desktop/ui/src/screens/ComputerControlScreen.tsx");
 if (fs.existsSync(ccPath)) {
   var ccc = fs.readFileSync(ccPath, "utf-8");
-  if (ccc.indexOf("Computer Use Preview") >= 0 || ccc.indexOf("预览版") >= 0) ok("ComputerControlScreen contains Preview/预览版");
+  if (ccc.indexOf("Diagnostics Preview") >= 0 || ccc.indexOf("Computer Use Preview") >= 0 || ccc.indexOf("预览版") >= 0) ok("ComputerControlScreen contains Diagnostics Preview/Preview/预览版");
   else fail("ComputerControlScreen MISSING Preview/预览版");
   if (ccc.indexOf("generatePlan") >= 0) ok("ComputerControlScreen uses generatePlan");
   else fail("ComputerControlScreen MISSING generatePlan usage");
-  if (ccc.indexOf("simulateStepExecution") >= 0) ok("ComputerControlScreen uses simulateStepExecution");
-  else fail("ComputerControlScreen MISSING simulateStepExecution usage");
+  if (ccc.indexOf("executeStep") >= 0) ok("ComputerControlScreen uses executeStep");
+  else fail("ComputerControlScreen MISSING executeStep usage");
   if (ccc.indexOf("handleStop") >= 0) ok("ComputerControlScreen contains handleStop");
   else fail("ComputerControlScreen MISSING handleStop");
   if (ccc.indexOf("handleClear") >= 0) ok("ComputerControlScreen contains handleClear");
@@ -648,6 +648,10 @@ if (fs.existsSync(ccPath)) {
   else fail("ComputerControlScreen has direct executeCommand (unrestricted)");
   if (ccc.indexOf("eval(") < 0) ok("ComputerControlScreen has no eval()");
   else fail("ComputerControlScreen has eval()");
+  if (ccc.indexOf("executeStep") >= 0) ok("ComputerControlScreen imports executeStep");
+  else fail("ComputerControlScreen MISSING executeStep import");
+  if (ccc.indexOf("simulateStepExecution") < 0) ok("ComputerControlScreen has no simulateStepExecution (using real executeStep)");
+  else fail("ComputerControlScreen still uses simulateStepExecution (should use executeStep)");
 } else {
   fail("ComputerControlScreen.tsx MISSING");
 }

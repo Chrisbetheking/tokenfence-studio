@@ -163,9 +163,9 @@ const en = {
 
   computerUse: {
     title: "Computer Use",
-    subtitle: "Preview: safe command planning and user-confirmed execution",
-    previewNotice: "Computer Use Preview",
-    previewDescription: "This version only supports safe command planning and user-confirmed execution. Screen reading, mouse control, and keyboard control are not enabled.",
+    subtitle: "Diagnostics Preview: allowlisted diagnostic command runner",
+    previewNotice: "Computer Use Diagnostics Preview",
+    previewDescription: "This version only supports allowlisted diagnostic commands, such as checking the version, running path, shortcuts, and release checks. It does not read the screen, control mouse/keyboard, delete files, or execute arbitrary user commands.",
     taskDescription: "Task Description",
     taskPlaceholder: "Describe a task, e.g.: Check current version, Check shortcuts, Run guard:source...",
     generatePlan: "Generate Plan",
@@ -180,8 +180,8 @@ const en = {
     blockedOperations: "Blocked Operations",
     dangerousBlocked: "Dangerous command blocked",
     generatesPlan: "Generate safe command plan",
-    simulateExecute: "Simulate safe execution",
-    showDiagnostics: "Show Release Diagnostics",
+    simulateExecute: "Execute safe diagnostics",
+    showDiagnostics: "Check release diagnostics",
     safeGuard: "Safe boundary enforced",
     noExecute: "No direct shell access",
     noScreen: "No screen reading",

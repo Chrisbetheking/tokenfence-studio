@@ -154,9 +154,9 @@ const zhCN: Translations = {
 
   computerUse: {
     title: "计算机使用",
-    subtitle: "预览版：安全命令计划与用户确认执行",
-    previewNotice: "Computer Use 预览版",
-    previewDescription: "当前版本只支持安全命令计划与用户确认执行，不支持自动看屏幕、鼠标点击或键盘控制。",
+    subtitle: "诊断命令预览版：白名单安全诊断命令执行器",
+    previewNotice: "Computer Use 诊断命令预览版",
+    previewDescription: "当前版本只支持白名单诊断命令，例如检查版本、运行路径、快捷方式和发布检查。不会读取屏幕，不会控制鼠标键盘，不会删除文件，也不会执行任意用户命令。",
     taskDescription: "任务描述",
     taskPlaceholder: "描述任务，例如：帮我检查当前版本、帮我检查快捷方式...",
     generatePlan: "生成计划",
@@ -171,8 +171,8 @@ const zhCN: Translations = {
     blockedOperations: "禁止操作",
     dangerousBlocked: "危险命令已阻止",
     generatesPlan: "生成安全命令计划",
-    simulateExecute: "模拟安全执行",
-    showDiagnostics: "显示 Release Diagnostics",
+    simulateExecute: "执行安全诊断",
+    showDiagnostics: "检查发布诊断",
     safeGuard: "安全边界已启用",
     noExecute: "无直接 Shell 访问",
     noScreen: "不读屏幕",
@@ -180,7 +180,6 @@ const zhCN: Translations = {
     noKeyboard: "不控键盘",
     requiresApproval: "需要审批",
     tauriUnavailable: "桌面运行时不可用",
-  },
   },
 
   agentEdit: "Agent 编辑",

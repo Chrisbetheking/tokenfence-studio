@@ -58,6 +58,10 @@ export function ProjectsScreen() {
     setIsTauri(!!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__);
   }, []);
 
+  const activeProject = projects.find(p => p.id === activeId) ?? null;
+  const selectedFiles = activeProject?.files.filter(f => f.selected) ?? [];
+  const selectedTokens = selectedFiles.reduce((sum, f) => sum + estimateTokens(f.path + f.name), 0);
+
   // Load real file tree when active project changes (v1.5.3+)
   useEffect(() => {
     if (!activeProject) {
@@ -92,10 +96,6 @@ export function ProjectsScreen() {
     loadTree();
     return () => { cancelled = true; };
   }, [activeProject]);
-
-  const activeProject = projects.find(p => p.id === activeId) ?? null;
-  const selectedFiles = activeProject?.files.filter(f => f.selected) ?? [];
-  const selectedTokens = selectedFiles.reduce((sum, f) => sum + estimateTokens(f.path + f.name), 0);
 
   const addProject = useCallback(() => {
     if (!newName.trim() || !newPath.trim()) return;

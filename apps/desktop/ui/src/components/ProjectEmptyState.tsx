@@ -22,7 +22,7 @@ export function ProjectEmptyState() {
       border: "1px dashed var(--border)",
     }}>
       <div style={{ fontSize: "1.8rem", opacity: 0.5, marginBottom: 4 }}>
-        {"妫ｅ啯鎯?}
+        {"📂"}
       </div>
       <div style={{ fontSize: "0.85rem", color: "var(--text)", fontWeight: 600 }}>
         {tk("project.emptyRecentTitle")}

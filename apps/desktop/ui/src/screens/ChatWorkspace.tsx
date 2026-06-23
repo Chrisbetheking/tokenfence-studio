@@ -67,7 +67,7 @@ interface Conversation {
 
 interface AttachedFile {
 
-  id: string; name: string; size: number; type: string; content: string;
+  id: string; name: string; size: number; type: string; content: string;`n  path?: string; relativePath?: string;
 
 }
 
@@ -484,6 +484,7 @@ export function ChatWorkspace() {
       if (safeTree.length > 0) {
         setScanSource("Desktop/Tauri");
         setProjectScanStatus("done");
+        addRecentProject({ name, folderPath: path });
         const flat = flattenFileTree(safeTree);
         const fileEntries = flat.filter((n: ProjectFileNode) => n.type === "file").map((n: ProjectFileNode) => ({
           name: n.relativePath || n.name,
@@ -1490,7 +1491,7 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
                   <span style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>
                     {activeProject?.files?.filter((sf) => sf.selected).length ?? 0} {isZh ? "已选择" : "selected"}
                   </span>
-                  <button onClick={() => { if (!activeProject) return; const sel = activeProject.files?.filter((sf) => sf.selected) ?? []; for (const sf of sel) { setAttachedFiles((prev) => { if (prev.find((x) => x.name === sf.name && x.type === "project")) return prev; return [...prev, { id: `proj-${sf.name}`, name: sf.name, size: 0, type: "project", content: `[Project: ${activeProject.name}]
+                  <button onClick={() => { if (!activeProject) return; const sel = activeProject.files?.filter((sf) => sf.selected) ?? []; for (const sf of sel) { setAttachedFiles((prev) => { if (prev.find((x) => x.name === sf.name && x.type === "project")) return prev; const fp = sf.path || (activeProject.folderPath + "\\" + sf.name); return [...prev, { id: `proj-${sf.name}`, name: sf.name, size: sf.size || 0, type: "project", path: fp, relativePath: sf.name, content: `[Project: ${activeProject.name}]
 [File: ${sf.name}]` }]; }); } }} className="btn btn-primary" style={{ fontSize: "0.68rem", padding: "4px 10px" }}>
                     {isZh ? "加入上下文" : "Add to Context"}
                   </button>

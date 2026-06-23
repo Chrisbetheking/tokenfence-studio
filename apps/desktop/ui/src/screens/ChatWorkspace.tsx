@@ -439,6 +439,20 @@ export function ChatWorkspace() {
       const result = await scanProjectDirectory(path);
       console.log("[ProjectScan] result debug:", JSON.stringify(result.debug));
       setScanDebug(result.debug);
+      if (result.debug.error) {
+        const isBridgeErr = result.debug.error.includes('invoke') ||
+                            result.debug.error.includes('Tauri') ||
+                            result.debug.error.includes('bridge') ||
+                            result.debug.error.includes('No Tauri');
+        if (isBridgeErr) {
+          setProjectScanStatus('failed');
+          setProjectScanError('Tauri bridge error: ' + result.debug.error);
+          return;
+        }
+        setProjectScanStatus('failed');
+        setProjectScanError(result.debug.error);
+        return;
+      }
 
       const safeTree = Array.isArray(result.nodes) ? result.nodes : [];
       setProjectFileTree(safeTree);

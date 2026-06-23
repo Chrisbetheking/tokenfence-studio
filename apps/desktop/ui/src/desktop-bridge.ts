@@ -1,30 +1,24 @@
 import type { ProjectFileNode } from './data/project-file-tree';
 // Desktop bridge: invokes Tauri commands for file I/O and command execution
-// Falls back to browser-safe stubs when not running inside Tauri
+// Uses official @tauri-apps/api/core invoke (Tauri v1 compatible)
 
-let tauriInvoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null;
+import { invoke } from "@tauri-apps/api/core";
 
-async function getInvoke() {
-  if (tauriInvoke) return tauriInvoke;
+let _invokeAvailable: boolean | null = null;
 
-  // Priority 1: window.__TAURI__ global (set by Tauri v1 runtime)
-  const g = (window as any).__TAURI__;
-  const globalInvoke = g?.invoke || g?.tauri?.invoke;
-  if (typeof globalInvoke === "function") {
-    tauriInvoke = globalInvoke;
-    return tauriInvoke;
-  }
-
-  // Priority 2: @tauri-apps/api npm package
+async function _getInvoke(): Promise<typeof invoke | null> {
+  if (_invokeAvailable !== null) return _invokeAvailable ? invoke : null;
   try {
-    const mod = await import("@tauri-apps/api/core");
-    if (typeof mod.invoke === "function") {
-      tauriInvoke = mod.invoke;
-      return tauriInvoke;
-    }
-  } catch { /* package not available */ }
-
-  return null;
+    // Quick test: check if we can actually call a harmless command or just check window.__TAURI__
+    const w = window as any;
+    const hasGlobal = typeof w?.__TAURI__?.invoke === "function";
+    if (hasGlobal) { _invokeAvailable = true; return invoke; }
+    _invokeAvailable = false;
+    return null;
+  } catch {
+    _invokeAvailable = false;
+    return null;
+  }
 }
 
 export interface CommandResult {
@@ -43,55 +37,52 @@ export interface FileInfo {
 }
 
 export async function executeCommand(command: string, args?: string[], cwd?: string, timeoutMs?: number): Promise<CommandResult> {
-  const invoke = await getInvoke();
-  if (!invoke) {
+  const inv = await _getInvoke();
+  if (!inv) {
     return { exit_code: -1, stdout: "", stderr: "Desktop command bridge failed: runtime unavailable or invoke command not registered.", killed: false, duration_ms: 0 };
   }
-  return invoke("execute_command", { command, args: args ?? [], cwd: cwd ?? ".", timeoutMs: timeoutMs ?? 30000 }) as Promise<CommandResult>;
+  return inv("execute_command", { command, args: args ?? [], cwd: cwd ?? ".", timeoutMs: timeoutMs ?? 30000 }) as Promise<CommandResult>;
 }
 
 export async function writeFile(path: string, content: string): Promise<string> {
-  const invoke = await getInvoke();
-  if (!invoke) {
-    console.warn("[desktop-bridge] writeFile not available outside Tauri");
-    return path;
-  }
-  return invoke("write_file", { path, content }) as Promise<string>;
+  const inv = await _getInvoke();
+  if (!inv) { console.warn("[desktop-bridge] writeFile not available outside Tauri"); return path; }
+  return inv("write_file", { path, content }) as Promise<string>;
 }
 
 export async function readFile(path: string): Promise<string> {
-  const invoke = await getInvoke();
-  if (!invoke) return "";
-  return invoke("read_file", { path }) as Promise<string>;
+  const inv = await _getInvoke();
+  if (!inv) return "";
+  return inv("read_file", { path }) as Promise<string>;
 }
 
 export async function fileExists(path: string): Promise<FileInfo> {
-  const invoke = await getInvoke();
-  if (!invoke) return { path, exists: false, size: 0, is_dir: false };
-  return invoke("file_exists", { path }) as Promise<FileInfo>;
+  const inv = await _getInvoke();
+  if (!inv) return { path, exists: false, size: 0, is_dir: false };
+  return inv("file_exists", { path }) as Promise<FileInfo>;
 }
 
 export async function createDirectory(path: string): Promise<string> {
-  const invoke = await getInvoke();
-  if (!invoke) return path;
-  return invoke("create_directory", { path }) as Promise<string>;
+  const inv = await _getInvoke();
+  if (!inv) return path;
+  return inv("create_directory", { path }) as Promise<string>;
 }
 
 export async function listDirectory(path: string): Promise<FileInfo[]> {
-  const invoke = await getInvoke();
-  if (!invoke) return [];
-  return invoke("list_directory", { path }) as Promise<FileInfo[]>;
+  const inv = await _getInvoke();
+  if (!inv) return [];
+  return inv("list_directory", { path }) as Promise<FileInfo[]>;
 }
 
 export async function initTokenfenceDirs(basePath: string): Promise<string> {
-  const invoke = await getInvoke();
-  if (!invoke) return basePath;
-  return invoke("init_tokenfence_dirs", { basePath }) as Promise<string>;
+  const inv = await _getInvoke();
+  if (!inv) return basePath;
+  return inv("init_tokenfence_dirs", { basePath }) as Promise<string>;
 }
 
 export async function isTauri(): Promise<boolean> {
-  const invoke = await getInvoke();
-  return invoke !== null;
+  const inv = await _getInvoke();
+  return inv !== null;
 }
 export interface PatchResult {
   file_path: string;
@@ -99,42 +90,35 @@ export interface PatchResult {
   error?: string;
   backup_path?: string;
 }
-
 export interface BackupResult {
   original_path: string;
   backup_path: string;
-  timestamp: number;
+  timestamp?: number;
 }
-
 export async function createBackup(filePath: string): Promise<BackupResult> {
-  const invoke = await getInvoke();
-  if (!invoke) throw new Error("Desktop runtime unavailable");
-  return invoke("create_backup", { filePath }) as Promise<BackupResult>;
+  const inv = await _getInvoke();
+  if (!inv) return { original_path: filePath, backup_path: "", timestamp: 0 };
+  return inv("create_backup", { filePath }) as Promise<BackupResult>;
 }
-
 export async function applyPatch(filePath: string, newContent: string, createBackupBefore?: boolean): Promise<PatchResult> {
-  const invoke = await getInvoke();
-  if (!invoke) throw new Error("Desktop runtime unavailable");
-  return invoke("apply_patch", { filePath, newContent, createBackupBefore: createBackupBefore ?? true }) as Promise<PatchResult>;
+  const inv = await _getInvoke();
+  if (!inv) return { file_path: filePath, success: false, error: "Desktop bridge unavailable" };
+  return inv("apply_patch", { filePath, newContent, createBackupBefore }) as Promise<PatchResult>;
 }
 
 export async function undoLastPatch(filePath: string): Promise<PatchResult> {
-  const invoke = await getInvoke();
-  if (!invoke) throw new Error("Desktop runtime unavailable");
-  return invoke("undo_last_patch", { filePath }) as Promise<PatchResult>;
+  const inv = await _getInvoke();
+  if (!inv) return { file_path: filePath, success: false, error: "Desktop bridge unavailable" };
+  return inv("undo_last_patch", { filePath }) as Promise<PatchResult>;
 }
 
 export async function appendOperationLog(operation: string, files: string[], success: boolean, error?: string): Promise<string> {
-  const invoke = await getInvoke();
-  if (!invoke) return "";
-  return invoke("append_operation_log", { operation, files, success, error }) as Promise<string>;
+  const inv = await _getInvoke();
+  if (!inv) return "";
+  return inv("append_operation_log", { operation, files, success, error }) as Promise<string>;
 }
 
-
-export interface ProjectScanResult {
-  nodes: ProjectFileNode[];
-  debug: ProjectScanDebug;
-}
+// ── Project Scan ──────────────────────────────────────────────────────
 
 export interface ProjectScanDebug {
   path: string;
@@ -150,116 +134,75 @@ export interface ProjectScanDebug {
   error: string | null;
 }
 
+export interface ProjectScanResult {
+  nodes: ProjectFileNode[];
+  debug: ProjectScanDebug;
+}
+
+function emptyScanDebug(path: string, error: string): ProjectScanDebug {
+  return { path, exists: false, isDir: false, readDirCount: 0, returnedTopNodes: 0, returnedFlatNodes: 0, returnedFiles: 0, returnedDirs: 0, firstEntries: [], firstNodes: [], error };
+}
+
 /**
  * Scan a project directory via the Tauri backend.
- * Returns { nodes, debug } on success, or { nodes: [], debug: { error: "..." } } on failure.
+ * Uses @tauri-apps/api/core invoke (one canonical path).
  */
 export async function scanProjectDirectory(projectPath: string): Promise<ProjectScanResult> {
-  const emptyDebug: ProjectScanDebug = {
-    path: projectPath, exists: false, isDir: false, readDirCount: 0,
-    returnedTopNodes: 0, returnedFlatNodes: 0, returnedFiles: 0, returnedDirs: 0,
-    firstEntries: [], firstNodes: [], error: null
-  };
+  const normalizedPath = projectPath.trim();
 
-  // Try every known Tauri invoke path safely
-  let invokeFn: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null;
-  const w = window as any;
-
-  // Path 1: Tauri v2 core invoke
-  if (typeof w?.__TAURI__?.core?.invoke === "function") {
-    invokeFn = w.__TAURI__.core.invoke;
-  }
-  // Path 2: Tauri v1 direct invoke
-  if (!invokeFn && typeof w?.__TAURI__?.invoke === "function") {
-    invokeFn = w.__TAURI__.invoke;
-  }
-  // Path 3: Tauri v1 nested invoke
-  if (!invokeFn && typeof w?.__TAURI__?.tauri?.invoke === "function") {
-    invokeFn = w.__TAURI__.tauri.invoke;
-  }
-  // Path 4: @tauri-apps/api/core npm package
-  if (!invokeFn) {
-    try {
-      const coreMod = await import("@tauri-apps/api/core");
-      if (typeof coreMod?.invoke === "function") {
-        invokeFn = coreMod.invoke;
-      }
-    } catch (e: any) {
-      console.warn("[desktop-bridge] @tauri-apps/api/core import failed:", e?.message);
-    }
+  if (!normalizedPath) {
+    return { nodes: [], debug: emptyScanDebug(normalizedPath, "Project path is empty.") };
   }
 
-  if (!invokeFn) {
-    return { nodes: [], debug: { ...emptyDebug, error: "No Tauri invoke function found. Check that the app is running as a Tauri desktop window." } };
+  const inv = await _getInvoke();
+  if (!inv) {
+    return { nodes: [], debug: emptyScanDebug(normalizedPath, "No Tauri invoke available. Is the app running as a desktop window?") };
   }
 
   try {
-    const raw = await invokeFn("scan_project_directory", { projectPath }) as any;
+    const result = await inv("scan_project_directory", { projectPath: normalizedPath }) as ProjectScanResult;
 
-    if (!raw || typeof raw !== "object") {
-      return { nodes: [], debug: { ...emptyDebug, error: "scan_project_directory returned non-object: " + typeof raw } };
-    }
-    if (!Array.isArray(raw.nodes)) {
-      return { nodes: [], debug: { ...emptyDebug, error: "scan_project_directory returned result without nodes array. Keys: " + Object.keys(raw || {}).join(", ") } };
+    if (!result || !Array.isArray(result.nodes)) {
+      return { nodes: [], debug: emptyScanDebug(normalizedPath, "scan_project_directory returned an invalid result shape.") };
     }
 
-    const nodes: ProjectFileNode[] = raw.nodes.map(mapEntry);
-    const dbg: any = raw.debug || {};
-
+    // Validate result structure
+    const dbg = result.debug || {};
     return {
-      nodes,
+      nodes: result.nodes,
       debug: {
-        path: dbg.path || projectPath,
+        path: dbg.path || normalizedPath,
         exists: !!dbg.exists,
         isDir: !!dbg.isDir,
         readDirCount: dbg.readDirCount ?? 0,
-        returnedTopNodes: dbg.returnedTopNodes ?? nodes.length,
+        returnedTopNodes: dbg.returnedTopNodes ?? result.nodes.length,
         returnedFlatNodes: dbg.returnedFlatNodes ?? 0,
         returnedFiles: dbg.returnedFiles ?? 0,
         returnedDirs: dbg.returnedDirs ?? 0,
         firstEntries: dbg.firstEntries || [],
         firstNodes: dbg.firstNodes || [],
         error: dbg.error || null,
-      }
+      },
     };
   } catch (e: any) {
-    console.error("[desktop-bridge] scan_project_directory invoke failed:", e?.message ?? e);
-    return { nodes: [], debug: { ...emptyDebug, error: "Tauri invoke failed: " + (e?.message || String(e)) } };
+    const message = e instanceof Error ? e.message : String(e);
+    return { nodes: [], debug: emptyScanDebug(normalizedPath, "Tauri invoke failed: " + message) };
   }
 }
 
-function mapEntry(entry: any): ProjectFileNode {
-  return {
-    id: entry.id,
-    name: entry.name,
-    path: entry.path,
-    relativePath: entry.relativePath ?? entry.relative_path ?? entry.name,
-    type: entry.type ?? entry.entry_type ?? entry.node_type ?? "file",
-    sizeBytes: entry.sizeBytes ?? entry.size_bytes,
-    fileType: entry.fileType ?? entry.file_type,
-    children: entry.children ? entry.children.map(mapEntry) : undefined,
-  };
-}
-/** Check whether the Tauri invoke bridge is available for scan calls. */
-/** Return the actual scan bridge status. Only returns "tauri" if invoke is confirmed callable via typeof check. */
+/**
+ * Return the actual scan bridge status.
+ * Only returns "tauri" if invoke is confirmed available.
+ */
 export async function getScanBridgeStatus(): Promise<{ available: boolean; source: "tauri" | "browser" }> {
-  const w = window as any;
-
-  if (typeof w?.__TAURI__?.core?.invoke === "function") return { available: true, source: "tauri" };
-  if (typeof w?.__TAURI__?.invoke === "function") return { available: true, source: "tauri" };
-  if (typeof w?.__TAURI__?.tauri?.invoke === "function") return { available: true, source: "tauri" };
-
-  try {
-    const coreMod = await import("@tauri-apps/api/core");
-    if (typeof coreMod?.invoke === "function") return { available: true, source: "tauri" };
-  } catch {}
-
+  const inv = await _getInvoke();
+  if (inv) return { available: true, source: "tauri" };
   return { available: false, source: "browser" };
 }
 
 export async function openLogsFolder(): Promise<void> {
-  const invoke = await getInvoke();
-  if (!invoke) return;
-  const logsDir = "E:\Dev\tokenfence-studio-final\.tokenfence\logs";
-  await invoke("execute_command", { command: "explorer", args: [logsDir], cwd: ".", timeoutMs: 5000 });
+  const inv = await _getInvoke();
+  if (!inv) return;
+  const logsDir = "E:\\Dev\\tokenfence-studio-final\\.tokenfence\\logs";
+  await inv("execute_command", { command: "explorer", args: [logsDir], cwd: ".", timeoutMs: 5000 });
 }

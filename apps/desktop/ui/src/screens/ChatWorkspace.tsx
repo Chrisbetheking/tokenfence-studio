@@ -67,7 +67,8 @@ interface Conversation {
 
 interface AttachedFile {
 
-  id: string; name: string; size: number; type: string; content: string;`n  path?: string; relativePath?: string;
+  id: string; name: string; size: number; type: string; content: string;
+  path?: string; relativePath?: string;
 
 }
 

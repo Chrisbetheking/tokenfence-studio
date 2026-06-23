@@ -1375,7 +1375,7 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
                 <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginBottom: 4 }}>{isZh ? "当前项目" : "Active Project"}</div>
                 <div style={{ fontWeight: 600, fontSize: "0.8rem", color: "var(--text)" }}>{activeProject.name}</div>
                 <div style={{ fontSize: "0.6rem", color: "var(--text-muted)", marginTop: 2, wordBreak: "break-all" }}>{activeProject.folderPath}</div>
-                <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginTop: 4 }}>{activeProject.files?.length ?? 0} {isZh ? "个文件" : "files"}</div>
+                <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginTop: 4 }}>{scanDebug?.returnedFiles ?? activeProject.files?.length ?? 0} {isZh ? "个文件" : "files"}{scanDebug?.returnedDirs ? (" · " + scanDebug.returnedDirs + (isZh ? " 个目录" : " dirs")) : ""}</div>
               </div>
             ) : (
               <div style={{ padding: "8px", color: "var(--text-muted)", fontSize: "0.75rem", textAlign: "center", marginBottom: 10 }}>

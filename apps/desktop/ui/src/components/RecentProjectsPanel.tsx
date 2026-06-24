@@ -50,10 +50,10 @@ export function RecentProjectsPanel({ onOpenProject }: { onOpenProject?: (projec
       setActiveProject(project);
       setProjects(updated);
       setActiveProjectState(project);
-      console.log("[RecentProjects] Open clicked:", project.name, project.path);
-      if (onOpenProject) onOpenProject({ name: project.name, path: project.path });
+      console.log("[RecentProjectsPanel] Open clicked:", JSON.stringify({ id: project.id, name: project.name, path: project.path }));
+      if (onOpenProject) onOpenProject(project);
     },
-    []
+    [onOpenProject]
   );
 
   const handleRemove = useCallback(
@@ -343,13 +343,13 @@ export function RecentProjectsPanel({ onOpenProject }: { onOpenProject?: (projec
               >
                 <div
                   style={{ flex: 1, minWidth: 0, cursor: "pointer" }}
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleOpen(project); }}
+                  onClick={(event) => { event.preventDefault(); event.stopPropagation(); console.log("[RecentProjectsPanel] Card clicked", project.name, project.path); handleOpen(project); }}
                 >
                   <div style={{ fontSize: "0.75rem", color: "var(--text)", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {project.favorite ? "★ " : ""}{project.pinned ? "📌 " : ""}{project.name}
                   </div>
-                  <div style={{ fontSize: "0.6rem", color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 1 }}>
-                    {project.path}
+                  <div style={{ fontSize: "0.6rem", color: project.path ? "var(--text-muted)" : "var(--red)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 1 }}>
+                    {project.path || "Missing path"}
                   </div>
                   <div style={{ fontSize: "0.6rem", color: "var(--text-muted)", marginTop: 2, display: "flex", gap: 8 }}>
                     <span>{formatTime(project.lastOpenedAt)}</span>
@@ -362,15 +362,16 @@ export function RecentProjectsPanel({ onOpenProject }: { onOpenProject?: (projec
                 </div>
                 <div style={{ display: "flex", gap: 2, flexShrink: 0, marginLeft: 4 }}>
                   <button
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleOpen(project); }}
+                    type="button" disabled={!project.path} onClick={(event) => { event.preventDefault(); event.stopPropagation(); if (!project.path) return; console.log("[RecentProjectsPanel] Open button clicked", project.name, project.path); handleOpen(project); }}
                     title={tk("project.openProject")}
                     style={{
                       background: "none",
                       border: "none",
-                      color: "var(--primary)",
-                      cursor: "pointer",
+                      color: project.path ? "var(--primary)" : "var(--text-muted)",
+                      cursor: project.path ? "pointer" : "not-allowed",
                       fontSize: "0.65rem",
                       padding: "1px 4px",
+                      opacity: project.path ? 1 : 0.5,
                     }}
                   >
                     {tk("project.open")}

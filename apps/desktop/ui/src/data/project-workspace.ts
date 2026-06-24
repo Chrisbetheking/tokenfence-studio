@@ -42,6 +42,37 @@ function sortProjects(projects: RecentProject[]): RecentProject[] {
   });
 }
 
+function getProjectNameFromPath(p: string): string {
+  return p.split(/[\\\/]/).filter(Boolean).pop() || "Project";
+}
+
+/* ============================================================
+   repairProjectInfo - normalize legacy data
+   ============================================================ */
+
+function repairProjectInfo(raw: any): RecentProject | null {
+  const fallbackPath =
+    raw?.path ||
+    raw?.folderPath ||
+    raw?.projectPath ||
+    raw?.rootPath ||
+    raw?.directory ||
+    null;
+
+  if (typeof fallbackPath === "string" && fallbackPath.trim()) {
+    const path = fallbackPath.trim();
+    return {
+      id: raw?.id || uid(),
+      name: raw?.name || getProjectNameFromPath(path),
+      path,
+      lastOpenedAt: Number(raw?.lastOpenedAt || Date.now()),
+      pinned: Boolean(raw?.pinned),
+      favorite: Boolean(raw?.favorite),
+    };
+  }
+  return null;
+}
+
 /* ============================================================
    Load / Save
    ============================================================ */
@@ -70,14 +101,18 @@ export function loadRecentProjects(): RecentProject[] {
     if (!raw) return [];
     const parsed = safeParseJson(raw);
     if (!Array.isArray(parsed)) return [];
-    // Sanitize mojibake project names from old localStorage data
-    let needsSave = false;
-    for (const p of parsed) {
+    // Repair legacy data: projects without "path" field get it from legacy fields
+    const repaired = parsed
+      .map((p: any) => repairProjectInfo(p))
+      .filter(Boolean) as RecentProject[];
+    // Sanitize mojibake project names
+    let needsSave = parsed.length !== repaired.length;
+    for (const p of repaired) {
       const clean = sanitizeProjectName(p.name, p.path);
       if (clean !== p.name) { p.name = clean; needsSave = true; }
     }
-    if (needsSave) saveRecentProjects(parsed as RecentProject[]);
-    return sortProjects(parsed as RecentProject[]);
+    if (needsSave) saveRecentProjects(repaired);
+    return sortProjects(repaired);
   } catch {
     return [];
   }
@@ -93,24 +128,21 @@ export function saveRecentProjects(projects: RecentProject[]): void {
    ============================================================ */
 
 export function addRecentProject(project: { name: string; path: string }): RecentProject[] {
+  const normalized = repairProjectInfo(project);
+  if (!normalized?.path) {
+    console.error("[addRecentProject] Missing project path, skipping save:", JSON.stringify(project));
+    return loadRecentProjects();
+  }
   const existing = loadRecentProjects();
   const now = Date.now();
-  const found = existing.find((p) => p.path === project.path);
+  const found = existing.find((p) => p.path === normalized.path);
   let updated: RecentProject[];
   if (found) {
     updated = existing.map((p) =>
-      p.path === project.path ? { ...p, lastOpenedAt: now } : p
+      p.path === normalized.path ? { ...p, lastOpenedAt: now, name: normalized.name } : p
     );
   } else {
-    const entry: RecentProject = {
-      id: uid(),
-      name: project.name,
-      path: project.path,
-      lastOpenedAt: now,
-      pinned: false,
-      favorite: false,
-    };
-    updated = [...existing, entry];
+    updated = [...existing, normalized];
   }
   saveRecentProjects(updated);
   return sortProjects(loadRecentProjects());

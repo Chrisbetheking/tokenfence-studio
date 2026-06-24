@@ -26,7 +26,7 @@ import { flattenFileTree, type ProjectFileNode } from "../data/project-file-tree
 import { storeGet, storeSet } from "@tokenfence/shared/src/agent-runtime/safeStorage";
 import { RecentProjectsPanel } from "../components/RecentProjectsPanel";
 import { ContextPackPanel } from "../components/ContextPackPanel";
-import { addRecentProject } from "../data/project-workspace";
+import { addRecentProject, loadRecentProjects as loadPersistedRecentProjects, setActiveProject as setPersistedActiveProject } from "../data/project-workspace";
 import { addFilesToContextPack, clearContextPack as clearPersistentContextPack } from "../data/context-pack";
 import { ModelPickerPanel } from "../components/ModelPickerPanel";
 import { resolveActiveModel, setActiveModel, validateModelForSend, hasAnyConfiguredProvider, migrateActiveModelStorageV2, getActiveModelViewState, normalizeDisplayText, canonicalizeProviderId, getProviderDisplayName, dispatchActiveModelChanged, type ResolvedModelV2 } from "../data/active-model";
@@ -332,6 +332,18 @@ export function ChatWorkspace() {
 
   const [activeConvId, setActiveConvId] = useState<string>("");
 
+  // Debug: dump recent projects state at mount
+  useEffect(() => {
+    try {
+      const raw = storeGet("tokenfence.recentProjects");
+      const recent = raw ? JSON.parse(raw) : [];
+      console.log("[ProjectWorkspace][DEBUG] Recent Projects from localStorage:", JSON.stringify(recent.slice(0, 3).map((p: any) => ({ id: p.id, name: p.name, path: p.path, folderPath: p.folderPath }))));
+      const active = storeGet("tokenfence.activeProject");
+      const activeParsed = active ? JSON.parse(active) : null;
+      console.log("[ProjectWorkspace][DEBUG] Active project from localStorage:", JSON.stringify(activeParsed ? { id: activeParsed.id, name: activeParsed.name, path: activeParsed.path, folderPath: activeParsed.folderPath } : null));
+    } catch {}
+  }, []);
+
   const [composerText, setComposerText] = useState("");
 
   const [sending, setSending] = useState(false);
@@ -378,16 +390,25 @@ export function ChatWorkspace() {
 
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
   // Sync project context files from attachedFiles to persistent context-pack storage
+  // Single source of truth: project files in context
+  const projectContextFiles = useMemo(
+    () => attachedFiles.filter((f: AttachedFile) => f.type === "project"),
+    [attachedFiles]
+  );
+
   useEffect(() => {
-    const projectFiles = attachedFiles.filter((f: AttachedFile) => f.type === "project");
     try { clearPersistentContextPack(); } catch {}
-    for (const f of projectFiles) {
+    for (const f of projectContextFiles) {
       try {
-        addFilesToContextPack([{ name: f.name, path: f.id, relativePath: f.name, sizeBytes: f.size || 0, fileType: f.type || "unknown", id: "", addedAt: Date.now(), isLarge: false }]);
+        addFilesToContextPack([{ name: f.name, path: f.id, relativePath: f.relativePath || f.name, sizeBytes: f.size || 0, fileType: f.type || "unknown", id: "", addedAt: Date.now(), isLarge: false }]);
       } catch {}
     }
     window.dispatchEvent(new Event("tokenfence:contextPackUpdated"));
-  }, [attachedFiles]);
+  }, [attachedFiles, projectContextFiles]);
+
+  const MAX_PROJECT_CONTEXT_FILES = 50;
+  const MAX_INLINE_PROJECT_CONTEXT_CHIPS = 5;
+  const [projectContextNotice, setProjectContextNotice] = useState<string | null>(null);
 
   const [taskStatus, setTaskStatus] = useState<TaskStatus>("idle");
 
@@ -431,55 +452,70 @@ export function ChatWorkspace() {
   });
 
   const handleOpenRecentProject = (project: { name: string; path: string }) => {
-    setManualPath(project.path);
-    setSidebarTab("project");
-    handleLoadManualPathFromProject(project);
-  };
-
-  const handleLoadManualPathFromProject = async (project: { name: string; path: string }) => {
-    const path = project.path.trim();
-    if (!path) return;
-    const name = project.name;
-    const proj = { id: "recent-" + Date.now(), name, folderPath: path, files: [] };
-    setActiveProject(proj);
-    const updated = [proj, ...savedProjects.filter((p: any) => p.folderPath !== path)];
-    setSavedProjects(updated);
-    try { storeSet("tokenfence-active-project", proj.id); storeSet("tokenfence-projects", JSON.stringify(updated)); } catch (_) {}
-    setIsScanningProject(true); setProjectScanStatus("scanning"); setProjectScanError(null); setProjectFileTree([]);
-    setScanPingResult(null); setScanSource("Desktop/Tauri");
-    try {
-      const pong = await pingTauri(); setScanPingResult(pong);
-    } catch (pingErr: any) {
-      setScanPingResult("FAILED: " + (pingErr instanceof Error ? pingErr.message : String(pingErr)));
-      setScanSource("Bridge failed"); setProjectScanStatus("failed"); setIsScanningProject(false); return;
+    const normalized = repairProject(project);
+    console.log("[ProjectWorkspace] Recent Open normalized:", JSON.stringify(normalized));
+    if (!normalized?.path) {
+      console.error("[ProjectWorkspace] Recent project path is missing, raw:", JSON.stringify(project));
+      setProjectScanStatus("failed");
+      setProjectScanError("Recent project path is missing.");
+      return;
     }
-    try {
-      const result = await scanProjectDirectory(path); setScanDebug(result.debug);
-      if (result.debug.error) { setScanSource("Bridge failed"); setProjectScanStatus("failed"); return; }
-      const safeTree = Array.isArray(result.nodes) ? result.nodes : [];
-      setProjectFileTree(safeTree);
-      if (safeTree.length > 0) {
-        setScanSource("Desktop/Tauri"); setProjectScanStatus("done");
-        addRecentProject({ name, path });
-        const flat = flattenFileTree(safeTree);
-        const fileEntries = flat.filter((n: ProjectFileNode) => n.type === "file").map((n: ProjectFileNode) => ({ name: n.relativePath || n.name, path: n.path, size: n.sizeBytes || 0, selected: false }));
-        setActiveProject((prev: any) => prev ? { ...prev, files: fileEntries } : prev);
-      } else {
-        setScanSource("Desktop/Tauri"); setProjectScanStatus("done_empty"); setProjectScanError("Rust scanner returned 0 nodes.");
-      }
-    } catch (e: any) {
-      setScanSource("Bridge failed"); setProjectScanStatus("failed");
-    } finally { setIsScanningProject(false); }
+    // Also clear old localStorage that might have broken entries
+    setManualPath(normalized.path);
+    setSidebarTab("project");
+    openProjectWorkspace(normalized, { reason: "recent-open" });
   };
 
-  const handleLoadManualPath = async () => {
-    const path = manualPath.trim();
-    if (!path) return;
-    console.log("[ProjectScan] load path", path);
 
-    const name = path.split("\\").pop() || path.split("/").pop() || path;
-    const proj = { id: "manual-" + Date.now(), name, folderPath: path, files: [] };
+
+  // === Helper: repair project info via shared project-workspace utility ===
+  const repairProject = useCallback((raw: any) => {
+    // Import path is above; we inline a local version for robustness
+    const fallbackPath = raw?.path || raw?.folderPath || raw?.projectPath || raw?.rootPath || raw?.directory || null;
+    if (typeof fallbackPath === "string" && fallbackPath.trim()) {
+      const path = fallbackPath.trim();
+      return {
+        id: raw?.id || path,
+        name: raw?.name || (path.split("\\").pop() || path.split("/").pop() || path),
+        path,
+        lastOpenedAt: Number(raw?.lastOpenedAt || Date.now()),
+        pinned: Boolean(raw?.pinned),
+        favorite: Boolean(raw?.favorite),
+      };
+    }
+    return null;
+  }, []);
+
+  // === Unified project open/load/scan entry point ===
+  const openProjectWorkspace = useCallback(async (
+    projectOrPath: { name: string; path?: string; folderPath?: string } | string,
+    options?: { reason?: string; createChatAfterOpen?: boolean }
+  ) => {
+    const normalized = typeof projectOrPath === "string"
+      ? repairProject({ path: projectOrPath })
+      : repairProject(projectOrPath);
+
+    if (!normalized?.path) {
+      setProjectScanStatus("failed");
+      setProjectScanError("Project path is missing.");
+      console.error("[openProjectWorkspace] missing path, raw:", JSON.stringify(projectOrPath));
+      return;
+    }
+
+    const path = normalized.path;
+    const name = normalized.name;
+
+    console.log("[openProjectWorkspace]", { reason: options?.reason, name, path, id: normalized.id });
+
+    // Switch to project sidebar tab and fill manual path
+    setSidebarTab("project");
+    setManualPath(path);
+
+    // Create/update active project state
+    const proj = { id: "proj-" + Date.now(), name, folderPath: path, files: [] as any[] };
     setActiveProject(proj);
+
+    // Persist to saved projects
     const updated = [proj, ...savedProjects.filter((p: any) => p.folderPath !== path)];
     setSavedProjects(updated);
     try {
@@ -487,6 +523,7 @@ export function ChatWorkspace() {
       storeSet("tokenfence-projects", JSON.stringify(updated));
     } catch (_) {}
 
+    // Begin scan
     setIsScanningProject(true);
     setProjectScanStatus("scanning");
     setProjectScanError(null);
@@ -494,7 +531,7 @@ export function ChatWorkspace() {
     setScanPingResult(null);
     setScanSource("Desktop/Tauri");
 
-    // Phase 1: ping Tauri to confirm bridge is alive
+    // Phase 1: ping Tauri
     try {
       const pong = await pingTauri();
       setScanPingResult(pong);
@@ -511,7 +548,7 @@ export function ChatWorkspace() {
     // Phase 2: scan project directory
     try {
       const result = await scanProjectDirectory(path);
-      console.log("[ProjectScan] result debug:", JSON.stringify(result.debug));
+      console.log("[openProjectWorkspace] scan result:", JSON.stringify(result.debug));
       setScanDebug(result.debug);
 
       if (result.debug.error) {
@@ -542,14 +579,19 @@ export function ChatWorkspace() {
         setProjectScanError("Rust scanner returned 0 nodes.");
       }
     } catch (e: any) {
-      console.error("[ProjectScan] error", e && e.message ? e.message : String(e));
+      console.error("[openProjectWorkspace] scan error", e && e.message ? e.message : String(e));
       setScanSource("Bridge failed");
       setProjectScanStatus("failed");
       setProjectScanError("scan_project_directory invoke failed: " + (e && e.message ? e.message : "Scan failed"));
     } finally {
       setIsScanningProject(false);
     }
-  };
+  }, [savedProjects]);
+
+  const handleLoadManualPath = useCallback(async () => {
+    if (!manualPath.trim()) return;
+    await openProjectWorkspace(manualPath, { reason: "manual-load" });
+  }, [manualPath, openProjectWorkspace]);
 
   const [sidebarTab, setSidebarTab] = useState<"conversations" | "project">("conversations");
   const [dragOver, setDragOver] = useState(false);
@@ -1431,7 +1473,7 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
                 <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginBottom: 4 }}>{isZh ? "当前项目" : "Active Project"}</div>
                 <div style={{ fontWeight: 600, fontSize: "0.8rem", color: "var(--text)" }}>{activeProject.name}</div>
                 <div style={{ fontSize: "0.6rem", color: "var(--text-muted)", marginTop: 2, wordBreak: "break-all" }}>{activeProject.folderPath}</div>
-                <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginTop: 4 }}>{scanDebug?.returnedFiles ?? activeProject.files?.length ?? 0} {isZh ? "个文件" : "files"}{scanDebug?.returnedDirs ? (" · " + scanDebug.returnedDirs + (isZh ? " 个目录" : " dirs")) : ""}</div>
+                <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginTop: 4 }}><strong>{scanDebug?.returnedFiles ?? activeProject.files?.filter((f: any) => f.selected === true || f.selected === false).length ?? 0}</strong> {isZh ? "个文件" : "files"}{scanDebug?.returnedDirs ? (" · " + scanDebug.returnedDirs + (isZh ? " 个目录" : " dirs")) : ""}</div>
               </div>
             ) : (
               <div style={{ padding: "8px", color: "var(--text-muted)", fontSize: "0.75rem", textAlign: "center", marginBottom: 10 }}>
@@ -1489,6 +1531,9 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
             {/* Recent Projects */}
             <RecentProjectsPanel onOpenProject={handleOpenRecentProject} />
             <div style={{ marginTop: 8 }}><ContextPackPanel compact /></div>
+            <div style={{ fontSize: "0.58rem", color: "var(--text-muted)", marginTop: 2, marginBottom: 4 }}>
+              {attachedFiles.filter((f) => f.type === "project").length} {isZh ? "个项目文件在上下文中" : "project files in context"}
+            </div>
 
             {/* Active project file tree */}
             {activeProject && (
@@ -1540,24 +1585,24 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
                   <button onClick={() => { if (!activeProject) return; setActiveProject({ ...activeProject, files: activeProject.files.map((f: any) => ({ ...f, selected: false })) }); }} className="btn btn-ghost" style={{ fontSize: "0.6rem", padding: "2px 6px" }}>
                     {isZh ? "取消全选" : "Clear"}
                   </button>
-                  <button onClick={() => { if (!activeProject) return; const sel = activeProject.files?.filter((sf) => sf.selected) ?? []; for (const sf of sel) { setAttachedFiles((prev) => { if (prev.find((x) => x.name === sf.name && x.type === "project")) return prev; const fp = sf.path || (activeProject.folderPath + "\\" + sf.name); return [...prev, { id: `proj-${sf.name}`, name: sf.name, size: sf.size || 0, type: "project", path: fp, relativePath: sf.name, content: `[Project: ${activeProject.name}]
-[File: ${sf.name}]` }]; }); } }} className="btn btn-primary" style={{ fontSize: "0.68rem", padding: "4px 10px" }}>
+                  <button onClick={() => { if (!activeProject) return; const basePath = activeProject.folderPath || ""; if (!basePath) { console.error("[AddToContext] Cannot add project files: project path is missing."); return; } const selectedFiles = activeProject.files?.filter((sf: any) => sf.selected) ?? []; if (selectedFiles.length === 0) return; const projectName = activeProject.name; setAttachedFiles((prev) => { const existingProjectFiles = prev.filter((f: AttachedFile) => f.type === "project"); const existingIds = new Set(prev.map((f) => f.id)); const remainingSlots = MAX_PROJECT_CONTEXT_FILES - existingProjectFiles.length; if (remainingSlots <= 0) { setProjectContextNotice(isZh ? "\u5df2\u8fbe\u5230\u9879\u76ee\u4e0a\u4e0b\u6587\u4e0a\u9650\uff0c\u6700\u591a\u53ef\u52a0\u5165 50 \u4e2a\u6587\u4ef6\u3002" : "Project Context Pack limit reached. You can attach up to 50 files."); return prev; } const filesToAdd = selectedFiles.map((sf: any) => ({ id: `project:${basePath}:${sf.name}`, name: sf.name, size: sf.size || 0, type: "project" as const, path: sf.path || (basePath + "\\" + sf.name), relativePath: sf.name, content: `[Project: ${projectName}]
+[File: ${sf.name}]` })).filter((f) => !existingIds.has(f.id)).slice(0, remainingSlots); const addedCount = filesToAdd.length; if (selectedFiles.length > addedCount) { setProjectContextNotice((isZh ? "\u5df2\u52a0\u5165 " : "Added ") + addedCount + (isZh ? " \u4e2a\u6587\u4ef6\u3002\u9879\u76ee\u4e0a\u4e0b\u6587\u5305\u4e0a\u9650\u4e3a " : " files. Project Context Pack is capped at ") + MAX_PROJECT_CONTEXT_FILES + (isZh ? " \u4e2a\u3002" : " files.")); } else if (addedCount > 0) { setProjectContextNotice((isZh ? "\u5df2\u52a0\u5165 " : "Added ") + addedCount + (isZh ? " \u4e2a\u6587\u4ef6\u5230\u9879\u76ee\u4e0a\u4e0b\u6587\u5305\u3002" : " files to Project Context Pack.")); } console.log("[AddToContext] Added", addedCount, "files, total project context:", existingProjectFiles.length + addedCount); return [...prev, ...filesToAdd]; }); }} className="btn btn-primary" style={{ fontSize: "0.68rem", padding: "4px 10px" }}>
                     {isZh ? "加入上下文" : "Add to Context"}
                   </button>
-                  <button onClick={() => { if (!activeProject || attachedFiles.filter((f: AttachedFile) => f.type === "project").length === 0) return; const title = activeProject.name + " - " + new Date().toLocaleTimeString(); const newConv = { id: uid(), title, messages: [], createdAt: Date.now(), updatedAt: Date.now(), mode: "project", projectName: activeProject.name, projectPath: activeProject.folderPath }; setConversations([newConv, ...conversations]); setActiveConvId(newConv.id); saveConversations([newConv, ...conversations]); }} className="btn btn-ghost" style={{ fontSize: "0.68rem", padding: "4px 10px", color: "var(--primary)" }}>
+                  <button onClick={() => { if (!activeProject) return; const projectPath = activeProject.folderPath || ""; if (!projectPath) { console.error("[NewProjectChat] Active project conversation is missing project path"); } const title = activeProject.name + " - " + new Date().toLocaleTimeString(); const newConv: Conversation = { id: uid(), title, messages: [], createdAt: Date.now(), updatedAt: Date.now() }; (newConv as any).mode = "project"; (newConv as any).projectName = activeProject.name; (newConv as any).projectPath = projectPath; (newConv as any).path = projectPath; setConversations([newConv, ...conversations]); setActiveConvId(newConv.id); saveConversations([newConv, ...conversations]); console.log("[NewProjectChat] Created project conversation", { title, path: projectPath }); }} className="btn btn-ghost" style={{ fontSize: "0.68rem", padding: "4px 10px", color: "var(--primary)" }}>
                     {isZh ? "新建项目对话" : "New Project Chat"}
                   </button>
-                  {attachedFiles.filter((f) => f.type === "project").length > 0 && (
-                    <button onClick={() => setAttachedFiles((prev) => prev.filter((f) => f.type !== "project"))} className="btn btn-ghost" style={{ fontSize: "0.68rem", padding: "4px 10px", color: "var(--red)" }}>
+                  {projectContextFiles.length > 0 && (
+                    <button onClick={() => setAttachedFiles((prev) => prev.filter((f: AttachedFile) => f.type !== "project"))} className="btn btn-ghost" style={{ fontSize: "0.68rem", padding: "4px 10px", color: "var(--red)" }}>
                       {isZh ? "清除项目上下文" : "Clear Project Context"}
                     </button>
                   )}
                 </div>
 
                 {/* Project Context files count */}
-                {attachedFiles.filter((f) => f.type === "project").length > 0 && (
+                {projectContextFiles.length > 0 && (
                   <div style={{ fontSize: "0.65rem", color: "var(--primary)", marginTop: 6 }}>
-                    {attachedFiles.filter((f) => f.type === "project").length} {isZh ? "\u9879\u76EE\u6587\u4EF6\u5728\u4E0A\u4E0B\u6587\u4E2D" : "project files in context"}
+                    {projectContextFiles.length}/{MAX_PROJECT_CONTEXT_FILES} {isZh ? "\u4e2a\u9879\u76ee\u6587\u4ef6\u5728\u4e0a\u4e0b\u6587\u4e2d" : "project files in context"}
                   </div>
                 )}
               </>
@@ -1575,9 +1620,9 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
 
         {/* Header */}
-        <div style={{ padding: "12px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--text)" }}>{activeConv?.title || tk("chat.newConversation")}</span>
+        <div style={{ padding: "12px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--surface)", minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, flex: 1 }}>
+            <span style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--text)", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", maxWidth: 380 }}>{activeConv?.title || tk("chat.newConversation")}</span>
             {/* Model pill */}
             <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--surface-alt)", border: "1px solid var(--border)", borderRadius: 8, padding: "4px 10px", fontSize: "0.75rem" }}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: viewState.hasModel && viewState.configured ? (viewState.status === "healthy" ? "var(--green)" : "var(--amber)") : "var(--text-muted)" }}></span>
@@ -1585,15 +1630,15 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
               <span style={{ color: "var(--text-muted)" }}>/ {viewState.hasModel ? viewState.modelLabel : ""}</span>
             </div>
             {/* Switch Model button */}
-            <button onClick={() => { setInstalledModels(getEnabledModels()); setShowModelPanel(true); }} className="btn btn-ghost" style={{ fontSize: "0.75rem", padding: "4px 10px", color: "var(--primary)" }}>
+            <button onClick={() => { setInstalledModels(getEnabledModels()); setShowModelPanel(true); }} className="btn btn-ghost" style={{ fontSize: "0.75rem", padding: "4px 10px", color: "var(--primary)", whiteSpace: "nowrap", flexShrink: 0 }}>
               {tk("chat.switchModel")}
             </button>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
             {activeConv && activeConv.messages.length > 0 && (
-              <button onClick={handleClearConversation} className="btn btn-ghost" style={{ fontSize: "0.75rem", padding: "4px 10px" }}>{tk("chat.clearConversation")}</button>
+              <button onClick={handleClearConversation} className="btn btn-ghost" style={{ fontSize: "0.75rem", padding: "4px 10px", whiteSpace: "nowrap" }}>{tk("chat.clearConversation")}</button>
             )}
-            <button onClick={() => setShowRightPanel(!showRightPanel)} className="btn btn-ghost" style={{ fontSize: "0.75rem", padding: "4px 10px" }}>
+            <button onClick={() => setShowRightPanel(!showRightPanel)} className="btn btn-ghost" style={{ fontSize: "0.75rem", padding: "4px 10px", whiteSpace: "nowrap" }}>
               {showRightPanel ? tk("chat.hideInspector") : tk("chat.showInspector")}
             </button>
           </div>
@@ -1682,23 +1727,37 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
         <div style={{ borderTop: "1px solid var(--border)", padding: "16px 20px", background: "var(--surface)" }}>
 
           {attachedFiles.length > 0 && (
-
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
-
-              {attachedFiles.map((f) => (
-
-                <span key={f.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 10px", background: "var(--surface-alt)", border: "1px solid var(--border)", borderRadius: 6, fontSize: "0.7rem", color: "var(--text-secondary)" }}>
-
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, padding: "6px 10px", background: "var(--surface-alt)", borderRadius: 8, border: "1px solid var(--border)", maxHeight: 56, overflow: "hidden" }}>
+              <span style={{ fontSize: "0.68rem", color: "var(--text-secondary)", whiteSpace: "nowrap", flexShrink: 0 }}>
+                {String.fromCodePoint(0x1F4C4)} <strong>{projectContextFiles.length}/{MAX_PROJECT_CONTEXT_FILES}</strong> {isZh ? "\u4e2a\u9879\u76ee\u6587\u4ef6" : "project files"}
+              </span>
+              {/* Inline chips: max 5, elided */}
+              <div style={{ display: "flex", gap: 4, overflow: "hidden", flex: 1, minWidth: 0 }}>
+                {projectContextFiles.slice(0, MAX_INLINE_PROJECT_CONTEXT_CHIPS).map((f) => (
+                  <span key={f.id} style={{ display: "inline-block", padding: "2px 6px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 3, fontSize: "0.6rem", color: "var(--text-secondary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 180, flexShrink: 0 }}>
+                    {f.name}
+                  </span>
+                ))}
+                {projectContextFiles.length > MAX_INLINE_PROJECT_CONTEXT_CHIPS && (
+                  <span style={{ fontSize: "0.6rem", color: "var(--primary)", whiteSpace: "nowrap", flexShrink: 0 }}>
+                    +{projectContextFiles.length - MAX_INLINE_PROJECT_CONTEXT_CHIPS} more
+                  </span>
+                )}
+              </div>
+              {/* Non-project files: inline with individual remove */}
+              {attachedFiles.filter((f: AttachedFile) => f.type !== "project").map((f) => (
+                <span key={f.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6, fontSize: "0.68rem", color: "var(--text-secondary)", whiteSpace: "nowrap", flexShrink: 0 }}>
                   {String.fromCodePoint(0x1F4C4)} {f.name}
-
-                  <button onClick={() => handleRemoveFile(f.id)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "0.75rem", padding: 0, lineHeight: 1 }}>x</button>
-
+                  <button onClick={() => handleRemoveFile(f.id)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "0.7rem", padding: 0, lineHeight: 1 }}>x</button>
                 </span>
-
               ))}
-
+              {/* Clear project context button */}
+              {projectContextFiles.length > 0 && (
+                <button onClick={() => setAttachedFiles((prev: AttachedFile[]) => prev.filter((f) => f.type !== "project"))} style={{ background: "none", border: "none", color: "var(--red)", cursor: "pointer", fontSize: "0.6rem", padding: "2px 6px", whiteSpace: "nowrap", flexShrink: 0 }}>
+                  {isZh ? "\u6e05\u7a7a" : "Clear"}
+                </button>
+              )}
             </div>
-
           )}
 
 

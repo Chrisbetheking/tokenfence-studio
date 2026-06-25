@@ -156,3 +156,32 @@ export async function openLogsFolder(): Promise<void> {
     await invoke("execute_command", { command: "explorer", args: [logsDir], cwd: ".", timeoutMs: 5000 });
   } catch {}
 }
+/* === v1.5.6 RC5 Computer Use Agent === */
+
+export interface ComputerUseActionResult {
+  action_id: string;
+  success: boolean;
+  observation: string;
+  error?: string | null;
+  temp_file_path?: string | null;
+  process_id?: number | null;
+}
+
+export async function runComputerUseAction(actionId: string, args?: Record<string, unknown>): Promise<ComputerUseActionResult> {
+  try {
+    const result = await invoke<ComputerUseActionResult>("run_computer_use_action", {
+      actionId,
+      args: args || {},
+    });
+    return result;
+  } catch (e: any) {
+    return {
+      action_id: actionId,
+      success: false,
+      observation: "Tauri invoke failed: " + (e.message || String(e)),
+      error: e.message || String(e),
+      temp_file_path: null,
+      process_id: null,
+    };
+  }
+}

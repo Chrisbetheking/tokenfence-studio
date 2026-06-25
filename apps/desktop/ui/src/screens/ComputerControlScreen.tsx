@@ -1,13 +1,23 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useComputerUseAgent } from "../features/computer-use/useComputerUseAgent";
 import { tk, onLangChange } from "@tokenfence/shared/src/i18n";
 import {
   loadComputerUseState,
   saveComputerUseState,
-  generatePlan,
   executeStep,
+  loadAuditLog,
+  saveAuditEntry,
+  clearAuditLog,
+  assessRiskLevel,
+  ENTERPRISE_POLICY,
+  getPermissionMode,
+  setPermissionMode,
+  evaluateComputerUsePermission,
   type ComputerUseState,
   type ComputerUsePlanStep,
   type ComputerUseRunLog,
+  type ComputerUseAuditEntry,
+  type ComputerUsePermissionMode,
 } from "../data/computer-use";
 
 function uid(): string {
@@ -50,13 +60,48 @@ export function ComputerControlScreen() {
   useEffect(() => { return onLangChange(() => forceRender((n) => n + 1)); }, []);
 
   const isZh = tk("common.yes") !== "Yes";
+  const {
+    agentState,
+    setAgentState,
+    auditLog,
+    setAuditLog: setAuditLogState,
+    planTask,
+    runPlan,
+    stopRun: stopAgentRun,
+    clearAgent,
+  } = useComputerUseAgent();
+
   const [state, setState] = useState<ComputerUseState>(loadComputerUseState);
   const [taskInput, setTaskInput] = useState(state.taskText || "");
+    // auditLog managed by useComputerUseAgent
+  const [dryRunLogs, setDryRunLogs] = useState<ComputerUseRunLog[] | null>(null);
+  const [currentRiskLevel, setCurrentRiskLevel] = useState<string>("low");
+  const [permissionMode, setPermissionModeState] = useState<ComputerUsePermissionMode>(getPermissionMode);
+  const [showFullAccessConfirm, setShowFullAccessConfirm] = useState(false);
   const stopRef = useRef(false);
 
   const persist = useCallback((s: ComputerUseState) => {
     saveComputerUseState(s);
     setState(s);
+  }, []);
+
+  const handlePermissionModeChange = useCallback((mode: ComputerUsePermissionMode) => {
+    if (mode === "full_access") {
+      setShowFullAccessConfirm(true);
+      return;
+    }
+    setPermissionModeState(mode);
+    setPermissionMode(mode);
+  }, []);
+
+  const handleFullAccessConfirm = useCallback(() => {
+    setShowFullAccessConfirm(false);
+    setPermissionModeState("full_access");
+    setPermissionMode("full_access");
+  }, []);
+
+  const handleFullAccessCancel = useCallback(() => {
+    setShowFullAccessConfirm(false);
   }, []);
 
   const handleGeneratePlan = useCallback(() => {
@@ -88,66 +133,97 @@ export function ComputerControlScreen() {
     }, 600);
   }, [taskInput, state, persist, isZh]);
 
-  const handleConfirmRun = useCallback(async () => {
+  const handleDryRun = useCallback(() => {
     if (state.status !== "waiting_confirmation") return;
-    stopRef.current = false;
-    const startLog: ComputerUseRunLog = {
+    const dryLogs: ComputerUseRunLog[] = [{
       id: uid(), time: Date.now(), level: "info",
-      message: isZh ? "开始执行计划（真实诊断命令）..." : "Starting plan execution (real diagnostics)...",
-    };
-    let currentLogs: ComputerUseRunLog[] = [...state.logs, startLog];
-    const runningState: ComputerUseState = { ...state, status: "running", logs: currentLogs };
-    persist(runningState);
-
-    let allDone = true;
+      message: isZh ? "干跑模式（Dry Run）：不会执行任何实际操作。" : "Dry Run mode: no actions will be executed.",
+    }];
     for (const step of state.plan) {
-      if (stopRef.current) { allDone = false; break; }
-      const stepStart: ComputerUseRunLog = {
+      dryLogs.push({
         id: uid(), time: Date.now(), level: "info",
-        message: `\n--- ${step.title} ---`,
-      };
-      currentLogs = [...currentLogs, stepStart];
-      setState(prev => ({ ...prev, logs: currentLogs }));
-
-      await executeStep(step, (log) => {
-        currentLogs = [...currentLogs, log];
-        setState(prev => ({ ...prev, logs: currentLogs }));
+        message: `[DRY RUN] ${step.title}: ${step.description}`,
       });
     }
+    dryLogs.push({
+      id: uid(), time: Date.now(), level: "success",
+      message: isZh ? `干跑完成。${state.plan.length} 个步骤已检查，未执行任何实际动作。` : `Dry run complete. ${state.plan.length} step(s) reviewed. No actions were taken.`,
+    });
+    setDryRunLogs(dryLogs);
+  }, [state, isZh]);
 
-    const finalState: ComputerUseState = {
+  const handleConfirmRun = useCallback(async () => {
+    if (state.status !== "waiting_confirmation") return;
+    if (agentState.plan.length === 0) return;
+    
+    stopRef.current = false;
+    
+    const runningState: ComputerUseState = {
       ...state,
-      status: allDone ? "completed" : "stopped",
-      logs: [...currentLogs, {
-        id: uid(), time: Date.now(),
-        level: allDone ? "success" : "warning",
-        message: allDone
-          ? (isZh ? "所有步骤执行完成。" : "All steps completed.")
-          : (isZh ? "执行已停止。" : "Execution stopped."),
+      status: "running",
+      logs: [...state.logs, {
+        id: uid(), time: Date.now(), level: "info",
+        message: isZh ? "??????..." : "Starting plan execution...",
       }],
     };
+    persist(runningState);
+    
+    const onStateUpdate = (upd: Partial<ComputerUseAgentState>) => {
+      setAgentState(prev => {
+        const next = { ...prev, ...upd, updatedAt: Date.now() };
+        saveAgentState(next);
+        return next;
+      });
+      // Sync logs to old state for compatibility
+      if (upd.logs) {
+        setState(prev => ({ ...prev, logs: upd.logs || prev.logs }));
+      }
+    };
+    
+    const result: AgentRunResult = await runAgentSteps(
+      agentState.plan,
+      state.taskText,
+      permissionMode,
+      onStateUpdate,
+      () => stopRef.current,
+    );
+    
+    const finalState: ComputerUseState = {
+      ...state,
+      status: result.status === "completed" ? "completed" : result.status === "stopped" ? "stopped" : "failed",
+      logs: result.logs,
+    };
     persist(finalState);
-  }, [state, persist, isZh]);
+    
+    saveAuditEntry(result.auditEntry);
+    setAuditLogState(loadAuditLog());
+  }, [state, persist, isZh, agentState, permissionMode]);
+
+
+  const handleClearAudit = useCallback(() => {
+    clearAuditLog();
+    setAuditLogState([]);
+  }, []);
 
   const handleStop = useCallback(() => {
-    stopRef.current = true;
+    stopAgentRun();
     const stoppedState: ComputerUseState = {
       ...state, status: "stopped",
       logs: [...state.logs, {
         id: uid(), time: Date.now(), level: "warning",
-        message: isZh ? "用户请求停止。" : "Stop requested by user.",
+        message: isZh ? "???????" : "Stop requested by user.",
       }],
     };
     persist(stoppedState);
-  }, [state, persist, isZh]);
+  }, [state, persist, isZh, stopAgentRun]);
 
   const handleClear = useCallback(() => {
     setTaskInput("");
-    stopRef.current = false;
+    clearAgent();
     persist({
       taskText: "", status: "idle", plan: [], logs: [], updatedAt: Date.now(),
     });
-  }, [persist]);
+  }, [persist, clearAgent]);
 
   const canGenerate = taskInput.trim().length > 0 &&
     (state.status === "idle" || state.status === "completed" || state.status === "failed" || state.status === "stopped");
@@ -216,42 +292,102 @@ export function ComputerControlScreen() {
             {tk("computerUse.executionPlan")}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {state.plan.map((step: ComputerUsePlanStep, idx: number) => (
-              <div key={step.id} style={{
-                display: "flex", alignItems: "flex-start", gap: 8,
-                padding: "8px 10px", background: "var(--surface-alt)",
-                borderRadius: 4, borderLeft: `3px solid ${riskColor(step.riskLevel)}`,
-              }}>
-                <span style={{
-                  width: 22, height: 22, borderRadius: "50%",
-                  background: "var(--primary)", color: "#fff",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: "0.65rem", fontWeight: 600, flexShrink: 0,
-                }}>{idx + 1}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: "0.78rem", fontWeight: 500, color: "var(--text)" }}>{step.title}</div>
-                  <div style={{ fontSize: "0.68rem", color: "var(--text-muted)", marginTop: 2 }}>{step.description}</div>
+            {/* Map old plan steps, overlay agent status */}
+            {state.plan.map((step: ComputerUsePlanStep, i: number) => {
+              const agentStep = agentState.plan.find(s => s.id === step.id);
+              const stepStatus = agentStep?.status || "pending";
+              const statusColor = stepStatus === "success" ? "var(--green)" : stepStatus === "failed" ? "var(--red)" : stepStatus === "running" ? "var(--accent)" : stepStatus === "blocked" ? "var(--red)" : stepStatus === "skipped" ? "var(--amber)" : "var(--text-muted)";
+              return (
+                <div key={step.id} style={{
+                  display: "flex", alignItems: "flex-start", gap: 8, padding: "6px 0",
+                  borderBottom: "1px solid var(--border)", opacity: stepStatus === "skipped" ? 0.5 : 1,
+                }}>
+                  <span style={{ color: statusColor, fontSize: "0.8rem", flexShrink: 0, marginTop: 2 }}>
+                    {stepStatus === "success" ? "✔" : stepStatus === "failed" ? "✖" : stepStatus === "running" ? "▶" : stepStatus === "blocked" ? "⛔" : stepStatus === "skipped" ? "⏭" : "○"}
+                  </span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: stepStatus === "running" ? 700 : 500, fontSize: "0.75rem", color: "var(--text)" }}>
+                      {step.title}
+                    </div>
+                    <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginTop: 2 }}>
+                      {step.description}
+                    </div>
+                    {agentStep?.observation && (
+                      <div style={{ fontSize: "0.6rem", color: "var(--text-muted)", marginTop: 2, fontFamily: "monospace", background: "var(--surface-alt)", padding: "2px 6px", borderRadius: 3 }}>
+                        {agentStep.observation.slice(0, 120)}
+                      </div>
+                    )}
+                    {agentStep?.error && (
+                      <div style={{ fontSize: "0.6rem", color: "var(--red)", marginTop: 2, fontFamily: "monospace" }}>
+                        {agentStep.error.slice(0, 120)}
+                      </div>
+                    )}
+                  </div>
+                  <span style={{ fontSize: "0.6rem", color: statusColor, flexShrink: 0 }}>
+                    {stepStatus}
+                  </span>
                 </div>
-                <span style={{
-                  fontSize: "0.6rem", color: riskColor(step.riskLevel),
-                  fontWeight: 600, flexShrink: 0, padding: "2px 6px",
-                  borderRadius: 3, border: `1px solid ${riskColor(step.riskLevel)}`,
-                }}>{riskLabel(step.riskLevel, isZh)}</span>
-              </div>
-            ))}
+              );
+            })}
+
           </div>
 
           {state.plan.some(s => s.riskLevel !== "blocked") && (
-            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-              <button className="btn btn-primary" onClick={handleConfirmRun} disabled={!canConfirm}
-                style={{ fontSize: "0.75rem", background: canConfirm ? "var(--green)" : undefined, borderColor: canConfirm ? "var(--green)" : undefined }}>
-                {tk("computerUse.confirmRun")}
-              </button>
-              <button className="btn btn-danger" onClick={handleStop} disabled={!canStop} style={{ fontSize: "0.75rem" }}>
-                {tk("computerUse.stop")}
-              </button>
+            <div style={{ marginTop: 12 }}>
+              {/* Risk Level */}
+              <div style={{
+                display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 8,
+                padding: "4px 12px", borderRadius: 4,
+                background: currentRiskLevel === "blocked" ? "rgba(255,0,0,0.1)" : currentRiskLevel === "high" ? "rgba(255,165,0,0.1)" : currentRiskLevel === "medium" ? "rgba(255,165,0,0.06)" : "rgba(0,255,0,0.06)",
+                border: `1px solid ${currentRiskLevel === "blocked" ? "var(--red)" : currentRiskLevel === "high" || currentRiskLevel === "medium" ? "var(--amber)" : "var(--green)"}`,
+                fontSize: "0.7rem",
+              }}>
+                <span style={{ fontWeight: 600, color: "var(--text)" }}>{isZh ? "风险等级:" : "Risk Level:"}</span>
+                <span style={{
+                  fontWeight: 700,
+                  color: currentRiskLevel === "blocked" ? "var(--red)" : currentRiskLevel === "high" || currentRiskLevel === "medium" ? "var(--amber)" : "var(--green)",
+                }}>
+                  {currentRiskLevel === "blocked" ? (isZh ? "已阻止" : "Blocked") :
+                   currentRiskLevel === "high" ? (isZh ? "高" : "High") :
+                   currentRiskLevel === "medium" ? (isZh ? "中" : "Medium") : (isZh ? "低" : "Low")}
+                </span>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn btn-ghost" onClick={handleDryRun} disabled={!canConfirm}
+                  style={{ fontSize: "0.75rem", color: "var(--primary)", border: "1px solid var(--primary)" }}>
+                  {isZh ? "干跑 (Dry Run)" : "Dry Run"}
+                </button>
+                <button className="btn btn-primary" onClick={handleConfirmRun} disabled={!canConfirm}
+                  style={{ fontSize: "0.75rem", background: canConfirm ? "var(--green)" : undefined, borderColor: canConfirm ? "var(--green)" : undefined }}>
+                  {tk("computerUse.confirmRun")} ({state.plan.length} {isZh ? "步" : "step(s)"})
+                </button>
+                <button className="btn btn-danger" onClick={handleStop} disabled={!canStop} style={{ fontSize: "0.75rem" }}>
+                  {tk("computerUse.stop")}
+                </button>
+              </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Dry Run Results */}
+      {dryRunLogs && (
+        <div className="card" style={{ padding: 16, marginBottom: 16, background: "var(--surface-alt)" }}>
+          <div style={{ fontSize: "0.8rem", fontWeight: 600, marginBottom: 8, color: "var(--primary)" }}>
+            {isZh ? "干跑结果 (Dry Run)" : "Dry Run Results"}
+          </div>
+          <div style={{
+            maxHeight: 200, overflowY: "auto",
+            background: "var(--bg)", border: "1px solid var(--border)",
+            borderRadius: 4, padding: 8,
+            fontFamily: "monospace", fontSize: "0.7rem",
+          }}>
+            {dryRunLogs.map((log: ComputerUseRunLog) => (
+              <div key={log.id} style={{ padding: "2px 0", color: logLevelColor(log.level) }}>
+                {log.message}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -282,26 +418,59 @@ export function ComputerControlScreen() {
         </div>
       )}
 
-      {/* Allowed Tasks + Blocked */}
-      <div className="card" style={{ padding: 16, background: "var(--surface-alt)", fontSize: "0.7rem", color: "var(--text-muted)" }}>
-        <div style={{ fontWeight: 600, marginBottom: 4, color: "var(--text-secondary)" }}>
-          {tk("computerUse.allowedTasks")}
+      {/* Audit Trail */}
+      <div className="card" style={{ padding: 16, background: "var(--surface-alt)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <div style={{ fontWeight: 600, fontSize: "0.8rem", color: "var(--text)" }}>
+            {isZh ? "审计日志" : "Audit Trail"}
+          </div>
+          {auditLog.length > 0 && (
+            <button onClick={handleClearAudit} className="btn btn-ghost" style={{ fontSize: "0.65rem", padding: "2px 8px", color: "var(--red)" }}>
+              {isZh ? "清空" : "Clear"}
+            </button>
+          )}
         </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 16px" }}>
-          <span>&#10003; {tk("computerUse.safeGuard")}</span>
-          <span>&#10003; {tk("computerUse.generatesPlan")}</span>
-          <span>&#10003; {tk("computerUse.simulateExecute")}</span>
-          <span>&#10003; {tk("computerUse.showDiagnostics")}</span>
-        </div>
-        <div style={{ fontWeight: 600, marginTop: 12, marginBottom: 4, color: "var(--red)" }}>
-          {tk("computerUse.blockedOperations")}
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 16px" }}>
-          <span>&#10007; {tk("computerUse.noExecute")}</span>
-          <span>&#10007; {tk("computerUse.noScreen")}</span>
-          <span>&#10007; {tk("computerUse.noMouse")}</span>
-          <span>&#10007; {tk("computerUse.noKeyboard")}</span>
-        </div>
+        {auditLog.length === 0 ? (
+          <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
+            {isZh ? "暂无审计记录" : "No audit records yet."}
+          </div>
+        ) : (
+          <div style={{ maxHeight: 200, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
+            {auditLog.slice(0, 20).map((entry: ComputerUseAuditEntry) => (
+              <div key={entry.id} style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "4px 8px", borderRadius: 4,
+                fontSize: "0.65rem", fontFamily: "monospace",
+                background: entry.status === "blocked" ? "rgba(255,0,0,0.06)" : "var(--surface)",
+                borderLeft: `3px solid ${entry.status === "success" ? "var(--green)" : entry.status === "blocked" ? "var(--red)" : "var(--amber)"}`,
+              }}>
+                <span style={{ color: "var(--text-muted)", flexShrink: 0 }}>
+                  {new Date(entry.createdAt).toLocaleDateString()} {new Date(entry.createdAt).toLocaleTimeString()}
+                </span>
+                <span style={{ color: "var(--text)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {entry.task.slice(0, 40)}{entry.task.length > 40 ? "..." : ""}
+                </span>
+                <span style={{ fontSize: "0.55rem", color: "var(--text-muted)", flexShrink: 0 }}>
+                  {entry.steps ? entry.steps.length + " steps" : (entry.actionIds?.length || 0) + " actions"}
+                </span>
+                <span style={{
+                  color: entry.status === "success" ? "var(--green)" : entry.status === "blocked" ? "var(--red)" : "var(--amber)",
+                  fontWeight: 600, flexShrink: 0, fontSize: "0.6rem",
+                }}>
+                  {entry.status}{entry.permissionMode ? " \u00B7 " + (entry.permissionMode === "request_approval" ? (isZh ? "\u8BF7\u6C42\u6279\u51C6" : "approval") : entry.permissionMode === "auto_review" ? (isZh ? "\u81EA\u52A8\u5BA1\u6279" : "auto") : entry.permissionMode === "full_access" ? (isZh ? "\u5B8C\u5168\u8BBF\u95EE" : "full") : entry.permissionMode) : ""}
+                </span>
+                <span style={{
+                  fontSize: "0.55rem", padding: "1px 4px", borderRadius: 2, flexShrink: 0,
+                  background: entry.riskLevel === "blocked" ? "var(--red)" : entry.riskLevel === "high" ? "var(--amber)" : entry.riskLevel === "medium" ? "var(--amber)" : "var(--green)",
+                  color: "#fff",
+                }}>
+                  {entry.riskLevel}
+                </span>
+              </div>
+            ))}
+
+          </div>
+        )}
       </div>
     </div>
   );

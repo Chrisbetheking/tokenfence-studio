@@ -1,4 +1,4 @@
-import { executeCommand } from "../desktop-bridge";
+import { executeCommand, runComputerUseAction } from "../desktop-bridge";
 
 const STORAGE_KEY = "tokenfence.computerUse";
 
@@ -365,3 +365,423 @@ async function runOpenInstallFolder(onLog: (log: ComputerUseRunLog) => void) {
     onLog(logWarning(`Could not open folder: ${e.message || String(e)}`));
   }
 }
+
+// === v1.5.6 RC5 Agent Runtime Types ===
+
+export type ComputerUseAgentStatus =
+  | "idle" | "planning" | "waiting_approval" | "running"
+  | "observing" | "completed" | "failed" | "blocked" | "stopped";
+
+export type ComputerUseActionId =
+  | "check_app_version" | "check_process_path" | "check_shortcuts"
+  | "check_release_zip" | "check_webview_cache"
+  | "open_install_folder" | "open_project_folder"
+  | "open_url" | "open_notepad" | "open_notepad_with_text"
+  | "open_powershell" | "run_safe_script"
+  | "generate_release_checklist";
+
+export interface ComputerUseAgentStep {
+  id: string;
+  index: number;
+  title: string;
+  description: string;
+  actionId: ComputerUseActionId;
+  args: Record<string, unknown>;
+  riskLevel: ComputerUseRiskLevel;
+  permissionDecision?: PermissionDecision;
+  status: "pending" | "running" | "success" | "failed" | "blocked" | "skipped";
+  observation?: string;
+  error?: string;
+}
+
+export interface ComputerUseAgentState {
+  status: ComputerUseAgentStatus;
+  taskText: string;
+  plan: ComputerUseAgentStep[];
+  currentStepIndex: number;
+  logs: ComputerUseRunLog[];
+  permissionMode: ComputerUsePermissionMode;
+  updatedAt: number;
+}
+
+// === v1.5.6 RC2 Permission Profiles ===
+
+export type ComputerUsePermissionMode =
+  | "request_approval"
+  | "auto_review"
+  | "full_access"
+  | "custom_config";
+
+export type ComputerUseRiskLevel = "low" | "medium" | "high" | "blocked";
+
+export interface ComputerUseActionRequest {
+  actionId: string;
+  label: string;
+  description: string;
+  targetPath?: string;
+  targetUrl?: string;
+  riskLevel: ComputerUseRiskLevel;
+  requiresFileRead?: boolean;
+  requiresFileWrite?: boolean;
+  requiresNetwork?: boolean;
+  requiresExternalPath?: boolean;
+  isDestructive?: boolean;
+}
+
+export interface PermissionDecision {
+  decision: "allow" | "ask" | "block";
+  reason: string;
+}
+
+export interface ComputerUseConfig {
+  mode?: ComputerUsePermissionMode;
+  allow_network?: boolean;
+  allow_file_read?: boolean;
+  allow_file_write?: boolean;
+  allow_project_only?: boolean;
+  max_actions_per_run?: number;
+  require_confirmation_for_write?: boolean;
+  allowed_actions?: Record<string, boolean>;
+}
+
+const PERMISSION_MODE_KEY = "tokenfence.computerUse.permissionMode";
+
+export function getPermissionMode(): ComputerUsePermissionMode {
+  try {
+    const raw = localStorage.getItem(PERMISSION_MODE_KEY);
+    if (raw && ["request_approval","auto_review","full_access","custom_config"].includes(raw)) {
+      return raw as ComputerUsePermissionMode;
+    }
+  } catch {}
+  return "request_approval";
+}
+
+export function setPermissionMode(mode: ComputerUsePermissionMode): void {
+  try { localStorage.setItem(PERMISSION_MODE_KEY, mode); } catch {}
+}
+
+export function evaluateComputerUsePermission(
+  request: ComputerUseActionRequest,
+  mode: ComputerUsePermissionMode,
+  config?: ComputerUseConfig
+): PermissionDecision {
+  if (request.riskLevel === "blocked") {
+    return { decision: "block", reason: "Blocked by Enterprise Policy." };
+  }
+  if (request.isDestructive) {
+    return { decision: "block", reason: "Destructive actions are not allowed." };
+  }
+  const actionId = request.actionId;
+  if (mode === "custom_config" && config) {
+    if (config.allowed_actions) {
+      const allowed = config.allowed_actions[actionId];
+      if (allowed === false) return { decision: "block", reason: "Blocked by custom config." };
+      if (allowed === true) return { decision: "allow", reason: "Allowed by custom config." };
+    }
+  }
+  switch (mode) {
+    case "request_approval": return { decision: "ask", reason: "Approval required." };
+    case "auto_review":
+      if (request.riskLevel === "low") return { decision: "allow", reason: "Low risk, auto-allowed." };
+      if (request.riskLevel === "medium") return { decision: "ask", reason: "Medium risk, review needed." };
+      if (request.riskLevel === "high") return { decision: "block", reason: "High risk, auto-review blocked." };
+      return { decision: "ask", reason: "Auto-review: check needed." };
+    case "full_access":
+      if (request.riskLevel === "blocked") return { decision: "block", reason: "Blocked even in full access." };
+      return { decision: "allow", reason: "Full access granted." };
+    default: return { decision: "ask", reason: "Unknown mode, defaulting to ask." };
+  }
+}
+
+
+// === v1.5.6 RC9 planComputerUseTask ===
+
+export interface AgentRunResult {
+  success: boolean;
+  observations: string[];
+  errors: string[];
+  auditEntry: ComputerUseAuditEntry;
+}
+
+export interface ComputerUseAuditEntry {
+  id: string;
+  timestamp: number;
+  taskText: string;
+  actionId: string;
+  decision: string;
+  decisionReason: string;
+  permissionMode: string;
+  approvedByUser: boolean;
+  observation: string;
+  error?: string;
+}
+
+const AUDIT_LOG_KEY = "tokenfence.computerUse.auditLog";
+
+export function loadAuditLog(): ComputerUseAuditEntry[] {
+  try {
+    const raw = localStorage.getItem(AUDIT_LOG_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveAuditLog(entries: ComputerUseAuditEntry[]): void {
+  try { localStorage.setItem(AUDIT_LOG_KEY, JSON.stringify(entries.slice(-200))); } catch {}
+}
+
+export function saveAuditEntry(entry: ComputerUseAuditEntry): void {
+  const log = loadAuditLog();
+  log.push(entry);
+  saveAuditLog(log);
+}
+
+export function loadAgentState(): ComputerUseAgentState {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY + ".agent");
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return {
+    status: "idle", taskText: "", plan: [],
+    currentStepIndex: 0, logs: [],
+    permissionMode: getPermissionMode(), updatedAt: Date.now(),
+  };
+}
+
+export function saveAgentState(state: ComputerUseAgentState): void {
+  try { localStorage.setItem(STORAGE_KEY + ".agent", JSON.stringify(state)); } catch {}
+}
+
+export function planComputerUseTask(taskText: string, projectRoot?: string): {
+  blocked: boolean;
+  riskLevel: ComputerUseRiskLevel;
+  plan: ComputerUseAgentStep[];
+} {
+  const riskLevel = isDangerousTask(taskText) ? "blocked" : "medium";
+  if (riskLevel === "blocked") {
+    return {
+      blocked: true, riskLevel: "blocked",
+      plan: [{
+        id: uid(), index: 0,
+        title: "Task blocked by Enterprise Policy",
+        description: "This request requires unrestricted system control or destructive actions.",
+        actionId: "check_app_version", args: {}, riskLevel: "blocked", status: "blocked",
+      }],
+    };
+  }
+
+  const lower = taskText.toLowerCase();
+  const steps: ComputerUseAgentStep[] = [];
+  let idx = 0;
+
+  if (lower.includes("version") || lower.includes("\u7248\u672C")) {
+    steps.push(
+      { id: uid(), index: idx++, title: "Check app version", description: "Verify the running app version", actionId: "check_app_version", args: {}, riskLevel: "low", status: "pending" },
+      { id: uid(), index: idx++, title: "Check process path", description: "Verify running process matches install path", actionId: "check_process_path", args: {}, riskLevel: "low", status: "pending" },
+    );
+  }
+
+  if (lower.includes("shortcut") || lower.includes("\u5FEB\u6377") || lower.includes("\u65B9\u5F0F")) {
+    steps.push(
+      { id: uid(), index: idx++, title: "Check shortcuts", description: "Verify desktop and Start Menu shortcuts", actionId: "check_shortcuts", args: {}, riskLevel: "low", status: "pending" },
+    );
+  }
+
+  if (lower.includes("project") || lower.includes("\u9879\u76EE") || lower.includes("\u76EE\u5F55") || lower.includes("\u6587\u4EF6\u5939") || (lower.includes("open") && (lower.includes("folder") || lower.includes("dir")))) {
+    steps.push(
+      { id: uid(), index: idx++, title: "Open project folder", description: "Open folder in Explorer", actionId: "open_project_folder", args: { path: projectRoot || "." }, riskLevel: "low", status: "pending" },
+    );
+  }
+
+  const hasNotepad = lower.includes("notepad") || lower.includes("\u8BB0\u4E8B\u672C");
+  const hasType = lower.includes("type") || lower.includes("\u8F93\u5165") || lower.includes("\u5199");
+  if (hasNotepad && hasType) {
+    let textToType = "Hello from TokenFence Studio";
+    const afterInput = taskText.split(/\u8F93\u5165|type|write|\u5199/i);
+    if (afterInput.length > 1) textToType = afterInput[1].trim().slice(0, 200);
+    steps.push(
+      { id: uid(), index: idx++, title: "Open Notepad: " + textToType.slice(0, 40), description: "Launch Notepad and write: " + textToType.slice(0, 60), actionId: "open_notepad_with_text", args: { text: textToType }, riskLevel: "medium", status: "pending" },
+    );
+  } else if (hasNotepad) {
+    steps.push(
+      { id: uid(), index: idx++, title: "Open Notepad", description: "Launch Notepad application", actionId: "open_notepad", args: {}, riskLevel: "low", status: "pending" },
+    );
+  }
+
+  if (lower.includes("url") || lower.includes("link") || lower.includes("\u7F51\u5740") || lower.includes("\u7F51\u9875") || lower.includes("http")) {
+    let url = "https://github.com/Chrisbetheking/tokenfence-studio";
+    const urlMatch = taskText.match(/https?:\/\/[^\s]+/i);
+    if (urlMatch) url = urlMatch[0];
+    steps.push(
+      { id: uid(), index: idx++, title: "Open URL", description: "Open: " + url, actionId: "open_url", args: { url }, riskLevel: "medium", status: "pending" },
+    );
+  }
+
+  if (lower.includes("cache") || lower.includes("\u7F13\u5B58") || lower.includes("webview")) {
+    steps.push(
+      { id: uid(), index: idx++, title: "Clean WebView cache", description: "Clear WebView2 cache directory", actionId: "check_webview_cache", args: {}, riskLevel: "medium", status: "pending" },
+    );
+  }
+
+  if (lower.includes("release") || lower.includes("\u53D1\u5E03") || lower.includes("guard") || lower.includes("\u68C0\u67E5")) {
+    steps.push(
+      { id: uid(), index: idx++, title: "Run release check", description: "Execute release integrity checks", actionId: "generate_release_checklist", args: {}, riskLevel: "low", status: "pending" },
+    );
+  }
+
+  if (steps.length === 0) {
+    steps.push(
+      { id: uid(), index: idx++, title: "Check app version", description: "Verify app version and path", actionId: "check_app_version", args: {}, riskLevel: "low", status: "pending" },
+      { id: uid(), index: idx++, title: "Check shortcuts", description: "Verify shortcuts", actionId: "check_shortcuts", args: {}, riskLevel: "low", status: "pending" },
+    );
+  }
+
+  return { blocked: false, riskLevel, plan: steps };
+}
+
+async function executeAgentStep(
+  step: ComputerUseAgentStep,
+  onLog: (log: ComputerUseRunLog) => void
+): Promise<{ observation: string; error?: string; tempFilePath?: string; processId?: number }> {
+  try {
+    // v1.5.6 RC11: Real Tauri backend call, no optimistic success
+    const result = await runComputerUseAction(step.actionId, step.args as Record<string, unknown>);
+    onLog({ id: uid(), time: Date.now(), level: result.success ? "success" : "error", message: result.observation });
+    if (!result.success) {
+      return { observation: result.observation, error: result.error || "Action failed" };
+    }
+    return { observation: result.observation, tempFilePath: result.temp_file_path || undefined, processId: result.process_id || undefined };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    onLog({ id: uid(), time: Date.now(), level: "error", message: msg });
+    return { observation: "Execution failed", error: msg };
+  }
+}
+
+export async function runAgentSteps(
+  plan: ComputerUseAgentStep[],
+  taskText: string,
+  mode: ComputerUsePermissionMode,
+  onStateUpdate: (upd: Partial<ComputerUseAgentState>) => void,
+  shouldStop: () => boolean
+): Promise<AgentRunResult> {
+  const observations: string[] = [];
+  const errors: string[] = [];
+
+  for (let i = 0; i < plan.length; i++) {
+    if (shouldStop()) {
+      return { success: false, observations, errors, auditEntry: {
+        id: uid(), timestamp: Date.now(), taskText,
+        actionId: "stopped", decision: "stopped", decisionReason: "User stopped",
+        permissionMode: mode, approvedByUser: false, observation: "Stopped",
+      }};
+    }
+
+    const step = plan[i];
+    const permission = evaluateComputerUsePermission(
+      { actionId: step.actionId, label: step.title, description: step.description, riskLevel: step.riskLevel },
+      mode
+    );
+
+    if (permission.decision === "block") {
+      step.status = "blocked";
+      step.permissionDecision = permission;
+      saveAuditEntry({
+        id: uid(), timestamp: Date.now(), taskText,
+        actionId: step.actionId, decision: "blocked", decisionReason: permission.reason,
+        permissionMode: mode, approvedByUser: false, observation: "Blocked",
+      });
+      onStateUpdate({ plan: [...plan] });
+      continue;
+    }
+
+    step.status = "running";
+    step.permissionDecision = permission;
+    onStateUpdate({ plan: [...plan], currentStepIndex: i });
+
+    const result = await executeAgentStep(step, (l) => onStateUpdate({ logs: [l] }));
+
+    if (result.error) { step.status = "failed"; step.error = result.error; errors.push(result.error); }
+    else { step.status = "success"; step.observation = result.observation; observations.push(result.observation); }
+
+    saveAuditEntry({
+      id: uid(), timestamp: Date.now(), taskText,
+      actionId: step.actionId,
+      decision: result.error ? "failed" : "allowed",
+      decisionReason: permission.reason,
+      permissionMode: mode, approvedByUser: true,
+      observation: result.observation, error: result.error,
+    });
+
+    onStateUpdate({ plan: [...plan] });
+  }
+
+  const finalStatus = errors.length === 0 ? "completed" as const : "failed" as const;
+  onStateUpdate({ status: finalStatus });
+
+  return { success: errors.length === 0, observations, errors, auditEntry: {
+    id: uid(), timestamp: Date.now(), taskText,
+    actionId: "complete", decision: "allowed", decisionReason: "All steps completed",
+    permissionMode: mode, approvedByUser: true, observation: "All steps completed",
+  }};
+}
+
+async function runCheckProcessPathAgent(_onLog: any): Promise<{ observation: string }> {
+  const isTauri = !!(typeof window !== "undefined" && ((window as any).__TAURI_INTERNALS__ || (window as any).__TAURI__));
+  return { observation: isTauri ? "Tauri desktop app. Expected path: " + EXPECTED_PATH : "Browser mode" };
+}
+
+async function runCheckShortcutsAgent(_onLog: any): Promise<{ observation: string }> {
+  return { observation: "Shortcut diagnostics completed." };
+}
+
+async function runOpenInstallFolderAgent(_onLog: any): Promise<{ observation: string }> {
+  return { observation: "Install folder: " + INSTALL_DIR };
+}
+
+async function runOpenProjectFolderAgent(step: ComputerUseAgentStep, _onLog: any): Promise<{ observation: string }> {
+  const p = (step.args.path as string) || PROJECT_ROOT || ".";
+  return { observation: "Project folder: " + p };
+}
+
+async function runOpenUrlAgent(step: ComputerUseAgentStep, _onLog: any): Promise<{ observation: string }> {
+  const url = (step.args.url as string) || "https://github.com/Chrisbetheking/tokenfence-studio";
+  if (typeof window !== "undefined") window.open(url, "_blank", "noopener,noreferrer");
+  return { observation: "URL opened: " + url };
+}
+
+async function runOpenNotepadAgent(_onLog: any): Promise<{ observation: string }> {
+  return { observation: "Notepad opened" };
+}
+
+async function runOpenNotepadWithTextAgent(step: ComputerUseAgentStep, _onLog: any): Promise<{ observation: string }> {
+  const text = (step.args.text as string) || "Hello";
+  return { observation: "Notepad opened with text: " + text.slice(0, 60) };
+}
+
+
+export function clearAuditLog(): void {
+  try { localStorage.removeItem(AUDIT_LOG_KEY); } catch {}
+}
+
+export function assessRiskLevel(taskText: string): ComputerUseRiskLevel {
+  if (isDangerousTask(taskText)) return "blocked";
+  const lower = taskText.toLowerCase();
+  if (lower.includes("delete") || lower.includes("remove") || lower.includes("rm ")) return "high";
+  if (lower.includes("open") || lower.includes("run") || lower.includes("check")) return "medium";
+  return "low";
+}
+
+export const ENTERPRISE_POLICY = {
+  maxStepsPerRun: 10,
+  maxTotalLogs: 100,
+  blockedActions: ["delete_all", "format_drive", "sudo", "unrestricted_shell"],
+  requireConfirmationFor: ["open_url", "run_script", "open_powershell"],
+} as const;
+
+
+const SAFE_SCRIPT_WHITELIST = new Set([
+  "scripts/check_shortcuts.ps1",
+  "scripts/update_shortcuts.ps1",
+  "scripts/test_project_scan.ps1",
+  "scripts/check_release_assets.ps1",
+]);

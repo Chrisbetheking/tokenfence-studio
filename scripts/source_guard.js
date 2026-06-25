@@ -348,7 +348,7 @@ console.log("\n--- v1.4.1 version checks ---");
 var appPath = path.join(ROOT, "apps/desktop/ui/src/App.tsx");
 if (fs.existsSync(appPath)) {
   var appContent = fs.readFileSync(appPath, "utf-8");
-  if (appContent.indexOf('"v1.5.5"') >= 0) ok("App.tsx VERSION is v1.5.5");
+  if (appContent.indexOf('"v1.5.6"') >= 0) ok("App.tsx VERSION is v1.5.5");
   else fail("App.tsx VERSION is NOT v1.5.5");
 } else { fail("App.tsx NOT FOUND"); }
 
@@ -552,13 +552,13 @@ if (fs.existsSync(diagPath)) {
 var checkSc = path.join(ROOT, "scripts/check_shortcuts.ps1");
 if (fs.existsSync(checkSc)) ok("check_shortcuts.ps1 exists");
 else fail("check_shortcuts.ps1 MISSING");
-if (fs.existsSync(checkSc) && fs.readFileSync(checkSc, "utf-8").indexOf("v1.5.5") >= 0) ok("check_shortcuts.ps1 contains v1.5.5");
+if (fs.existsSync(checkSc) && fs.readFileSync(checkSc, "utf-8").indexOf("v1.5.6") >= 0) ok("check_shortcuts.ps1 contains v1.5.5");
 else fail("check_shortcuts.ps1 MISSING v1.5.5");
 
 var updateSc = path.join(ROOT, "scripts/update_shortcuts.ps1");
 if (fs.existsSync(updateSc)) ok("update_shortcuts.ps1 exists");
 else fail("update_shortcuts.ps1 MISSING");
-if (fs.existsSync(updateSc) && fs.readFileSync(updateSc, "utf-8").indexOf("v1.5.5") >= 0) ok("update_shortcuts.ps1 contains v1.5.5");
+if (fs.existsSync(updateSc) && fs.readFileSync(updateSc, "utf-8").indexOf("v1.5.6") >= 0) ok("update_shortcuts.ps1 contains v1.5.5");
 else fail("update_shortcuts.ps1 MISSING v1.5.5");
 
 
@@ -754,6 +754,67 @@ if (fs.existsSync(mainRsPath)) {
     else fail("scan_project_directory not in handler");
   }
 }
+// ==== v1.5.6 RC5 Agent Runtime checks ====
+console.log("\n--- v1.5.6 RC5 Computer Use Agent checks ---");
+var cuPath2 = path.join(ROOT, "apps/desktop/ui/src/data/computer-use.ts");
+if (fs.existsSync(cuPath2)) {
+  var cuContent2 = fs.readFileSync(cuPath2, "utf-8");
+  if (cuContent2.indexOf("ComputerUseAgentStatus") >= 0) ok("computer-use.ts contains ComputerUseAgentStatus");
+  else fail("computer-use.ts MISSING ComputerUseAgentStatus");
+  if (cuContent2.indexOf("planComputerUseTask") >= 0) ok("computer-use.ts contains planComputerUseTask");
+  else fail("computer-use.ts MISSING planComputerUseTask");
+  if (cuContent2.indexOf("open_notepad_with_text") >= 0) ok("computer-use.ts contains open_notepad_with_text");
+  else fail("computer-use.ts MISSING open_notepad_with_text");
+  if (cuContent2.indexOf("SAFE_SCRIPT_WHITELIST") >= 0) ok("computer-use.ts contains SAFE_SCRIPT_WHITELIST");
+  else fail("computer-use.ts MISSING SAFE_SCRIPT_WHITELIST");
+  if (cuContent2.indexOf("eval(") < 0) ok("computer-use.ts has no eval()");
+  else fail("computer-use.ts CONTAINS eval()");
+} else { fail("computer-use.ts NOT FOUND"); }
+
+// ==== v1.5.6 RC6 Chat-integrated Computer Use checks ====
+console.log("\n--- v1.5.6 RC6 Chat-integrated Computer Use checks ---");
+var cwPath2 = path.join(ROOT, "apps/desktop/ui/src/screens/ChatWorkspace.tsx");
+if (fs.existsSync(cwPath2)) {
+  var cwContent2 = fs.readFileSync(cwPath2, "utf-8");
+  if (cwContent2.indexOf("detectComputerUseIntent") >= 0) ok("ChatWorkspace contains detectComputerUseIntent");
+  else fail("ChatWorkspace MISSING detectComputerUseIntent");
+  if (cwContent2.indexOf("ComputerUseRunCard") >= 0) ok("ChatWorkspace contains ComputerUseRunCard");
+  else fail("ChatWorkspace MISSING ComputerUseRunCard");
+  if (cwContent2.indexOf("useComputerUseAgent") >= 0) ok("ChatWorkspace contains useComputerUseAgent");
+  else fail("ChatWorkspace MISSING useComputerUseAgent");
+} else { fail("ChatWorkspace NOT FOUND"); }
+var ccPath2 = path.join(ROOT, "apps/desktop/ui/src/screens/ComputerControlScreen.tsx");
+if (fs.existsSync(ccPath2)) {
+  var ccContent2 = fs.readFileSync(ccPath2, "utf-8");
+  if (ccContent2.indexOf("useComputerUseAgent") >= 0) ok("ComputerControlScreen uses useComputerUseAgent");
+  else fail("ComputerControlScreen MISSING useComputerUseAgent");
+} else { fail("ComputerControlScreen NOT FOUND"); }
+var cuHookPath = path.join(ROOT, "apps/desktop/ui/src/features/computer-use/useComputerUseAgent.ts");
+if (fs.existsSync(cuHookPath)) {
+  var hookContent = fs.readFileSync(cuHookPath, "utf-8");
+  if (hookContent.indexOf("detectComputerUseIntent") >= 0) ok("useComputerUseAgent contains detectComputerUseIntent");
+  else fail("useComputerUseAgent MISSING detectComputerUseIntent");
+} else { fail("useComputerUseAgent.ts NOT FOUND"); }
+var cuCardPath = path.join(ROOT, "apps/desktop/ui/src/features/computer-use/ComputerUseRunCard.tsx");
+if (fs.existsSync(cuCardPath)) {
+  var cardContent = fs.readFileSync(cuCardPath, "utf-8");
+  if (cardContent.indexOf("ComputerUseRunCard") >= 0) ok("ComputerUseRunCard exists");
+  else fail("ComputerUseRunCard MISSING export");
+} else { fail("ComputerUseRunCard.tsx NOT FOUND"); }
+var mainPath2 = path.join(ROOT, "apps/desktop/src-tauri/src/main.rs");
+if (fs.existsSync(mainPath2)) {
+  var mainContent2 = fs.readFileSync(mainPath2, "utf-8");
+  if (mainContent2.indexOf("run_computer_use_action") >= 0) ok("main.rs contains run_computer_use_action");
+  else fail("main.rs MISSING run_computer_use_action");
+} else { fail("main.rs NOT FOUND"); }
+var bridgePath2 = path.join(ROOT, "apps/desktop/ui/src/desktop-bridge.ts");
+if (fs.existsSync(bridgePath2)) {
+  var bridgeContent2 = fs.readFileSync(bridgePath2, "utf-8");
+  if (bridgeContent2.indexOf("runComputerUseAction") >= 0) ok("desktop-bridge.ts contains runComputerUseAction");
+  else fail("desktop-bridge.ts MISSING runComputerUseAction");
+} else { fail("desktop-bridge.ts NOT FOUND"); }
+
+
 console.log("\n=== RESULT: " + errors.length + " error(s) ===");
 if (errors.length > 0) { console.log("Failures:"); errors.forEach(function(e) { console.log("  - " + e); }); process.exit(1); }
 else { console.log("All checks passed."); process.exit(0);

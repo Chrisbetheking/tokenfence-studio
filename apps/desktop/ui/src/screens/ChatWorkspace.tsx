@@ -30,6 +30,10 @@ import { addRecentProject, loadRecentProjects as loadPersistedRecentProjects, se
 import { addFilesToContextPack, clearContextPack as clearPersistentContextPack } from "../data/context-pack";
 import { ModelPickerPanel } from "../components/ModelPickerPanel";
 import { resolveActiveModel, setActiveModel, validateModelForSend, hasAnyConfiguredProvider, migrateActiveModelStorageV2, getActiveModelViewState, normalizeDisplayText, canonicalizeProviderId, getProviderDisplayName, dispatchActiveModelChanged, type ResolvedModelV2 } from "../data/active-model";
+import { detectComputerUseIntent } from "../features/computer-use/useComputerUseAgent";
+import { ComputerUseRunCard } from "../features/computer-use/ComputerUseRunCard";
+import { useComputerUseAgent } from "../features/computer-use/useComputerUseAgent";
+import { planComputerUseTask, getPermissionMode } from "../data/computer-use";
 
 
 
@@ -111,13 +115,13 @@ function saveConversations(convs: Conversation[]): void {
 
 function checkDeveloperIdentityQuestion(text: string): string | null {
   const isZh = tk("common.yes") !== "Yes";
-  const zhPatterns = /开发者|谁开发的|作者|怎么联系|联系方式|客服|反馈.?bug|开发团队|团队开发/;
+  const zhPatterns = /\u5F00\u53D1\u8005|\u8C01\u5F00\u53D1\u7684|\u4F5C\u8005|\u600E\u4E48\u8054\u7CFB|\u8054\u7CFB\u65B9\u5F0F|\u5BA2\u670D|\u53CD\u9988.*?bug|\u5F00\u53D1\u56E2\u961F|\u56E2\u961F\u5F00\u53D1/;
   const enPatterns = /who developed|who is the developer|who created|author of|contact developer|support email|wechat|bug report|development team/i;
   const zhMatch = zhPatterns.test(text);
   const enMatch = enPatterns.test(text);
   if (zhMatch || enMatch) {
     if (isZh) {
-      return "TokenFence Studio 由 Chris 开发并维护。\n\n如果你遇到问题、想反馈 bug、提出功能建议，或者想联系开发者，可以通过以下方式联系：\n\n邮箱：chriswangjob@163.com\n微信：easymoneysniperchris";
+      return "TokenFence Studio \u7531 Chris \u5F00\u53D1\u5E76\u7EF4\u62A4.\n\n\u5982\u679C\u9047\u5230\u95EE\u9898\u3001\u5E0C\u671B\u62A5\u544A bug\u3001\u8BF7\u6C42\u529F\u80FD\u6216\u8054\u7CFB\u5F00\u53D1\u8005\uFF0C\u8BF7\u4F7F\u7528\uFF1A\n\n\u90AE\u7BB1\uFF1Achriswangjob@163.com\n\u5FAE\u4FE1\uFF1Aeasymoneysniperchris";
     } else {
       return "TokenFence Studio is developed and maintained by Chris.\n\nIf you encounter issues, want to report bugs, request features, or contact the developer, please use:\n\nEmail: chriswangjob@163.com\nWeChat: easymoneysniperchris";
     }
@@ -329,6 +333,10 @@ export function ChatWorkspace() {
 
 
   const [conversations, setConversations] = useState<Conversation[]>(() => loadConversations());
+
+  const { agentState: cuState, runPlan: cuRunPlan, stopRun: cuStopRun, planTask: cuPlanTask } = useComputerUseAgent();
+  const [cuRuns, setCuRuns] = useState<any[]>([]);
+  const [expandedCuRunId, setExpandedCuRunId] = useState<string | null>(null);
 
   const [activeConvId, setActiveConvId] = useState<string>("");
 
@@ -914,6 +922,27 @@ export function ChatWorkspace() {
     if (!text || sending) return;
 
 
+
+
+    // v1.5.6 RC10: Computer Use intent – interception BEFORE model call
+    const cuIntent = detectComputerUseIntent(text);
+    if (cuIntent?.shouldUseComputer && activeConv) {
+      // Mark interception in sessionStorage for diagnostics
+      try { sessionStorage.setItem("tokenfence.cu.lastIntercept", JSON.stringify({ task: text, time: Date.now(), source: "chat", blockedModelCall: true })); } catch {}
+      const cuPlan = planComputerUseTask(text);
+      cuPlanTask(text);
+      const run = { id: Date.now().toString(36), task: text, plan: cuPlan.plan, blocked: cuPlan.blocked, status: "planning", logs: [] as any[], createdAt: Date.now(), mode: getPermissionMode() };
+      setCuRuns(prev => [...prev, run]);
+      const userMsg = { id: uid(), role: "user" as const, content: text, timestamp: Date.now() };
+      const cuConv = { ...activeConv, messages: [...activeConv.messages, userMsg], updatedAt: Date.now() };
+      setConversations(conversations.map(function(c: any) { return c.id === activeConv.id ? cuConv : c; }));
+      saveConversations(conversations.map(function(c: any) { return c.id === activeConv.id ? cuConv : c; }));
+      setComposerText("");
+      setTaskStatus("idle");
+      setSending(false);
+      setExpandedCuRunId(run.id);
+      return;
+    }
 
     setSending(true); setTaskStatus("scanning"); setRoutingNote(null);
     try {
@@ -1656,7 +1685,31 @@ function ProjectFilePanel({ activeProject, setActiveProject, attachedFiles, setA
 
         {/* Messages */}
 
-        <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px", background: "var(--bg)" }}>
+        
+        {/* v1.5.6 RC10: Computer Use runs – fixed onRun with planTask sync */}
+        {cuRuns.length > 0 && (
+          <div style={{ padding: "0 24px", marginTop: 8 }}>
+            {cuRuns.map((run: any) => (
+              <ComputerUseRunCard
+                key={run.id}
+                task={run.task}
+                onRun={async () => {
+                  cuPlanTask(run.task);
+                  try { await cuRunPlan(); } catch {}
+                  setCuRuns(prev => prev.map((r: any) => r.id === run.id ? {...r, status: "completed"} : r));
+                  return null;
+                }}
+                onStop={() => { cuStopRun(); setCuRuns(prev => prev.map((r: any) => r.id === run.id ? {...r, status: "stopped"} : r)); }}
+                onDeny={() => {
+                  setCuRuns(prev => prev.filter((r: any) => r.id !== run.id));
+                  setSending(false);
+                }}
+                agentState={cuState}
+              />
+            ))}
+          </div>
+        )}
+<div style={{ flex: 1, overflowY: "auto", padding: "20px 24px", background: "var(--bg)" }}>
 
           {(!activeConv || activeConv.messages.length === 0) && (
 

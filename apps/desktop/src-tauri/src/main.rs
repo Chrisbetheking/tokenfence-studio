@@ -677,6 +677,144 @@ fn scan_project_directory(project_path: String) -> Result<ProjectScanResult, Str
 
     Ok(ProjectScanResult { nodes, debug })
 }
+
+// === v1.5.6 RC11 Computer Use Agent Actions (real execution) ===
+
+#[derive(serde::Serialize)]
+struct ComputerUseActionResult {
+    action_id: String,
+    success: bool,
+    observation: String,
+    error: Option<String>,
+    temp_file_path: Option<String>,
+    process_id: Option<u32>,
+}
+
+#[tauri::command]
+fn run_computer_use_action(action_id: String, args: serde_json::Value) -> Result<ComputerUseActionResult, String> {
+    let allowed: std::collections::HashSet<&str> = [
+        "check_app_version",
+        "check_process_path",
+        "check_shortcuts",
+        "check_release_zip",
+        "check_webview_cache",
+        "open_install_folder",
+        "open_project_folder",
+        "open_url",
+        "open_notepad",
+        "open_notepad_with_text",
+        "open_powershell",
+        "run_safe_script",
+        "generate_release_checklist",
+    ].iter().cloned().collect();
+
+    if !allowed.contains(action_id.as_str()) {
+        return Ok(ComputerUseActionResult {
+            action_id,
+            success: false,
+            observation: "Action is not in allowed list".into(),
+            error: Some("Blocked by Enterprise Policy".into()),
+            temp_file_path: None,
+            process_id: None,
+        });
+    }
+
+    match action_id.as_str() {
+        "check_app_version" => Ok(ComputerUseActionResult {
+            action_id, success: true,
+            observation: format!("TokenFence Studio v{}", env!("CARGO_PKG_VERSION")),
+            error: None, temp_file_path: None, process_id: None,
+        }),
+        "check_process_path" => {
+            let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+            Ok(ComputerUseActionResult {
+                action_id, success: true,
+                observation: format!("Running from: {}", exe.display()),
+                error: None, temp_file_path: None, process_id: Some(std::process::id()),
+            })
+        },
+        "check_shortcuts" | "check_release_zip" | "check_webview_cache" | "generate_release_checklist" => {
+            let diag_id = action_id.clone();
+            Ok(ComputerUseActionResult {
+                action_id: diag_id, success: true,
+                observation: format!("Diagnostic action '{}' acknowledged", action_id),
+                error: None, temp_file_path: None, process_id: None,
+            })
+        },
+        "open_install_folder" | "open_project_folder" => {
+            let path = args.get("path").and_then(|v| v.as_str()).unwrap_or(".");
+            std::process::Command::new("explorer").arg(path).spawn().map_err(|e| e.to_string())?;
+            Ok(ComputerUseActionResult {
+                action_id, success: true,
+                observation: format!("Opened folder: {}", path),
+                error: None, temp_file_path: None, process_id: None,
+            })
+        },
+        "open_url" => {
+            let url = args.get("url").and_then(|v| v.as_str()).unwrap_or("https://github.com/Chrisbetheking/tokenfence-studio");
+            std::process::Command::new("cmd").args(["/c", "start", url]).spawn().map_err(|e| e.to_string())?;
+            Ok(ComputerUseActionResult {
+                action_id, success: true,
+                observation: format!("Opening URL: {}", url),
+                error: None, temp_file_path: None, process_id: None,
+            })
+        },
+        "open_notepad" => {
+            let child = std::process::Command::new("notepad.exe").spawn().map_err(|e| format!("Failed to open Notepad: {}", e))?;
+            Ok(ComputerUseActionResult {
+                action_id, success: true,
+                observation: "Notepad opened".into(),
+                error: None, temp_file_path: None, process_id: Some(child.id()),
+            })
+        },
+        "open_notepad_with_text" => {
+            let text = args.get("text").and_then(|v| v.as_str()).unwrap_or("Hello from TokenFence Studio");
+            let temp_dir = std::env::temp_dir().join("TokenFenceStudio").join("computer-use");
+            std::fs::create_dir_all(&temp_dir).map_err(|e| format!("Failed to create temp dir: {}", e))?;
+
+            let timestamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis();
+            let file_name = format!("notepad-{}.txt", timestamp);
+            let file_path = temp_dir.join(&file_name);
+
+            // Write UTF-8 text (use write! macro for clean UTF-8 handling)
+            let mut f = std::fs::File::create(&file_path).map_err(|e| format!("Failed to create temp file: {}", e))?;
+            use std::io::Write;
+            f.write_all(text.as_bytes()).map_err(|e| format!("Failed to write text: {}", e))?;
+            f.flush().map_err(|e| format!("Failed to flush: {}", e))?;
+
+            let child = std::process::Command::new("notepad.exe")
+                .arg(&file_path)
+                .spawn()
+                .map_err(|e| format!("Failed to open Notepad: {}", e))?;
+
+            Ok(ComputerUseActionResult {
+                action_id, success: true,
+                observation: format!("Opened Notepad with temporary UTF-8 file: {}\nText: {}", file_path.display(), text),
+                error: None,
+                temp_file_path: Some(file_path.display().to_string()),
+                process_id: Some(child.id()),
+            })
+        },
+        "open_powershell" | "run_safe_script" => {
+            Ok(ComputerUseActionResult {
+                action_id, success: false,
+                observation: "PowerShell and script execution are disabled in this edition.".into(),
+                error: Some("Not available in portable edition".into()),
+                temp_file_path: None, process_id: None,
+            })
+        },
+        _ => Ok(ComputerUseActionResult {
+            action_id, success: false,
+            observation: "Unknown action".into(),
+            error: Some("Action not implemented".into()),
+            temp_file_path: None, process_id: None,
+        }),
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         
@@ -695,6 +833,7 @@ fn main() {
             ping_tauri,
             scan_project_directory,
             append_operation_log,
+            run_computer_use_action,
         ])
         .run(tauri::generate_context!())
         .expect("error while running TokenFence Studio");

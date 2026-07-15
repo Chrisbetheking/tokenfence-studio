@@ -11,6 +11,7 @@ const zhCN: Translations = {
   },
 
   nav: {
+    workspace: "工作区",
     chat: "对话",
     dashboard: "仪表盘",
     agentLab: "Agent 实验室",

@@ -27,7 +27,7 @@ function redactMatch(match: string, type: SensitiveType): string {
 }
 
 function findOverlap(findings: SensitiveFinding[]): SensitiveFinding[] {
-  const sorted = [...findings].sort((a, b) => a.start - b.start);
+  const sorted = [...findings].sort((a, b) => a.start - b.start || b.end - a.end);
   const result: SensitiveFinding[] = [];
   let lastEnd = 0;
   for (const f of sorted) {
@@ -66,7 +66,7 @@ export function scanPrompt(text: string): GuardResult {
   }
 
   const findings = findOverlap(allFindings);
-  findings.sort((a, b) => a.start - b.start);
+  findings.sort((a, b) => a.start - b.start || b.end - a.end);
 
   let redacted = text;
   for (let i = findings.length - 1; i >= 0; i--) {

@@ -368,7 +368,7 @@ export function ChatWorkspace() {
   const handleProviderChange = useCallback((prov: string) => {
     setSelectedProvider(prov);
     const cfg = providerConfigs.find(c => c.provider === prov);
-    if (cfg) setSelectedModel(cfg.model || getDefaultModelForProvider(prov));
+    if (cfg) { const defaultModel = getDefaultModelForProvider(prov); const modelStr = typeof defaultModel === 'string' ? defaultModel : (defaultModel as any)?.id ?? prov; setSelectedModel(cfg.model || modelStr); };
   }, [providerConfigs]);
 
   /* ============================================================

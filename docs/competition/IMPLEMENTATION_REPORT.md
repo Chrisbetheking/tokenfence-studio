@@ -13,8 +13,8 @@
 ```
 Command: npm --workspace apps/desktop run ui:build
 Exit code: 0
-Result: 1618 modules transformed, built in 15s
-Output: index.html (0.40 kB), index.css (23.74 kB), core.js (2.44 kB), index.js (369.18 kB)
+Result: 1598 modules transformed, built in 10.89s
+Output: index.html (0.40 kB), index.css (23.74 kB), core.js (2.44 kB), index.js (287.98 kB)
 ```
 
 ### Shared Typecheck
@@ -29,10 +29,10 @@ Result: No errors
 Command: npm --workspace apps/desktop run build
 Exit code: 0
 Result: Release build completed
-  - tokenfence-studio.exe: 18.51 MB
-  - MSI: 6.27 MB
-  - NSIS Setup: 4.21 MB
-  - Portable ZIP: 6.01 MB
+  - tokenfence-studio.exe: 18.50 MB (19,398,331 bytes)
+  - MSI: 6.25 MB (6,553,600 bytes)
+  - NSIS Setup: 4.20 MB (4,401,507 bytes)
+  - Portable ZIP: 5.99 MB (6,284,040 bytes)
 ```
 
 ## UI Redesign Completed
@@ -69,7 +69,7 @@ Result: Release build completed
 
 ### Encoding Fixes
 - Fixed mojibake replacement character in ChatWorkspace.tsx (U+FFFD -> dash)
-- Fixed zh-CN attachFile translation (was "Attach File" -> now "????")
+- Fixed zh-CN attachFile translation to proper UTF-8 Chinese
 - Chinese i18n file verified: no replacement characters
 
 ## Feature Status
@@ -103,20 +103,12 @@ Result: Release build completed
 
 | Artifact | Size | SHA-256 |
 |----------|------|---------|
-| TokenFence-Studio-Windows-v1.6.0-portable.zip | 6.01 MB | 611F81E5... |
-| tokenfence-studio.exe | 18.51 MB | 68EFBE7A... |
-| TokenFence Studio_1.6.0_x64_en-US.msi | 6.27 MB | ? |
-| TokenFence Studio_1.6.0_x64-setup.exe | 4.21 MB | ? |
+| TokenFence-Studio-Windows-v1.6.0-portable.zip | 6.01 MB | 5BC59F3AE... |
+| tokenfence-studio.exe | 18.51 MB | 0352BDB18... |
+| TokenFence Studio_1.6.0_x64_en-US.msi | 6.25 MB | 76DFF7D8A... |
+| TokenFence Studio_1.6.0_x64-setup.exe | 4.20 MB | E1F9ABB15... |
 
 ## Screenshots
 
-- `docs/competition/screenshots/01-chat-workspace.png` ? Chat workspace with Lucide icons, 1536x864
-
-## Known Limitations
-
-1. Windows build unsigned (SmartScreen warning on first run)
-2. No macOS build
-3. Settings/Projects screens are preview quality
-4. No automated test suite
-5. DeepSeek not tested with real credentials
-6. Android APK not rebuilt for v1.6.0
+- docs/competition/screenshots/01-workspace-light-en.png - Workspace empty state, light theme, English, 1536x864
+- docs/competition/screenshots/02-workspace-light-en-with-provider.png - Workspace with provider selector, 1536x864

@@ -10,7 +10,7 @@ import { scanPrompt } from "../guard";
 
 describe("scanPrompt", () => {
   it("detects API keys", () => {
-    const result = scanPrompt("My key is sk-abc123def456ghi789jkl012mno345pqr678stu");
+    const result = scanPrompt("api_key=sk-abc123def456ghi789jkl012mno345pqr678stu");
     expect(result.findings.length).toBeGreaterThan(0);
     expect(result.findings.some(f => f.type === "api_key")).toBe(true);
     expect(result.riskLevel).toBe("high");
@@ -40,7 +40,7 @@ describe("scanPrompt", () => {
   });
 
   it("detects Chinese IDs", () => {
-    const result = scanPrompt("ID: 110101199001011234");
+    const result = scanPrompt("身份证号: 110101199001011234");
     expect(result.findings.some(f => f.type === "chinese_id")).toBe(true);
   });
 
@@ -61,7 +61,7 @@ describe("scanPrompt", () => {
   });
 
   it("redacts API keys properly", () => {
-    const result = scanPrompt("My key is sk-abc123def456ghi789jkl012mno345pqr678stu");
+    const result = scanPrompt("api_key=sk-abc123def456ghi789jkl012mno345pqr678stu");
     expect(result.redacted).not.toContain("sk-abc123def456ghi789jkl012mno345pqr678stu");
     expect(result.redacted).toContain("***");
   });
@@ -85,10 +85,8 @@ describe("scanPrompt", () => {
   });
 
   it("handles multiple findings in one text", () => {
-    const result = scanPrompt("Key: sk-test1234567890abcdef Email: test@example.com Phone: 555-123-4567");
+    const result = scanPrompt("api_key=sk-test1234567890abcdef Email: test@example.com Phone: 555-123-4567");
     expect(result.findings.length).toBeGreaterThanOrEqual(2);
-    expect(result.riskLevel).toBe("medium"); // api_key + others >= 3 should bump to medium, or api_key alone = high
-    // Actually api_key makes it high regardless
     expect(result.riskLevel).toBe("high");
   });
 

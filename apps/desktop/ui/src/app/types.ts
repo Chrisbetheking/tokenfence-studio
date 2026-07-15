@@ -68,6 +68,7 @@ export interface ProviderConfig {
   model: string;
   baseUrl: string;
   demoMode: boolean;
+  credentialStored: boolean;
 }
 
 export interface ProviderStatus {

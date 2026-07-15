@@ -9,6 +9,7 @@ import {
   resetApplication,
   saveSettings,
 } from '../app/store';
+import { deleteProviderSecret } from '../features/platform/desktopClient';
 import { Icon } from '../components/Icon';
 import { useToast } from '../components/Toast';
 
@@ -57,6 +58,24 @@ export function SettingsScreen({ language, onSettingsChanged }: { language: Lang
     toast.show(success, 'success');
   };
 
+  const clearCredential = async () => {
+    if (!window.confirm(copy(language, 'Clear the provider credential?', '清除 Provider 凭证？'))) return;
+    const result = await deleteProviderSecret();
+    if (!result.ok) {
+      toast.show(copy(language, result.message ?? 'Could not clear the credential.', `无法清除凭证：${result.message ?? '系统凭证库不可用。'}`), 'error');
+      return;
+    }
+    clearProviderCredentials();
+    toast.show(copy(language, 'Credential cleared.', '凭证已清除。'), 'success');
+  };
+
+  const resetAll = async () => {
+    if (!window.confirm(copy(language, 'Reset the entire application? All local settings, credentials, history and receipts will be removed.', '确定重置整个应用吗？本地设置、凭证、历史和回执都会被删除。'))) return;
+    await deleteProviderSecret();
+    resetApplication();
+    window.location.reload();
+  };
+
   return (
     <main className="page-scroll">
       <div className="page-header">
@@ -103,7 +122,7 @@ export function SettingsScreen({ language, onSettingsChanged }: { language: Lang
             <button className="button secondary" onClick={downloadSettings}><Icon name="download" />{copy(language, 'Export settings', '导出设置')}</button>
             <button className="button ghost danger" onClick={() => dangerous(copy(language, 'Clear all conversations?', '清空全部会话？'), clearConversations, copy(language, 'Conversations cleared.', '会话已清空。'))}>{copy(language, 'Clear conversations', '清空会话')}</button>
             <button className="button ghost danger" onClick={() => dangerous(copy(language, 'Clear all safety receipts?', '清空全部安全回执？'), clearReceipts, copy(language, 'Safety receipts cleared.', '安全回执已清空。'))}>{copy(language, 'Clear safety receipts', '清空安全回执')}</button>
-            <button className="button ghost danger" onClick={() => dangerous(copy(language, 'Clear the provider credential?', '清除 Provider 凭证？'), clearProviderCredentials, copy(language, 'Credential cleared.', '凭证已清除。'))}>{copy(language, 'Clear provider credential', '清除 Provider 凭证')}</button>
+            <button className="button ghost danger" onClick={clearCredential}>{copy(language, 'Clear provider credential', '清除 Provider 凭证')}</button>
           </div>
         </section>
 
@@ -111,7 +130,7 @@ export function SettingsScreen({ language, onSettingsChanged }: { language: Lang
           <h2>{copy(language, 'Advanced', '高级')}</h2>
           <Toggle checked={settings.experimentalFeatures} onChange={(v) => update('experimentalFeatures', v)} title={copy(language, 'Experimental features', '实验功能')} detail={copy(language, 'Keep disabled for public demos.', '公开演示时建议关闭。')} />
           <Toggle checked={settings.debugMode} onChange={(v) => update('debugMode', v)} title={copy(language, 'Debug mode', '调试模式')} detail={copy(language, 'Never prints provider secrets or unredacted payloads.', '即使开启也不会打印 Provider 密钥或未脱敏请求。')} />
-          <button className="button danger full" onClick={() => dangerous(copy(language, 'Reset the entire application? All local settings, credentials, history and receipts will be removed.', '确定重置整个应用吗？本地设置、凭证、历史和回执都会被删除。'), () => { resetApplication(); window.location.reload(); }, copy(language, 'Application reset.', '应用已重置。'))}>{copy(language, 'Reset application', '重置应用')}</button>
+          <button className="button danger full" onClick={resetAll}>{copy(language, 'Reset application', '重置应用')}</button>
         </section>
       </div>
     </main>

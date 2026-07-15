@@ -1,47 +1,43 @@
-# TokenFence Studio v1.6.0 — GitHub 网页覆盖包
+# TokenFence Studio v1.6.1 — macOS 完整覆盖补丁
 
-这个 ZIP 不是完整仓库，而是已经按仓库路径排好的“覆盖补丁”。解压后，把里面的文件和文件夹直接拖进 GitHub 仓库根目录并确认覆盖同名文件。
+这是基于现有 TokenFence Studio 桌面端制作的覆盖补丁，同时包含 v1.6 安全工作台文件和 v1.6.1 macOS 原生能力。它不是完整仓库；上传时保留仓库中未包含在本补丁里的原文件。
 
 ## 上传方式
 
-1. 打开 `Chrisbetheking/tokenfence-studio` 的 `main` 分支。
-2. 点击 **Add file → Upload files**。
-3. 解压本 ZIP，把解压后目录中的全部内容拖入上传区。必须保留 `apps/...`、`.github/...`、`docs/...` 的目录层级；macOS 看不到 `.github` 时可按 `Command + Shift + .` 显示隐藏文件。
-4. 提交信息填写：`feat: ship TokenFence Studio v1.6.0 safe workspace`
-5. 提交后打开 **Actions → TokenFence v1.6 verification**，确认前端 build 与 Rust cargo check 均通过。
+1. 解压 ZIP。
+2. 打开 GitHub 仓库 `Chrisbetheking/tokenfence-studio` 的 `main` 分支。
+3. 点击 **Add file → Upload files**。
+4. 把解压后的全部文件拖入仓库根目录，保留 `.github/`、`apps/`、`docs/`、`scripts/` 的层级。
+5. 提交信息填写：
 
-## 本次会覆盖的核心文件
+```text
+feat: add native macOS builds and Keychain credential storage
+```
 
-- `apps/desktop/package.json`
-- `apps/desktop/ui/src/App.tsx`
-- `apps/desktop/ui/src/main.tsx`
-- `apps/desktop/ui/src/index.css`
-- `apps/desktop/src-tauri/src/main.rs`
-- `apps/desktop/src-tauri/Cargo.toml`
-- `apps/desktop/src-tauri/tauri.conf.json`
+6. 打开 **Actions → TokenFence macOS Builds → Run workflow**，选择 `main`。
 
-并新增安全扫描、Provider 客户端、工作台、历史、设置、关于页等模块。
+## 构建产物
 
-## 连接 DeepSeek
+工作流会生成：
 
-1. 启动桌面端，进入 **Providers**。
-2. 填写 API Key。
-3. 选择 `deepseek-v4-flash` 或 `deepseek-v4-pro`。
-4. 点击 **Test connection**。
-5. 显示 Connected 后返回 Workspace。
+- `TokenFence-Studio-macOS-Apple-Silicon`：适用于 M1/M2/M3/M4 及后续 Apple 芯片；
+- `TokenFence-Studio-macOS-Intel`：适用于 Intel Mac；
+- `TokenFence-Studio-macOS-Universal`：可选通用包，构建成功时同时支持两种架构。
 
-浏览器单独打开 Vite 页面不能执行真实 Provider 请求；真实请求必须在 Tauri 桌面运行时中通过 Rust 后端发出。
+每个 Artifact 内包含 `.dmg`、`.app.zip` 和 SHA-256 校验文件。
 
-## 重要隐私说明
+## macOS 端新增内容
 
-当前 API Key 保存在应用的本地存储中，并通过 Tauri 后端调用 DeepSeek。此版本没有声称使用 Windows Credential Manager 或系统钥匙串加密。历史记录只保存脱敏后的请求；安全回执只保存风险类型、Provider、模型、文件名等元数据。
+- 独立 macOS 云端构建，不再依赖 Android/Windows Release 是否成功；
+- Apple Silicon 与 Intel 双架构；
+- 原生应用菜单和 `Command + N` 新建会话；
+- DeepSeek API Key 写入 macOS Keychain，不写入浏览器 localStorage；
+- 自动清理旧版本可能遗留在 localStorage 的明文 Key；
+- About 页面展示实际平台、CPU 架构、应用版本和安全存储类型；
+- 保留提示词、附件统一扫描与脱敏发送逻辑。
 
-## 已完成的本地验证
+## 首次打开
 
-- TypeScript strict：通过
-- Vite production build：通过（40 modules）
-- Core privacy tests：通过
-- Rust source syntax parse：通过
-- ZIP 完整性与敏感信息静态扫描：通过
+当前构建未配置 Apple Developer 签名和公证。首次启动可能需要在 Finder 中按住 Control 点击应用并选择 **打开**。不要全局关闭 Gatekeeper。
 
-完整记录见 `docs/competition/VERIFICATION_REPORT_v1.6.0.md`。完整 Cargo/Windows 构建由上传后 GitHub Actions 执行。
+更完整的构建与验收说明见：`docs/macos/MACOS_BUILD_AND_TEST.md`。

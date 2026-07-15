@@ -10,6 +10,7 @@ import {
   saveProviderStatus,
 } from '../app/store';
 import { testDeepSeekConnection } from '../features/providers/providerClient';
+import { deleteProviderSecret, saveProviderSecret } from '../features/platform/desktopClient';
 import { Icon } from '../components/Icon';
 import { useToast } from '../components/Toast';
 
@@ -31,28 +32,66 @@ export function ProvidersScreen({ language, onDone }: { language: Language; onDo
     return () => window.removeEventListener('tokenfence:provider-updated', sync);
   }, []);
 
-  const save = () => {
-    saveProviderConfig(config);
-    const next: ProviderStatus = config.apiKey.trim() ? { state: 'configured' } : { state: 'not-configured' };
-    saveProviderStatus(next);
-    setStatus(next);
-    toast.show(copy(language, 'Provider settings saved locally.', 'Provider 设置已保存在本机。'), 'success');
+  const persist = async (): Promise<ProviderConfig | null> => {
+    const typedKey = config.apiKey.trim();
+    let credentialStored = config.credentialStored;
+
+    if (typedKey) {
+      const result = await saveProviderSecret(typedKey);
+      if (!result.ok) {
+        toast.show(
+          copy(language, result.message ?? 'Could not save the API key securely.', `无法安全保存 API Key：${result.message ?? '系统凭证库不可用。'}`),
+          'error',
+        );
+        return null;
+      }
+      credentialStored = true;
+    }
+
+    const next: ProviderConfig = {
+      ...config,
+      apiKey: '',
+      credentialStored,
+    };
+    saveProviderConfig(next);
+    setConfig(next);
+    return next;
+  };
+
+  const save = async () => {
+    setBusy(true);
+    const next = await persist();
+    setBusy(false);
+    if (!next) return;
+    const nextStatus: ProviderStatus = next.credentialStored ? { state: 'configured' } : { state: 'not-configured' };
+    saveProviderStatus(nextStatus);
+    setStatus(nextStatus);
+    toast.show(
+      next.credentialStored
+        ? copy(language, 'Provider settings saved. The API key is in the operating-system credential store.', 'Provider 设置已保存，API Key 已写入系统凭证库。')
+        : copy(language, 'Provider settings saved without an API key.', 'Provider 设置已保存，但尚未配置 API Key。'),
+      'success',
+    );
   };
 
   const test = async () => {
-    if (!config.apiKey.trim()) {
+    if (!config.apiKey.trim() && !config.credentialStored) {
       toast.show(copy(language, 'Enter a DeepSeek API key first.', '请先填写 DeepSeek API Key。'), 'warning');
       return;
     }
     setBusy(true);
-    saveProviderConfig(config);
-    const result = await testDeepSeekConnection(config, loadSettings().requestTimeoutMs);
-    const next: ProviderStatus = result.ok
+    const nextConfig = await persist();
+    if (!nextConfig) {
+      setBusy(false);
+      return;
+    }
+    const result = await testDeepSeekConnection(nextConfig, loadSettings().requestTimeoutMs);
+    const nextStatus: ProviderStatus = result.ok
       ? {
           state: 'connected',
           checkedAt: nowIso(),
           latencyMs: result.latencyMs,
-          model: result.model ?? config.model,
+          model: result.model ?? nextConfig.model,
           message: 'Connection verified',
         }
       : {
@@ -60,23 +99,31 @@ export function ProvidersScreen({ language, onDone }: { language: Language; onDo
           checkedAt: nowIso(),
           message: result.errorMessage ?? 'Connection failed',
         };
-    saveProviderStatus(next);
-    setStatus(next);
+    saveProviderStatus(nextStatus);
+    setStatus(nextStatus);
     setBusy(false);
     toast.show(
       result.ok
         ? copy(language, 'DeepSeek connection verified.', 'DeepSeek 连接验证成功。')
-        : copy(language, next.message ?? 'Connection failed.', `连接失败：${next.message ?? '请检查网络和 Key。'}`),
+        : copy(language, nextStatus.message ?? 'Connection failed.', `连接失败：${nextStatus.message ?? '请检查网络和 Key。'}`),
       result.ok ? 'success' : 'error',
     );
   };
 
-  const clear = () => {
+  const clear = async () => {
     if (!window.confirm(copy(language, 'Clear the saved API credential?', '确定清除已保存的 API 凭证吗？'))) return;
+    setBusy(true);
+    const result = await deleteProviderSecret();
+    if (!result.ok) {
+      setBusy(false);
+      toast.show(copy(language, result.message ?? 'Could not clear the credential.', `无法清除凭证：${result.message ?? '系统凭证库不可用。'}`), 'error');
+      return;
+    }
     clearProviderCredentials();
     setConfig(loadProviderConfig());
     setStatus({ state: 'not-configured' });
-    toast.show(copy(language, 'Credential cleared.', '凭证已清除。'), 'success');
+    setBusy(false);
+    toast.show(copy(language, 'Credential cleared from the operating-system credential store.', '凭证已从系统凭证库中清除。'), 'success');
   };
 
   const stateLabel = {
@@ -120,7 +167,7 @@ export function ProvidersScreen({ language, onDone }: { language: Language; onDo
                 onChange={(event) => setConfig({ ...config, apiKey: event.target.value })}
                 autoComplete="off"
                 spellCheck={false}
-                placeholder="sk-…"
+                placeholder={config.credentialStored ? copy(language, 'Stored securely — type to replace', '已安全保存—输入新 Key 可替换') : 'sk-…'}
               />
               <button type="button" className="icon-button" onClick={() => setShowKey((value) => !value)} aria-label="Toggle API key visibility">
                 <Icon name={showKey ? 'eyeOff' : 'eye'} />
@@ -159,15 +206,15 @@ export function ProvidersScreen({ language, onDone }: { language: Language; onDo
         <div className="privacy-note">
           <Icon name="lock" />
           <div>
-            <strong>{copy(language, 'Stored locally on this device', '仅保存在此设备上')}</strong>
-            <p>{copy(language, 'The key is kept in the app’s local storage. TokenFence does not upload it, but this build does not claim OS keychain encryption.', 'Key 保存在应用本地存储中，TokenFence 不会上传；当前版本不虚假声称使用了系统钥匙串加密。')}</p>
+            <strong>{copy(language, 'Protected by the operating system', '由操作系统安全保护')}</strong>
+            <p>{copy(language, 'On macOS, the key is stored in Keychain. On Windows, it uses Credential Manager. It is never written to browser localStorage.', 'macOS 使用“钥匙串”，Windows 使用“凭据管理器”；API Key 不再写入浏览器 localStorage。')}</p>
           </div>
         </div>
 
         <div className="button-row">
-          <button className="button secondary" onClick={save}>{copy(language, 'Save', '保存')}</button>
-          <button className="button primary" onClick={test} disabled={busy}>{busy ? copy(language, 'Testing…', '测试中…') : copy(language, 'Test connection', '测试连接')}</button>
-          <button className="button ghost danger" onClick={clear}>{copy(language, 'Clear credential', '清除凭证')}</button>
+          <button className="button secondary" onClick={save} disabled={busy}>{copy(language, 'Save securely', '安全保存')}</button>
+          <button className="button primary" onClick={test} disabled={busy}>{busy ? copy(language, 'Working…', '处理中…') : copy(language, 'Test connection', '测试连接')}</button>
+          <button className="button ghost danger" onClick={clear} disabled={busy}>{copy(language, 'Clear credential', '清除凭证')}</button>
           {(status.state === 'connected' || config.demoMode) && <button className="button ghost push-right" onClick={onDone}>{copy(language, 'Return to workspace', '返回工作台')} <Icon name="chevron" size={16} /></button>}
         </div>
       </section>

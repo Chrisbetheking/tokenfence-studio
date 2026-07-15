@@ -88,7 +88,7 @@ export function WorkspaceScreen({
   );
   const isReviewed = reviewedHash === scan.hash;
   const hasInput = Boolean(prompt.trim() || attachments.length);
-  const providerReady = provider.demoMode || (Boolean(provider.apiKey.trim()) && providerStatus.state === 'connected');
+  const providerReady = provider.demoMode || (provider.credentialStored && providerStatus.state === 'connected');
   const mustApproveCritical = settings.blockCriticalSends && scan.riskLevel === 'critical';
   const showLiveScan = settings.autoScan || isReviewed;
   const inspectorFindings = showLiveScan ? scan.findings : [];

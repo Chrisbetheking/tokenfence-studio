@@ -9,7 +9,8 @@ import { scanText } from '../features/safety/scanner';
 
 const KEYS = {
   settings: 'tokenfence.settings.v160',
-  provider: 'tokenfence.provider.deepseek.v160',
+  provider: 'tokenfence.provider.deepseek.v161',
+  legacyProvider: 'tokenfence.provider.deepseek.v160',
   providerStatus: 'tokenfence.provider-status.deepseek.v160',
   conversations: 'tokenfence.conversations.v160',
   receipts: 'tokenfence.safety-receipts.v160',
@@ -40,6 +41,7 @@ export const DEFAULT_PROVIDER: ProviderConfig = {
   model: 'deepseek-v4-flash',
   baseUrl: 'https://api.deepseek.com',
   demoMode: false,
+  credentialStored: false,
 };
 
 function canUseStorage(): boolean {
@@ -91,22 +93,39 @@ export function saveSettings(settings: AppSettings): void {
 
 export function loadProviderConfig(): ProviderConfig {
   const saved = safeRead<Partial<ProviderConfig>>(KEYS.provider, {}, false);
-  return { ...DEFAULT_PROVIDER, ...saved, provider: 'deepseek' };
+  const legacy = safeRead<Partial<ProviderConfig>>(KEYS.legacyProvider, {}, false);
+  const merged = Object.keys(saved).length ? saved : legacy;
+  return {
+    ...DEFAULT_PROVIDER,
+    ...merged,
+    provider: 'deepseek',
+    credentialStored: Boolean(merged.credentialStored || merged.apiKey),
+    // A legacy key may be returned once so the desktop UI can migrate it into
+    // the OS credential store. New writes always strip the key.
+    apiKey: typeof merged.apiKey === 'string' ? merged.apiKey : '',
+  };
 }
 
 export function saveProviderConfig(config: ProviderConfig): void {
-  safeWrite(KEYS.provider, { ...config, provider: 'deepseek' });
+  safeWrite(KEYS.provider, {
+    ...config,
+    provider: 'deepseek',
+    apiKey: '',
+    credentialStored: Boolean(config.credentialStored || config.apiKey.trim()),
+  });
+  if (canUseStorage()) window.localStorage.removeItem(KEYS.legacyProvider);
   window.dispatchEvent(new CustomEvent('tokenfence:provider-updated'));
 }
 
 export function clearProviderCredentials(): void {
   safeWrite(KEYS.provider, DEFAULT_PROVIDER);
+  if (canUseStorage()) window.localStorage.removeItem(KEYS.legacyProvider);
   safeWrite<ProviderStatus>(KEYS.providerStatus, { state: 'not-configured' });
   window.dispatchEvent(new CustomEvent('tokenfence:provider-updated'));
 }
 
 export function loadProviderStatus(): ProviderStatus {
-  const fallback: ProviderStatus = loadProviderConfig().apiKey
+  const fallback: ProviderStatus = loadProviderConfig().credentialStored
     ? { state: 'configured' }
     : { state: 'not-configured' };
   return safeRead<ProviderStatus>(KEYS.providerStatus, fallback, false);
@@ -174,7 +193,7 @@ export function exportLocalSettings(): string {
         model: provider.model,
         baseUrl: provider.baseUrl,
         demoMode: provider.demoMode,
-        hasCredential: Boolean(provider.apiKey),
+        hasCredential: provider.credentialStored,
       },
     },
     null,

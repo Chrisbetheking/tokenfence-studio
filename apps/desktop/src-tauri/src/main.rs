@@ -3,10 +3,13 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::time::{Duration, Instant};
+use tauri::{CustomMenuItem, Manager, Menu, MenuItem, Submenu};
 
 const DEFAULT_BASE_URL: &str = "https://api.deepseek.com";
 const MAX_TIMEOUT_MS: u64 = 180_000;
 const MIN_TIMEOUT_MS: u64 = 5_000;
+const CREDENTIAL_SERVICE: &str = "com.tokenfence.studio";
+const CREDENTIAL_USER: &str = "deepseek-api-key";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -56,6 +59,45 @@ impl ProviderReply {
             latency_ms,
         }
     }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SecretReply {
+    ok: bool,
+    has_value: bool,
+    value: Option<String>,
+    error_message: Option<String>,
+}
+
+impl SecretReply {
+    fn success(value: Option<String>) -> Self {
+        Self {
+            ok: true,
+            has_value: value.is_some(),
+            value,
+            error_message: None,
+        }
+    }
+
+    fn failure(message: &str) -> Self {
+        Self {
+            ok: false,
+            has_value: false,
+            value: None,
+            error_message: Some(message.to_string()),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlatformInfo {
+    app_version: &'static str,
+    os: &'static str,
+    arch: &'static str,
+    secure_store: &'static str,
+    desktop_runtime: bool,
 }
 
 fn validate_config(config: &ProviderConfigInput) -> Result<(String, String, u64), ProviderReply> {
@@ -213,6 +255,68 @@ fn send_request(
     }
 }
 
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn credential_entry() -> Result<keyring::Entry, String> {
+    keyring::Entry::new(CREDENTIAL_SERVICE, CREDENTIAL_USER)
+        .map_err(|_| "The operating-system credential store could not create an entry.".to_string())
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn secret_save(secret: String) -> SecretReply {
+    let trimmed = secret.trim();
+    if trimmed.len() < 12 || trimmed.len() > 512 || trimmed.contains('\n') || trimmed.contains('\r') {
+        return SecretReply::failure("The API credential is missing or malformed.");
+    }
+    match credential_entry().and_then(|entry| {
+        entry
+            .set_password(trimmed)
+            .map_err(|_| "The operating-system credential store rejected the write.".to_string())
+    }) {
+        Ok(()) => SecretReply::success(None),
+        Err(message) => SecretReply::failure(&message),
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn secret_save(_secret: String) -> SecretReply {
+    SecretReply::failure("Secure credential storage is only enabled for macOS and Windows builds.")
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn secret_load() -> SecretReply {
+    let entry = match credential_entry() {
+        Ok(entry) => entry,
+        Err(message) => return SecretReply::failure(&message),
+    };
+    match entry.get_password() {
+        Ok(value) => SecretReply::success(Some(value)),
+        Err(keyring::Error::NoEntry) => SecretReply::success(None),
+        Err(_) => SecretReply::failure("The operating-system credential store rejected the read."),
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn secret_load() -> SecretReply {
+    SecretReply::failure("Secure credential storage is only enabled for macOS and Windows builds.")
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn secret_delete() -> SecretReply {
+    let entry = match credential_entry() {
+        Ok(entry) => entry,
+        Err(message) => return SecretReply::failure(&message),
+    };
+    match entry.delete_credential() {
+        Ok(()) | Err(keyring::Error::NoEntry) => SecretReply::success(None),
+        Err(_) => SecretReply::failure("The operating-system credential store rejected the delete."),
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn secret_delete() -> SecretReply {
+    SecretReply::success(None)
+}
+
 #[tauri::command]
 fn provider_connection_test(config: ProviderConfigInput) -> ProviderReply {
     send_request(
@@ -236,11 +340,87 @@ fn provider_chat(request: ProviderChatRequest) -> ProviderReply {
     )
 }
 
+#[tauri::command]
+fn provider_secret_save(secret: String) -> SecretReply {
+    secret_save(secret)
+}
+
+#[tauri::command]
+fn provider_secret_load() -> SecretReply {
+    secret_load()
+}
+
+#[tauri::command]
+fn provider_secret_delete() -> SecretReply {
+    secret_delete()
+}
+
+#[tauri::command]
+fn platform_info() -> PlatformInfo {
+    PlatformInfo {
+        app_version: env!("CARGO_PKG_VERSION"),
+        os: std::env::consts::OS,
+        arch: std::env::consts::ARCH,
+        secure_store: if cfg!(target_os = "macos") {
+            "macOS Keychain"
+        } else if cfg!(target_os = "windows") {
+            "Windows Credential Manager"
+        } else {
+            "Unavailable"
+        },
+        desktop_runtime: true,
+    }
+}
+
+fn application_menu() -> Menu {
+    let about = CustomMenuItem::new("about", "About TokenFence Studio");
+    let preferences = CustomMenuItem::new("preferences", "Preferences…");
+    let quit = CustomMenuItem::new("quit", "Quit TokenFence Studio").accelerator("CmdOrCtrl+Q");
+    let new_session = CustomMenuItem::new("new_session", "New Session").accelerator("CmdOrCtrl+N");
+
+    let app_menu = Submenu::new(
+        "TokenFence Studio",
+        Menu::new().add_item(about).add_item(preferences).add_item(quit),
+    );
+    let file_menu = Submenu::new("File", Menu::new().add_item(new_session));
+    let edit_menu = Submenu::new(
+        "Edit",
+        Menu::new()
+            .add_native_item(MenuItem::Cut)
+            .add_native_item(MenuItem::Copy)
+            .add_native_item(MenuItem::Paste)
+            .add_native_item(MenuItem::SelectAll),
+    );
+
+    Menu::new()
+        .add_submenu(app_menu)
+        .add_submenu(file_menu)
+        .add_submenu(edit_menu)
+}
+
 fn main() {
     tauri::Builder::default()
+        .menu(application_menu())
+        .on_menu_event(|event| match event.menu_item_id() {
+            "new_session" => {
+                let _ = event.window().emit("tokenfence://new-session", ());
+            }
+            "preferences" => {
+                let _ = event.window().emit("tokenfence://navigate", "settings");
+            }
+            "about" => {
+                let _ = event.window().emit("tokenfence://navigate", "about");
+            }
+            "quit" => std::process::exit(0),
+            _ => {}
+        })
         .invoke_handler(tauri::generate_handler![
             provider_connection_test,
-            provider_chat
+            provider_chat,
+            provider_secret_save,
+            provider_secret_load,
+            provider_secret_delete,
+            platform_info
         ])
         .run(tauri::generate_context!())
         .expect("failed to run TokenFence Studio");

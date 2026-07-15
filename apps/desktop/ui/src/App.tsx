@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
+import { listen } from '@tauri-apps/api/event';
 import type { AppSettings, Language, ScreenId } from './app/types';
-import { loadSettings } from './app/store';
+import { loadProviderConfig, loadSettings, saveProviderConfig } from './app/store';
+import { isDesktopRuntime, saveProviderSecret } from './features/platform/desktopClient';
 import { Icon, type IconName } from './components/Icon';
 import { ToastProvider } from './components/Toast';
 import { WorkspaceScreen } from './screens/WorkspaceScreen';
@@ -62,6 +64,29 @@ function TokenFenceApp() {
     setNewSessionNonce((value) => value + 1);
   };
 
+  useEffect(() => {
+    const legacy = loadProviderConfig();
+    if (!legacy.apiKey.trim() || !isDesktopRuntime()) return;
+    void saveProviderSecret(legacy.apiKey.trim()).then((result) => {
+      // Whether migration succeeds or not, remove the legacy plaintext value.
+      // On failure the user can re-enter the key, but TokenFence must not keep
+      // an API credential in browser storage.
+      saveProviderConfig({ ...legacy, apiKey: '', credentialStored: result.ok });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isDesktopRuntime()) return;
+    const cleanups: Array<() => void> = [];
+    void listen('tokenfence://new-session', startNew).then((unlisten) => cleanups.push(unlisten));
+    void listen<string>('tokenfence://navigate', ({ payload }) => {
+      if (payload === 'settings' || payload === 'about' || payload === 'providers' || payload === 'history' || payload === 'workspace') {
+        setActive(payload);
+      }
+    }).then((unlisten) => cleanups.push(unlisten));
+    return () => cleanups.forEach((cleanup) => cleanup());
+  }, []);
+
   return (
     <div className="app-shell">
       <aside className="app-sidebar">
@@ -83,7 +108,7 @@ function TokenFenceApp() {
 
         <div className="sidebar-foot">
           <div className="local-badge"><Icon name="lock" size={15} /><span>{copy(language, 'Local-first records', '本地优先记录')}</span></div>
-          <small>v1.6.0</small>
+          <small>v1.6.1 · macOS</small>
         </div>
       </aside>
 

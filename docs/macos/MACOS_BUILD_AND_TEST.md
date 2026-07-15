@@ -13,7 +13,7 @@
 
 1. Upload this patch to the repository root.
 2. Open GitHub → Actions.
-3. Select **TokenFence macOS Builds**.
+3. Select **TokenFence macOS Builds and Release**.
 4. Choose **Run workflow** on the `main` branch.
 5. After completion, download one of these artifacts:
    - `TokenFence-Studio-macOS-Apple-Silicon`

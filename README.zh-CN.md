@@ -11,6 +11,38 @@ TokenFence Studio 是一款桌面 AI 安全工作台。它会在请求发送给 
 
 **安全工作区** · **Prompt Guard** · **附件审查** · **DeepSeek Provider** · **本地历史** · **macOS 钥匙串**
 
+## 下载 TokenFence Studio
+
+### macOS v1.6.1
+
+| Mac 类型 | 推荐下载 | 备用下载 |
+|---|---|---|
+| Apple Silicon：M1/M2/M3/M4 及后续芯片 | [下载 Apple Silicon DMG](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Apple-Silicon.dmg) | [下载 APP ZIP](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Apple-Silicon.app.zip) |
+| Intel Mac | [下载 Intel DMG](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Intel.dmg) | [下载 APP ZIP](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Intel.app.zip) |
+| Universal：两种架构通用 | [下载 Universal DMG](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Universal.dmg) | [下载 APP ZIP](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Universal.app.zip) |
+
+- [打开最新 GitHub Release](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest)
+- [打开 v1.6.1 Release 页面](https://github.com/Chrisbetheking/tokenfence-studio/releases/tag/v1.6.1)
+- [Apple Silicon SHA-256 校验文件](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/SHA256SUMS-Apple-Silicon.txt)
+- [Intel SHA-256 校验文件](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/SHA256SUMS-Intel.txt)
+
+> 在 **v1.6.1 GitHub Release 创建完成且对应安装包上传完成之前**，直接下载链接会返回 `404`。只上传仓库源码或只在 Actions 中生成 Artifact，不会自动更新 Releases 页面。
+
+在 Mac 终端执行以下命令确认芯片架构：
+
+```bash
+uname -m
+```
+
+- `arm64`：Apple Silicon。
+- `x86_64`：Intel。
+
+### 旧版 Windows 下载
+
+- [TokenFence Studio v1.5.6 Release](https://github.com/Chrisbetheking/tokenfence-studio/releases/tag/v1.5.6)
+
+当前 v1.6.1 发布工作流优先发布新的 macOS 安装包。Windows 和 Android 可以在后续统一多平台发布工作流中补到同一个 Release。
+
 ## 当前版本
 
 当前桌面端版本线为 **v1.6.1**。
@@ -34,108 +66,84 @@ TokenFence Studio 是一款桌面 AI 安全工作台。它会在请求发送给 
              ↓
         本地安全扫描
              ↓
-      风险分类与结果展示
+     风险分类与问题类型
              ↓
-      生成经过审查的脱敏内容
+      待确认的脱敏内容
              ↓
-         用户确认发送
+        用户确认后发送
              ↓
        明确的 Provider 请求
 ```
 
-TokenFence Studio 不承诺百分之百识别所有敏感信息。它的目标是让意外泄露更难发生、风险更加可见、发送过程可以审查。
+项目目标不是承诺绝对不会漏检，而是让意外泄露更难发生、更容易被发现，也更便于用户检查。
 
 ## 核心功能
 
 ### 发送前 Prompt Guard
 
-- 在发送前扫描当前提示词
-- 检测常见密钥、凭证与个人标识
-- 支持用户自定义敏感词
-- 展示风险等级和问题类型，不直接暴露完整敏感值
-- 提示词发生变化后，旧的安全批准自动失效
+- 在批准发送前扫描当前提示词
+- 识别常见凭证和个人标识
+- 支持自定义敏感词
+- 展示风险等级和问题类型，不暴露完整密钥
+- 提示词修改后自动撤销旧批准
 
 ### 提示词与附件统一审查
 
-- 将提示词和支持的文本附件放入同一套安全流程
-- 增加、删除或替换附件后，旧批准自动失效
-- 开启阻断策略后，严重风险原文不能绕过已审查的脱敏版本
-- 可配置文本和附件的最大扫描大小
+- 提示词和支持的文本附件进入同一套安全流程
+- 增加或删除附件后自动撤销旧批准
+- 开启阻断后，Critical 原始内容不能绕过已审查版本直接发送
+- 支持文本和文件扫描大小限制
 
-### 系统级凭证保护
+### 原生凭证保护
 
-- macOS：将 Provider 凭证保存到 **钥匙串 Keychain**
-- Windows：保存到操作系统凭证库
-- 新版本不会把完整 Provider Key 写入浏览器 `localStorage`
-- 检测到旧版本遗留的本地明文凭证时，会尽可能迁移并清理
+- macOS：凭证保存到 **Keychain 钥匙串**
+- Windows：凭证保存到操作系统凭证库
+- 新写入的 Provider Key 不保存到浏览器 `localStorage`
+- 在条件允许时迁移并删除旧版本遗留的本地明文凭证
 
-### 更安全的本地历史
+### 安全本地历史
 
-- 启用本地历史后，仅保存经过脱敏处理的会话内容
-- 安全回执保存扫描元数据，不保存完整敏感原文
-- 会话落盘前会再次经过防御性扫描
-- 支持分别清空会话、回执、Provider 凭证或整个应用数据
+- 开启本地历史后保存脱敏会话
+- 安全回执只保存元数据，不保存完整敏感原文
+- 会话落盘前再次扫描，形成防御性存储边界
+- 支持清除会话、安全回执、凭证或全部应用状态
 
 ### DeepSeek Provider 工作区
 
-- 可配置 DeepSeek 模型和官方基础地址
-- 连接测试会显示更明确的错误类别
-- Provider 请求通过 Tauri 桌面端 Rust 后端发出
+- 可配置 DeepSeek 模型与官方基础地址
+- 测试连接时显示可理解的错误分类
+- Provider 请求通过 Tauri 桌面后端发出
 - Demo Mode 无需 API Key，也不会发送网络请求
 
-### 桌面端体验
+### 桌面体验
 
-- Workspace、History、Providers、Settings、About 五个主要页面
+- Workspace、History、Providers、Settings 和 About 页面
 - macOS 原生应用菜单
-- macOS 使用 `Command + N` 新建安全会话
-- About 页面展示应用版本、操作系统、CPU 架构和安全存储类型
-- 简体中文与英文界面
+- macOS 下使用 `Command + N` 新建安全会话
+- 展示运行平台、CPU 架构、应用版本和安全存储信息
+- 中英文界面
 - 跟随系统、浅色和深色主题
 
-## 下载与构建产物
-
-正式发布的安装文件位于仓库 **Releases** 页面。v1.6.1 的 macOS 测试产物也可以从以下位置下载：
-
-```text
-GitHub → Actions → TokenFence macOS Builds
-```
-
-根据 Mac 芯片选择正确产物：
-
-| Artifact | 适用设备 |
-|---|---|
-| `TokenFence-Studio-macOS-Apple-Silicon` | M1、M2、M3、M4 以及后续 Apple 芯片 |
-| `TokenFence-Studio-macOS-Intel` | Intel 芯片 Mac |
-| `TokenFence-Studio-macOS-Universal` | 同时支持两类架构，可选任务成功时提供 |
-
-在 Mac 终端中查看架构：
-
-```bash
-uname -m
-```
-
-- 输出 `arm64`：下载 Apple Silicon 版。
-- 输出 `x86_64`：下载 Intel 版。
-
-## 普通用户快速使用
+## 用户快速上手
 
 ### macOS 安装
 
-1. 从 Releases 或 GitHub Actions 下载正确的 `.dmg`。
-2. 打开 DMG，把 **TokenFence Studio** 拖入 **Applications/应用程序**。
-3. 未签名版本第一次运行时，在 Finder 中按住 Control 点击应用并选择 **打开**。
-4. 进入 **Providers**。公开演示可开启 Demo Mode；真实调用则把 DeepSeek API Key 保存到钥匙串。
-5. 返回 **Workspace**，输入测试内容，查看扫描结果并确认安全版本。
+1. 从上面的下载链接选择对应芯片的 `.dmg`。
+2. 打开 DMG，把 **TokenFence Studio** 拖到 **Applications/应用程序**。
+3. 未签名版本第一次启动时，在 Finder 中按住 Control 点击应用并选择 **打开**。
+4. 打开 **Providers**，可以先开启 Demo Mode，或者把 DeepSeek API Key 保存到钥匙串。
+5. 返回 **Workspace**，输入测试内容，检查扫描结果并确认安全版本。
 
-公开演示不要使用真实密钥、真实密码或真实个人信息，应使用明确的虚构测试数据。
+公开演示时不要使用真实密钥，只能使用明显虚构的测试内容。
 
 ### Windows 安装
 
-1. 从 Releases 下载 Windows Portable ZIP。
-2. 完整解压 ZIP。
-3. 在解压后的文件夹中运行 `tokenfence-studio.exe`。
+1. 打开旧版 Windows Release 页面。
+2. 下载 Windows portable ZIP。
+3. 完整解压 ZIP。
+4. 在解压目录中运行 `tokenfence-studio.exe`。
 
-不要直接在压缩包预览界面中运行 EXE。
+不要直接在 ZIP 预览窗口里运行 EXE。
 
 ## 开发环境
 
@@ -144,7 +152,7 @@ uname -m
 - Node.js `18`–`22`
 - npm `9` 或更高版本
 - 原生桌面开发需要 Rust stable
-- macOS 桌面构建需要 Xcode Command Line Tools
+- macOS 构建需要 Xcode Command Line Tools
 
 ### 克隆与安装
 
@@ -160,15 +168,15 @@ npm ci --legacy-peer-deps
 npm run dev
 ```
 
-打开 Vite 输出的本地地址，通常为 `http://localhost:3000`。
+打开 Vite 输出的本地地址，通常是 `http://localhost:3000`。
 
-### 仅运行桌面 UI
+### 只运行桌面 UI
 
 ```bash
 npm --workspace apps/desktop run ui:dev
 ```
 
-这个模式适合修改界面和截图，但原生 Provider 请求、钥匙串等功能必须在 Tauri 桌面运行环境中使用。
+这种方式适合修改界面，但 Provider 原生请求和钥匙串能力需要 Tauri 桌面运行环境。
 
 ### 运行原生桌面应用
 
@@ -194,19 +202,19 @@ bash scripts/build-macos.sh
 apps/desktop/src-tauri/target/<target>/release/bundle/
 ```
 
-## 使用 GitHub Actions 构建 Mac 版
+## 通过 GitHub Actions 发布 v1.6.1
 
-即使本地没有第二台 Mac，也可以通过 GitHub 的 macOS Runner 生成测试安装包。
+新版工作流支持在一次手动运行中完成 **构建 + 创建 Release + 上传安装包**。
 
-1. 打开 GitHub 仓库的 **Actions**。
-2. 选择 **TokenFence macOS Builds**。
-3. 点击 **Run workflow**，分支选择 `main`。
-4. 等待 `Verify desktop UI`、`macOS Apple-Silicon` 和 `macOS Intel` 完成。
-5. 在该次运行页面底部下载 Artifacts。
+1. 把本覆盖包上传到仓库根目录，必须包含隐藏的 `.github` 目录。
+2. 打开 **Actions → TokenFence macOS Builds and Release**。
+3. 点击 **Run workflow**。
+4. `version` 填写 `v1.6.1`。
+5. 保持 `create_release` 和 `make_latest` 开启。
+6. 分支选择 `main` 后运行。
+7. Apple Silicon 和 Intel 构建成功后，打开仓库 **Releases** 页面。
 
-工作流会分别在 arm64 与 Intel macOS Runner 上构建，并打包 `.dmg`、`.app.zip` 和 SHA-256 校验文件。
-
-创建 `v1.6.1` 这类版本标签后，工作流还会尝试把成功生成的 macOS 文件添加到对应 GitHub Release。
+Release 任务会创建或更新 `v1.6.1` 标签，在选中时将其标记为 Latest，并上传 `.dmg`、`.app.zip` 和 SHA-256 文件。Universal 是可选构建，即使失败也不会阻止两个必需架构的安装包发布。
 
 ## 配置 DeepSeek
 
@@ -214,7 +222,7 @@ apps/desktop/src-tauri/target/<target>/release/bundle/
 2. 除非正在进行明确的开发测试，否则保留应用提供的官方基础地址。
 3. 选择界面中支持的模型。
 4. 输入 API Key，并保存到系统凭证库。
-5. 点击 **Test connection/测试连接**。
+5. 点击 **测试连接**。
 6. Provider 状态显示连接成功后，返回 Workspace 使用。
 
 界面会在本地保存 Provider 的非敏感配置，但原始 API Key 会通过桌面端原生凭证库保存。
@@ -263,59 +271,42 @@ python3 scripts/verify_tokenfence_patch.py
 cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
 ```
 
-Windows 环境如果没有 `python3` 命令，可以使用 `python`。
-
 ## 项目结构
 
 ```text
 apps/
-├── web/                     浏览器工作区
+├── web/
 ├── desktop/
-│   ├── ui/                  React + TypeScript 桌面界面
-│   └── src-tauri/           Rust + Tauri 原生后端
-└── android/                 移动端应用
+│   ├── ui/
+│   └── src-tauri/
+└── android/
 packages/
-└── shared/                  公共包
+└── shared/
 scripts/
-├── build-macos.sh           macOS 本地构建脚本
+├── build-macos.sh
 └── verify_tokenfence_patch.py
 docs/
-└── troubleshooting/        中英文故障排查
+├── release/
+└── troubleshooting/
 .github/workflows/
-├── tokenfence-macos.yml     Apple Silicon、Intel 与可选 Universal 构建
+├── tokenfence-macos.yml
 └── tokenfence-v1.6-verify.yml
 ```
 
 ## 遇到问题
 
-完整排查文档：
-
 - [中文故障排查](docs/troubleshooting/TROUBLESHOOTING.zh-CN.md)
-- [Troubleshooting in English](docs/troubleshooting/TROUBLESHOOTING.md)
-
-文档覆盖 Mac 安装拦截、芯片版本选错、白屏、DeepSeek 连接、钥匙串、依赖安装和 GitHub Actions 构建失败等问题。
+- [English troubleshooting](docs/troubleshooting/TROUBLESHOOTING.md)
 
 ## 后续规划
 
 - Apple Developer 签名与公证
-- 在同一安全边界中增加更多 Provider
-- 扩展附件解析能力，并明确显示文件支持状态
-- 用户自定义规则包与安全策略
-- 扫描准确率评估和误报控制
-- 更完整的 Release 自动化与更新校验
-- 无障碍与键盘操作优化
-
-## 参与贡献
-
-1. Fork 仓库。
-2. 创建目标明确的分支。
-3. 不要把真实密钥和测试凭证提交到 Git。
-4. 提交 Pull Request 前执行全部验证命令。
-5. 涉及扫描、脱敏、存储或 Provider 请求的改动，需要明确说明安全影响。
-
-## 安全问题反馈
-
-不要在公开 Issue 中粘贴真实 API Key、密码、私人文档或可被直接利用的敏感信息。请提供最小化、经过脱敏的复现内容，并遵循仓库的安全反馈说明。
+- 将 Windows v1.6.x 安装包加入统一 Release 工作流
+- 更多 Provider 接入
+- 自定义安全规则和团队策略
+- 文档级风险位置定位
+- Token 与成本对比
+- Agent 工具调用审查
 
 ## 开源协议
 

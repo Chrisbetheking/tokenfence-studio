@@ -234,7 +234,7 @@ cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
 然后进入：
 
 ```text
-GitHub → Actions → TokenFence macOS Builds → Run workflow
+GitHub → Actions → TokenFence macOS Builds and Release → Run workflow
 ```
 
 如果仓库禁用了 Actions，需要先在仓库 Settings 中启用。
@@ -441,3 +441,35 @@ Settings → Advanced → Reset application
 - 客户文档；
 - 未脱敏的环境变量文件；
 - 能显示凭证值的钥匙串截图。
+
+---
+
+## 20. 构建成功，但 GitHub Releases 没有更新
+
+通常是因为工作流只上传了 Actions Artifact，或者运行时关闭了 `create_release`。
+
+请进入：
+
+```text
+GitHub → Actions → TokenFence macOS Builds and Release → Run workflow
+```
+
+设置：
+
+```text
+version: v1.6.1
+create_release: true
+make_latest: true
+```
+
+然后确认 **Create or update GitHub Release** 任务成功。只提交源码、只生成 Actions Artifact，都不会自动更新 Releases 页面。
+
+## 21. README 里的直接下载链接返回 404
+
+`releases/latest/download/...` 链接只有在以下条件全部满足后才会生效：
+
+1. v1.6.1 Release 已创建；
+2. v1.6.1 被标记为 Latest；
+3. 对应文件名已经附加到 Release Assets。
+
+请打开 Release 的 Assets 列表，逐字核对安装包文件名和 README 链接是否完全一致。

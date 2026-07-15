@@ -236,7 +236,7 @@ Confirm this file exists on the selected branch:
 Then open:
 
 ```text
-GitHub → Actions → TokenFence macOS Builds → Run workflow
+GitHub → Actions → TokenFence macOS Builds and Release → Run workflow
 ```
 
 If Actions are disabled for the repository, enable them in repository settings.
@@ -445,3 +445,35 @@ Never include:
 - customer documents;
 - unredacted environment files;
 - credential-store screenshots that reveal values.
+
+---
+
+## 20. Builds succeeded but GitHub Releases did not update
+
+This usually means the workflow only uploaded Actions artifacts, or `create_release` was disabled.
+
+Use:
+
+```text
+GitHub → Actions → TokenFence macOS Builds and Release → Run workflow
+```
+
+Set:
+
+```text
+version: v1.6.1
+create_release: true
+make_latest: true
+```
+
+Then confirm that **Create or update GitHub Release** completes successfully. Source commits and Actions artifacts do not update the Releases page on their own.
+
+## 21. README direct download link returns 404
+
+The `releases/latest/download/...` URL works only after:
+
+1. the v1.6.1 Release exists;
+2. it is marked as Latest;
+3. the exact asset filename is attached to the Release.
+
+Open the Release Assets list and compare the filename character-for-character with the README link.

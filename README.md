@@ -11,6 +11,38 @@ TokenFence Studio is a desktop AI workspace that reviews prompts and supported t
 
 **Safe Workspace** · **Prompt Guard** · **Attachment Review** · **DeepSeek Provider** · **Local History** · **macOS Keychain**
 
+## Download TokenFence Studio
+
+### macOS v1.6.1
+
+| Mac | Recommended download | Alternative |
+|---|---|---|
+| Apple Silicon — M1/M2/M3/M4 and newer | [Download Apple Silicon DMG](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Apple-Silicon.dmg) | [Download APP ZIP](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Apple-Silicon.app.zip) |
+| Intel Mac | [Download Intel DMG](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Intel.dmg) | [Download APP ZIP](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Intel.app.zip) |
+| Universal — both architectures | [Download Universal DMG](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Universal.dmg) | [Download APP ZIP](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Universal.app.zip) |
+
+- [Open the latest GitHub Release](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest)
+- [Open the v1.6.1 Release page](https://github.com/Chrisbetheking/tokenfence-studio/releases/tag/v1.6.1)
+- [Apple Silicon checksum](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/SHA256SUMS-Apple-Silicon.txt)
+- [Intel checksum](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/SHA256SUMS-Intel.txt)
+
+> A direct link returns `404` until the **v1.6.1 GitHub Release has been created and the matching asset has finished uploading**. Repository source files and Actions artifacts do not update the Releases page by themselves.
+
+To identify the Mac architecture:
+
+```bash
+uname -m
+```
+
+- `arm64` means Apple Silicon.
+- `x86_64` means Intel.
+
+### Previous Windows build
+
+- [TokenFence Studio v1.5.6 release](https://github.com/Chrisbetheking/tokenfence-studio/releases/tag/v1.5.6)
+
+The v1.6.1 release workflow currently publishes the new macOS packages. Windows and Android packages can be added to the same release in a later multi-platform workflow.
+
 ## Current release
 
 The current desktop line is **v1.6.1**.
@@ -92,36 +124,11 @@ The goal is not to promise perfect data-loss prevention. The goal is to make acc
 - English / Simplified Chinese UI
 - System / light / dark themes
 
-## Downloads and build artifacts
-
-Open the repository's **Releases** page for published builds. For v1.6.1 macOS test artifacts, open:
-
-```text
-GitHub → Actions → TokenFence macOS Builds
-```
-
-Choose the build that matches the Mac:
-
-| Artifact | Compatible Macs |
-|---|---|
-| `TokenFence-Studio-macOS-Apple-Silicon` | M1, M2, M3, M4, and newer Apple chips |
-| `TokenFence-Studio-macOS-Intel` | Intel-based Macs |
-| `TokenFence-Studio-macOS-Universal` | Both architectures, when the optional build succeeds |
-
-To identify the local architecture:
-
-```bash
-uname -m
-```
-
-- `arm64` means Apple Silicon.
-- `x86_64` means Intel.
-
 ## Quick start for users
 
 ### macOS installation
 
-1. Download the correct `.dmg` from Releases or the workflow artifact.
+1. Download the correct `.dmg` from the links above.
 2. Open the DMG and drag **TokenFence Studio** to **Applications**.
 3. On the first launch of an unsigned build, Control-click the app and choose **Open**.
 4. Open **Providers**, enable Demo Mode for an offline demonstration, or save a DeepSeek API key to Keychain.
@@ -131,9 +138,10 @@ Never use real secrets for a public demo. Use clearly fake test values.
 
 ### Windows installation
 
-1. Download the Windows portable ZIP from Releases.
-2. Extract the ZIP completely.
-3. Run `tokenfence-studio.exe` from the extracted folder.
+1. Open the previous Windows release page.
+2. Download the Windows portable ZIP.
+3. Extract the ZIP completely.
+4. Run `tokenfence-studio.exe` from the extracted folder.
 
 Do not run the executable from inside the ZIP preview.
 
@@ -194,19 +202,19 @@ Generated bundles are placed under:
 apps/desktop/src-tauri/target/<target>/release/bundle/
 ```
 
-## Build macOS in GitHub Actions
+## Publish v1.6.1 through GitHub Actions
 
-A local Mac is not required to produce test builds.
+The workflow now supports building **and creating the Release in one manual run**.
 
-1. Open **Actions** in the GitHub repository.
-2. Select **TokenFence macOS Builds**.
-3. Click **Run workflow** and choose `main`.
-4. Wait for `Verify desktop UI`, `macOS Apple-Silicon`, and `macOS Intel` to finish.
-5. Download the artifacts from the workflow-run page.
+1. Upload this patch to the repository root, including the hidden `.github` directory.
+2. Open **Actions → TokenFence macOS Builds and Release**.
+3. Click **Run workflow**.
+4. Set `version` to `v1.6.1`.
+5. Keep `create_release` and `make_latest` enabled.
+6. Run the workflow from the `main` branch.
+7. After Apple Silicon and Intel builds succeed, open the repository **Releases** page.
 
-The workflow uses separate GitHub-hosted arm64 and Intel macOS runners, then packages `.dmg`, `.app.zip`, and SHA-256 files.
-
-Creating a tag such as `v1.6.1` also allows the workflow to attach successful macOS files to the matching GitHub Release.
+The Release job creates or updates tag `v1.6.1`, marks it as Latest when selected, and attaches `.dmg`, `.app.zip`, and SHA-256 files. The optional Universal job may fail without blocking the two required architecture builds.
 
 ## Configure DeepSeek
 
@@ -263,59 +271,42 @@ python3 scripts/verify_tokenfence_patch.py
 cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
 ```
 
-On Windows, use `python` instead of `python3` when required.
-
 ## Project structure
 
 ```text
 apps/
-├── web/                     Browser workspace
+├── web/
 ├── desktop/
-│   ├── ui/                  React + TypeScript desktop interface
-│   └── src-tauri/           Rust + Tauri native backend
-└── android/                 Mobile application
+│   ├── ui/
+│   └── src-tauri/
+└── android/
 packages/
-└── shared/                  Shared packages
+└── shared/
 scripts/
-├── build-macos.sh           Local macOS build helper
+├── build-macos.sh
 └── verify_tokenfence_patch.py
 docs/
-└── troubleshooting/        English and Chinese troubleshooting guides
+├── release/
+└── troubleshooting/
 .github/workflows/
-├── tokenfence-macos.yml     Apple Silicon, Intel, and optional Universal builds
+├── tokenfence-macos.yml
 └── tokenfence-v1.6-verify.yml
 ```
 
 ## Troubleshooting
 
-Read the complete guide:
-
-- [Troubleshooting in English](docs/troubleshooting/TROUBLESHOOTING.md)
+- [English troubleshooting guide](docs/troubleshooting/TROUBLESHOOTING.md)
 - [中文故障排查](docs/troubleshooting/TROUBLESHOOTING.zh-CN.md)
-
-It covers installation warnings, architecture mismatch, blank windows, provider failures, Keychain issues, dependency errors, and GitHub Actions failures.
 
 ## Roadmap
 
 - Apple Developer signing and notarization
-- Additional provider integrations through the same safety boundary
-- More attachment parsers with explicit file-support indicators
-- Rule packs and user-defined detection policies
-- Improved scan evaluation and false-positive controls
-- Release automation and update verification
-- Expanded accessibility and keyboard navigation
-
-## Contributing
-
-1. Fork the repository.
-2. Create a focused branch.
-3. Keep provider secrets and test credentials out of commits.
-4. Run the verification commands before opening a pull request.
-5. Explain any change that affects scanning, redaction, storage, or provider requests.
-
-## Reporting security issues
-
-Do not place a real API key, password, private document, or exploitable secret in a public issue. Use a minimal redacted reproduction and follow the repository security-reporting guidance.
+- Windows v1.6.x package in the unified release workflow
+- More provider integrations
+- Custom safety rules and team policies
+- Document-level finding locations
+- Token and cost comparisons
+- Agent tool-call review
 
 ## License
 

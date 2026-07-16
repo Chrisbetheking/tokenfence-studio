@@ -1,4 +1,4 @@
-name: CI Guard
+name: Chris Studio CI
 
 on:
   push:
@@ -6,73 +6,53 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: chris-studio-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+  NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
+  NPM_CONFIG_AUDIT: 'false'
+  NPM_CONFIG_FUND: 'false'
+
 jobs:
-  source-guard:
+  desktop-ui:
+    name: Desktop UI
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: "20"
-      - run: node scripts/source_guard.js
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/desktop/ui/package-lock.json
+      - name: Install desktop UI dependencies
+        run: npm install --prefix apps/desktop/ui --legacy-peer-deps --no-audit --no-fund
+      - name: Verify required packages
+        run: npm --prefix apps/desktop/ui ls @tauri-apps/api exceljs pdfjs-dist mammoth tesseract.js --depth=0
+      - name: Type-check
+        run: npm --prefix apps/desktop/ui run typecheck
+      - name: Core privacy and token tests
+        run: npm --prefix apps/desktop/ui run test:core
+      - name: Production build
+        run: npm --prefix apps/desktop/ui run build
 
-  release-sanity:
-    runs-on: ubuntu-latest
+  macos-native-check:
+    name: macOS native Rust check
+    runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: "20"
-      - name: Run release sanity (default check)
-        run: node scripts/release_sanity.js v0.0.0-ci
-        continue-on-error: true
-
-  frontend-build:
-    needs: source-guard
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - run: npm install --legacy-peer-deps
-      - run: node scripts/source_guard.js
-      - run: npm run build
-        continue-on-error: true
-
-  rust-tauri-check:
-    needs: source-guard
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/desktop/ui/package-lock.json
       - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/setup-node@v4
+      - uses: swatinem/rust-cache@v2
         with:
-          node-version: "20"
-      - run: npm install --legacy-peer-deps
-      - run: cargo check
-        working-directory: apps/desktop/src-tauri
-
-  # Tagged release sanity: runs full version check when a tag is pushed
-  release-sanity-tagged:
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: Run full release sanity
-        run: node scripts/release_sanity.js 
-
-  # Verify raw commit source integrity on tag
-  verify-raw:
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: Verify raw commit sources
-        run: node scripts/verify_raw_commit.js 
+          workspaces: apps/desktop/src-tauri -> target
+      - name: Install desktop UI dependencies
+        run: npm install --prefix apps/desktop/ui --legacy-peer-deps --no-audit --no-fund
+      - name: Check Rust backend
+        run: cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml

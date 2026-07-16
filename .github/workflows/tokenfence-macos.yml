@@ -9,184 +9,229 @@ on:
         default: v1.6.1
         type: string
       create_release:
-        description: Create or update the GitHub Release
+        description: Create or update the GitHub Release after successful builds
         required: true
         default: true
         type: boolean
       make_latest:
-        description: Mark this release as latest
+        description: Mark this release as Latest
         required: true
         default: true
         type: boolean
+      build_universal:
+        description: Also attempt the optional Universal macOS build
+        required: true
+        default: true
+        type: boolean
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
 
 concurrency:
-  group: tokenfence-macos-${{ github.ref }}
+  group: tokenfence-macos-${{ github.ref }}-${{ github.event.inputs.version || github.ref_name }}
   cancel-in-progress: false
 
-env:
-  NODE_VERSION: '22'
-
 jobs:
-  verify-desktop-ui:
+  prepare:
+    name: Prepare release metadata
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.meta.outputs.release_tag }}
+      should_release: ${{ steps.meta.outputs.should_release }}
+      make_latest: ${{ steps.meta.outputs.make_latest }}
+      build_universal: ${{ steps.meta.outputs.build_universal }}
+    steps:
+      - id: meta
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_CREATE_RELEASE: ${{ inputs.create_release }}
+          INPUT_MAKE_LATEST: ${{ inputs.make_latest }}
+          INPUT_BUILD_UNIVERSAL: ${{ inputs.build_universal }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            release_tag="$INPUT_VERSION"
+            should_release="$INPUT_CREATE_RELEASE"
+            make_latest="$INPUT_MAKE_LATEST"
+            build_universal="$INPUT_BUILD_UNIVERSAL"
+          else
+            release_tag="$REF_NAME"
+            should_release="true"
+            make_latest="true"
+            build_universal="true"
+          fi
+
+          if [[ ! "$release_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$ ]]; then
+            echo "Invalid version: $release_tag. Expected a tag such as v1.6.1." >&2
+            exit 1
+          fi
+
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+          echo "should_release=$should_release" >> "$GITHUB_OUTPUT"
+          echo "make_latest=$make_latest" >> "$GITHUB_OUTPUT"
+          echo "build_universal=$build_universal" >> "$GITHUB_OUTPUT"
+
+  verify-desktop:
     name: Verify desktop UI and privacy boundary
+    needs: prepare
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: 22
           cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npm --workspace apps/desktop run typecheck
+      - run: npm --workspace apps/desktop run test:core
+      - run: npm --workspace apps/desktop run ui:build
+      - run: python3 scripts/verify_tokenfence_patch.py
 
-      - name: Install root workspace dependencies
-        run: npm ci --legacy-peer-deps
-
-      # apps/desktop/ui is nested below the apps/* workspace glob, so npm does
-      # not install its own package.json dependencies during the root install.
-      - name: Install desktop UI dependencies
-        run: npm install --prefix apps/desktop/ui --legacy-peer-deps
-
-      - name: Show effective desktop TypeScript configuration
-        run: |
-          node -e "const c=require('./apps/desktop/ui/tsconfig.json'); console.log(JSON.stringify(c,null,2)); if (!Array.isArray(c.include) || !c.include.includes('src/main.tsx') || c.include.includes('src')) process.exit(1)"
-
-      - name: Type-check production desktop dependency graph
-        run: npm --workspace apps/desktop run typecheck
-
-      - name: Run core privacy tests
-        run: npm --workspace apps/desktop run test:core
-
-      - name: Build desktop UI
-        run: npm --prefix apps/desktop/ui run build
-
-  build-macos:
+  architecture-builds:
     name: macOS ${{ matrix.label }}
-    needs: verify-desktop-ui
+    needs:
+      - prepare
+      - verify-desktop
     strategy:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-15
-            label: Apple Silicon
-            slug: Apple-Silicon
-          - runner: macos-15-intel
-            label: Intel
-            slug: Intel
+          - label: Apple-Silicon
+            runner: macos-15
+            target: aarch64-apple-darwin
+          - label: Intel
+            runner: macos-15-intel
+            target: x86_64-apple-darwin
     runs-on: ${{ matrix.runner }}
-
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: 22
           cache: npm
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust build
-        uses: swatinem/rust-cache@v2
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          workspaces: apps/desktop/src-tauri -> target
-
-      - name: Install root workspace dependencies
-        run: npm ci --legacy-peer-deps
-
-      - name: Install desktop UI dependencies
-        run: npm install --prefix apps/desktop/ui --legacy-peer-deps
-
-      - name: Verify desktop TypeScript before native build
-        run: npm --workspace apps/desktop run typecheck
-
-      - name: Build Tauri application
-        run: npm --workspace apps/desktop run build
-
-      - name: Package DMG and APP ZIP
+          toolchain: stable
+          target: ${{ matrix.target }}
+      - run: npm ci --legacy-peer-deps
+      - run: npm --workspace apps/desktop run ui:build
+      - name: Build Tauri bundle
+        working-directory: apps/desktop
+        run: npx tauri build --target ${{ matrix.target }}
+      - name: Package release files
         shell: bash
         run: |
           set -euo pipefail
-          BUNDLE_DIR="apps/desktop/src-tauri/target/release/bundle"
-          OUT_DIR="release/${{ matrix.slug }}"
-          mkdir -p "$OUT_DIR"
+          BUNDLE="apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle"
+          OUT="dist-macos-${{ matrix.label }}"
+          mkdir -p "$OUT"
 
-          DMG_PATH="$(find "$BUNDLE_DIR/dmg" -maxdepth 1 -type f -name '*.dmg' -print -quit 2>/dev/null || true)"
-          APP_PATH="$(find "$BUNDLE_DIR/macos" -maxdepth 1 -type d -name '*.app' -print -quit 2>/dev/null || true)"
+          APP_PATH="$(find "$BUNDLE/macos" -maxdepth 1 -name '*.app' -print -quit)"
+          DMG_PATH="$(find "$BUNDLE/dmg" -maxdepth 1 -name '*.dmg' -print -quit)"
+          test -n "$APP_PATH"
+          test -n "$DMG_PATH"
 
-          if [[ -z "$DMG_PATH" ]]; then
-            echo "No DMG was produced. Bundle contents:"
-            find "$BUNDLE_DIR" -maxdepth 3 -print || true
-            exit 1
-          fi
-
-          if [[ -z "$APP_PATH" ]]; then
-            echo "No .app bundle was produced. Bundle contents:"
-            find "$BUNDLE_DIR" -maxdepth 3 -print || true
-            exit 1
-          fi
-
-          DMG_NAME="TokenFence-Studio-macOS-${{ matrix.slug }}.dmg"
-          APP_ZIP_NAME="TokenFence-Studio-macOS-${{ matrix.slug }}.app.zip"
-
-          cp "$DMG_PATH" "$OUT_DIR/$DMG_NAME"
-          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$OUT_DIR/$APP_ZIP_NAME"
-
-          (
-            cd "$OUT_DIR"
-            shasum -a 256 "$DMG_NAME" "$APP_ZIP_NAME" > "SHA256SUMS-${{ matrix.slug }}.txt"
-          )
-
-          ls -lah "$OUT_DIR"
-
-      - name: Upload ${{ matrix.label }} packages
-        uses: actions/upload-artifact@v4
+          ditto -c -k --sequesterRsrc --keepParent \
+            "$APP_PATH" \
+            "$OUT/TokenFence-Studio-macOS-${{ matrix.label }}.app.zip"
+          cp "$DMG_PATH" "$OUT/TokenFence-Studio-macOS-${{ matrix.label }}.dmg"
+          shasum -a 256 "$OUT"/* > "$OUT/SHA256SUMS-${{ matrix.label }}.txt"
+          ls -lah "$OUT"
+      - uses: actions/upload-artifact@v4
         with:
-          name: TokenFence-Studio-macOS-${{ matrix.slug }}
-          path: release/${{ matrix.slug }}/*
+          name: TokenFence-Studio-macOS-${{ matrix.label }}
+          path: dist-macos-${{ matrix.label }}/
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
+
+  universal-build:
+    name: macOS Universal
+    needs:
+      - prepare
+      - verify-desktop
+    if: needs.prepare.outputs.build_universal == 'true'
+    runs-on: macos-15
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: aarch64-apple-darwin,x86_64-apple-darwin
+      - run: npm ci --legacy-peer-deps
+      - run: npm --workspace apps/desktop run ui:build
+      - name: Build universal Tauri bundle
+        working-directory: apps/desktop
+        run: npx tauri build --target universal-apple-darwin
+      - name: Package universal release files
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUNDLE="apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle"
+          OUT="dist-macos-Universal"
+          mkdir -p "$OUT"
+
+          APP_PATH="$(find "$BUNDLE/macos" -maxdepth 1 -name '*.app' -print -quit)"
+          DMG_PATH="$(find "$BUNDLE/dmg" -maxdepth 1 -name '*.dmg' -print -quit)"
+          test -n "$APP_PATH"
+          test -n "$DMG_PATH"
+
+          ditto -c -k --sequesterRsrc --keepParent \
+            "$APP_PATH" \
+            "$OUT/TokenFence-Studio-macOS-Universal.app.zip"
+          cp "$DMG_PATH" "$OUT/TokenFence-Studio-macOS-Universal.dmg"
+          shasum -a 256 "$OUT"/* > "$OUT/SHA256SUMS-Universal.txt"
+          ls -lah "$OUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TokenFence-Studio-macOS-Universal
+          path: dist-macos-Universal/
+          if-no-files-found: error
+          retention-days: 30
 
   publish-release:
     name: Create or update GitHub Release
-    needs: build-macos
-    if: ${{ inputs.create_release }}
+    needs:
+      - prepare
+      - architecture-builds
+      - universal-build
+    if: always() && needs.prepare.outputs.should_release == 'true' && needs.architecture-builds.result == 'success'
     runs-on: ubuntu-latest
     steps:
-      - name: Download macOS artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
           pattern: TokenFence-Studio-macOS-*
-          path: release
+          path: release-files
           merge-multiple: true
-
-      - name: List release files
-        run: find release -maxdepth 2 -type f -print
-
-      - name: Publish GitHub Release
+      - name: Verify downloaded files
+        shell: bash
+        run: |
+          set -euo pipefail
+          find release-files -maxdepth 1 -type f -print -exec ls -lh {} \;
+          test -n "$(find release-files -maxdepth 1 -name 'TokenFence-Studio-macOS-Apple-Silicon.dmg' -print -quit)"
+          test -n "$(find release-files -maxdepth 1 -name 'TokenFence-Studio-macOS-Intel.dmg' -print -quit)"
+      - name: Publish release and attach macOS downloads
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.version }}
-          name: TokenFence Studio ${{ inputs.version }}
-          body: |
-            ## TokenFence Studio ${{ inputs.version }}
-
-            Native unsigned macOS packages for Apple Silicon and Intel Macs.
-
-            ### Installation
-            1. Download the package matching your Mac processor.
-            2. Open the DMG and move TokenFence Studio to Applications.
-            3. On first launch, if macOS blocks the unsigned build, right-click the app and choose **Open**.
-
-            API credentials are user supplied. Do not use real secrets when testing the public demo.
-          files: release/*
-          fail_on_unmatched_files: true
-          draft: false
-          prerelease: false
-          make_latest: ${{ inputs.make_latest }}
+          tag_name: ${{ needs.prepare.outputs.release_tag }}
+          target_commitish: ${{ github.sha }}
+          name: TokenFence Studio ${{ needs.prepare.outputs.release_tag }}
+          body_path: docs/release/RELEASE_NOTES_v1.6.1.md
+          make_latest: ${{ needs.prepare.outputs.make_latest }}
+          files: |
+            release-files/*.dmg
+            release-files/*.zip
+            release-files/SHA256SUMS-*.txt
+          fail_on_unmatched_files: false

@@ -5,6 +5,12 @@ const CODE_EXTENSIONS = new Set(['js', 'jsx', 'ts', 'tsx', 'py', 'rs', 'go', 'ja
 const TEXT_EXTENSIONS = new Set(['txt', 'md', 'markdown', 'json', 'jsonl', 'csv', 'log', 'xml', 'yaml', 'yml', 'rtf']);
 const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp', 'bmp', 'tif', 'tiff']);
 
+export interface FileProcessingOptions {
+  ocrLanguage?: 'eng' | 'chi_sim' | 'eng+chi_sim';
+  ocrScannedPdf?: boolean;
+  maxPdfOcrPages?: number;
+}
+
 function extension(name: string): string {
   return name.split('.').pop()?.toLowerCase() ?? '';
 }
@@ -20,23 +26,63 @@ export function classifyFile(file: Pick<File, 'name' | 'type'>): FileKind {
   return 'unknown';
 }
 
-async function readPdf(file: File): Promise<{ text: string; pages: number }> {
+async function ocrSource(source: File | HTMLCanvasElement, language: string, onProgress?: (progress: number) => void): Promise<string> {
+  const { createWorker } = await import('tesseract.js');
+  const worker = await createWorker(language, 1, {
+    logger: (message) => {
+      if (message.status === 'recognizing text' && typeof message.progress === 'number') onProgress?.(message.progress);
+    },
+  });
+  try {
+    const result = await worker.recognize(source);
+    return result.data.text;
+  } finally {
+    await worker.terminate();
+  }
+}
+
+async function readPdf(
+  file: File,
+  options: FileProcessingOptions,
+  onProgress?: (progress: number) => void,
+): Promise<{ text: string; pages: number; usedOcr: boolean; warnings: string[] }> {
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const workerUrl = (await import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url')).default;
   pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
-  const document = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+  const pdfDocument = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
   const pages: string[] = [];
-  for (let index = 1; index <= document.numPages; index += 1) {
-    const page = await document.getPage(index);
+  const warnings: string[] = [];
+  let usedOcr = false;
+  const maxOcrPages = Math.max(1, Math.min(options.maxPdfOcrPages ?? 12, 40));
+  const language = options.ocrLanguage ?? 'eng+chi_sim';
+
+  for (let index = 1; index <= pdfDocument.numPages; index += 1) {
+    const page = await pdfDocument.getPage(index);
     const content = await page.getTextContent();
-    const text = content.items
+    let text = content.items
       .map((item) => ('str' in item ? item.str : ''))
       .join(' ')
       .replace(/\s+/g, ' ')
       .trim();
+
+    if (options.ocrScannedPdf && text.length < 30 && index <= maxOcrPages) {
+      const viewport = page.getViewport({ scale: 1.7 });
+      const canvas = window.document.createElement('canvas');
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      const context = canvas.getContext('2d');
+      if (context) {
+        await page.render({ canvas, canvasContext: context, viewport }).promise;
+        text = (await ocrSource(canvas, language, (value) => onProgress?.(((index - 1) + value) / Math.min(pdfDocument.numPages, maxOcrPages)))).trim();
+        usedOcr = true;
+      }
+    }
     pages.push(`[Page ${index}]\n${text}`);
   }
-  return { text: pages.join('\n\n'), pages: document.numPages };
+
+  if (pdfDocument.numPages > maxOcrPages && usedOcr) warnings.push(`Scanned-PDF OCR was limited to the first ${maxOcrPages} pages.`);
+  if (!pages.join('').replace(/\[Page \d+\]/g, '').trim()) warnings.push('No readable text was found in this PDF.');
+  return { text: pages.join('\n\n'), pages: pdfDocument.numPages, usedOcr, warnings };
 }
 
 async function readDocx(file: File): Promise<string> {
@@ -71,47 +117,50 @@ async function readSheet(file: File): Promise<string> {
   return sections.join('\n\n');
 }
 
-async function readOcr(file: File, onProgress?: (progress: number) => void): Promise<string> {
-  const { createWorker } = await import('tesseract.js');
-  const worker = await createWorker('eng', 1, {
-    logger: (message) => {
-      if (message.status === 'recognizing text' && typeof message.progress === 'number') onProgress?.(message.progress);
-    },
-  });
-  try {
-    const result = await worker.recognize(file);
-    return result.data.text;
-  } finally {
-    await worker.terminate();
-  }
-}
-
-function processorFor(kind: FileKind): ProcessorId {
-  if (kind === 'pdf') return 'pdf-extractor';
+function processorFor(kind: FileKind, usedPdfOcr = false): ProcessorId {
+  if (kind === 'pdf') return usedPdfOcr ? 'local-ocr' : 'pdf-extractor';
   if (kind === 'document') return 'docx-reader';
   if (kind === 'spreadsheet') return 'sheet-reader';
   if (kind === 'image') return 'local-ocr';
   return 'text-reader';
 }
 
-export async function processFile(file: File, maxBytes: number, onProgress?: (progress: number) => void): Promise<AttachmentDraft> {
+async function fileDataUrl(file: File): Promise<string> {
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read image data.'));
+    reader.onload = () => resolve(String(reader.result ?? ''));
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function processFile(
+  file: File,
+  maxBytes: number,
+  onProgress?: (progress: number) => void,
+  options: FileProcessingOptions = {},
+): Promise<AttachmentDraft> {
   if (file.size > maxBytes) throw new Error(`File exceeds the configured ${Math.round(maxBytes / 1_000_000)} MB processing limit.`);
   const kind = classifyFile(file);
   let content = '';
   let pageCount: number | undefined;
+  let usedPdfOcr = false;
+  let dataUrl: string | undefined;
   const warnings: string[] = [];
+  const ocrLanguage = options.ocrLanguage ?? 'eng+chi_sim';
 
   if (kind === 'text' || kind === 'code') content = await file.text();
   else if (kind === 'pdf') {
-    const result = await readPdf(file);
+    const result = await readPdf(file, { ...options, ocrScannedPdf: options.ocrScannedPdf ?? true }, onProgress);
     content = result.text;
     pageCount = result.pages;
-    if (!content.trim()) warnings.push('No embedded text was found. Try OCR on page images in a future release.');
+    usedPdfOcr = result.usedOcr;
+    warnings.push(...result.warnings);
   } else if (kind === 'document') content = await readDocx(file);
   else if (kind === 'spreadsheet') content = await readSheet(file);
   else if (kind === 'image') {
-    content = await readOcr(file, onProgress);
-    warnings.push('Local OCR currently starts with the English language pack. Additional packs can be added later.');
+    content = await ocrSource(file, ocrLanguage, onProgress);
+    dataUrl = await fileDataUrl(file);
   } else {
     throw new Error('This file type is not supported by the local processor yet.');
   }
@@ -122,9 +171,11 @@ export async function processFile(file: File, maxBytes: number, onProgress?: (pr
     size: file.size,
     content: content.slice(0, 1_500_000),
     kind,
-    processor: processorFor(kind),
+    processor: processorFor(kind, usedPdfOcr),
     mimeType: file.type,
     pageCount,
     warnings,
+    dataUrl,
+    ocrLanguage: kind === 'image' || usedPdfOcr ? ocrLanguage : undefined,
   };
 }

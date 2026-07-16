@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AgentProfile, ComputerCapability, Language } from '../app/types';
 import { BUILT_IN_SKILLS } from '../app/skills';
-import { loadActiveAgentId, loadAgents, nowIso, saveActiveAgentId, saveAgents } from '../app/store';
+import { loadActiveAgentId, loadAgents, loadCustomSkills, nowIso, saveActiveAgentId, saveAgents } from '../app/store';
 import { getComputerCapabilities } from '../features/platform/desktopClient';
 import { Icon, type IconName } from '../components/Icon';
 import { useToast } from '../components/Toast';
@@ -12,12 +12,15 @@ export function AgentsScreen({ language, onStart }: { language: Language; onStar
   const [agents, setAgents] = useState<AgentProfile[]>(() => loadAgents());
   const [activeId, setActiveId] = useState(() => loadActiveAgentId());
   const [capabilities, setCapabilities] = useState<ComputerCapability[]>([]);
+  const [customSkills, setCustomSkills] = useState(() => loadCustomSkills());
   const [category, setCategory] = useState<'all' | typeof BUILT_IN_SKILLS[number]['category']>('all');
   const toast = useToast();
   const active = agents.find((agent) => agent.id === activeId) ?? agents[0];
-  const filtered = useMemo(() => BUILT_IN_SKILLS.filter((skill) => category === 'all' || skill.category === category), [category]);
+  const allSkills = useMemo(() => [...BUILT_IN_SKILLS, ...customSkills], [customSkills]);
+  const filtered = useMemo(() => allSkills.filter((skill) => category === 'all' || skill.category === category), [allSkills, category]);
 
   useEffect(() => { void getComputerCapabilities().then(setCapabilities); }, []);
+  useEffect(() => { const update = () => setCustomSkills(loadCustomSkills()); window.addEventListener('tokenfence:skills-updated', update); return () => window.removeEventListener('tokenfence:skills-updated', update); }, []);
 
   const updateAgent = (next: AgentProfile) => {
     const all = agents.map((agent) => agent.id === next.id ? { ...next, updatedAt: nowIso() } : agent);
@@ -47,7 +50,7 @@ export function AgentsScreen({ language, onStart }: { language: Language; onStar
     <main className="modern-page agent-page">
       <header className="compact-page-header">
         <div><span className="section-kicker">AGENT STUDIO</span><h1>{copy(language, 'Agents and built-in skills', 'Agent 与内置 Skills')}</h1><p>{copy(language, 'Compose reusable agents from audited local skills, provider routing and explicit permissions.', '用经过审查的本地 Skills、模型路由和明确权限组合可复用 Agent。')}</p></div>
-        <div className="header-actions"><span className="metric-chip"><strong>{BUILT_IN_SKILLS.length}</strong> Skills</span><button className="button primary" onClick={start}><Icon name="bot" />{copy(language, 'Start with this agent', '使用此 Agent')}</button></div>
+        <div className="header-actions"><span className="metric-chip"><strong>{allSkills.length}</strong> Skills</span><button className="button primary" onClick={start}><Icon name="bot" />{copy(language, 'Start with this agent', '使用此 Agent')}</button></div>
       </header>
 
       <div className="agent-layout">
@@ -57,7 +60,7 @@ export function AgentsScreen({ language, onStart }: { language: Language; onStar
           <div className="computer-capabilities">
             <div className="panel-title"><span>Computer Use Beta</span></div>
             {capabilities.map((capability) => <div key={capability.id}><span className={`cap-dot cap-${capability.status}`} /><strong>{capability.id}</strong><small>{capability.status}</small></div>)}
-            <p>{copy(language, 'v1.7 adds the permission and capability layer first. Screen capture and controlled actions remain gated by macOS permissions and future native modules.', 'v1.7 先加入权限与能力层；屏幕捕获和受控操作仍需 macOS 权限，并会在后续原生模块中逐步开放。')}</p>
+            <p>{copy(language, 'v2.0 includes approval-gated screen capture, pointer and keyboard actions, scoped project writes and approved command presets. Every native action remains visible and user controlled.', 'v2.0 已加入需确认的屏幕捕获、鼠标与键盘操作、受限项目写入和批准命令预设；所有原生操作仍保持可见并由用户控制。')}</p>
           </div>
         </aside>
 

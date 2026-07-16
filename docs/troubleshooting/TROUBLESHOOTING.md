@@ -1,506 +1,78 @@
-# TokenFence Studio Troubleshooting
+# Chris Studio v2.0.0 troubleshooting
 
-[简体中文](TROUBLESHOOTING.zh-CN.md) | [Back to README](../../README.md)
+## macOS reports the app as damaged
 
-This guide covers TokenFence Studio v1.7.0 desktop installation, macOS builds, provider configuration, credential storage, and development failures.
+This normally indicates Gatekeeper blocking an unnotarized community package, not necessarily corrupted DMG bytes. For a production release configure Developer ID signing and notarization as described in [SIGNING_NOTARIZATION.md](../macos/SIGNING_NOTARIZATION.md).
 
-## Start with these checks
-
-Before changing code, record:
+Community fallback:
 
 ```bash
-node -v
-npm -v
-rustc --version
-cargo --version
+sudo xattr -rd com.apple.quarantine "/Applications/Chris Studio.app"
+open "/Applications/Chris Studio.app"
 ```
 
-On macOS also record:
+Or right-click the architecture-specific `Install-Chris-Studio-*.command` helper and choose Open. Do not disable Gatekeeper globally.
 
-```bash
-sw_vers
-uname -m
-xcode-select -p
-```
-
-Never post a real API key in logs, screenshots, GitHub Issues, or chat messages.
-
-## 1. Which macOS build should I download?
-
-Run:
+## Choose the correct Mac build
 
 ```bash
 uname -m
 ```
 
-- `arm64`: download `TokenFence-Studio-macOS-Apple-Silicon`.
-- `x86_64`: download `TokenFence-Studio-macOS-Intel`.
-- The Universal package can run on both architectures when it is available.
+`arm64` uses Apple Silicon; `x86_64` uses Intel.
 
-### Symptom: “Bad CPU type in executable” or the app immediately exits
+## Provider falls back to Local Sandbox
 
-The wrong architecture was installed. Remove the application and download the matching build.
+Secure-save the profile, test it, and explicitly set it active. If Keychain access fails, remove the stale `com.tokenfence.studio.provider` item in Keychain Access and save again.
 
-## 2. macOS says the developer cannot be verified
+HTTP 401 usually indicates credentials, 403 access policy, 404 an endpoint/model mismatch and 429 rate or balance limits.
 
-The community build is currently unsigned and not notarized.
+## OCR or scanned PDF issues
 
-Use the safe first-launch flow:
+Use `eng`, `chi_sim` or `eng+chi_sim`, start with a small clear image, and review OCR output. Large scanned PDFs are page-limited to protect memory; split the PDF or raise the configured OCR page limit.
 
-1. Move the app to `/Applications`.
-2. Open Finder → Applications.
-3. Control-click **TokenFence Studio**.
-4. Choose **Open**.
-5. Confirm **Open** again.
+## Coding Agent produces no patch
 
-Do not disable Gatekeeper globally.
+Select the most relevant file, narrow the task, confirm the active provider, and review the Plan. The assistant only accepts a unified diff beginning with `diff --git`. It never applies model output automatically.
 
-### Symptom: “TokenFence Studio is damaged and can’t be opened”
+If `git apply --check` fails, the patch may be stale, outside the scoped root, conflicting with local edits or malformed.
 
-First:
+## Approved checks fail
 
-- Download the artifact again from the official repository workflow or Release.
-- Verify the included SHA-256 file.
-- Confirm the ZIP/DMG was fully downloaded and extracted.
+The project must contain the expected manifest (`package.json`, `Cargo.toml` or `.git`). Chris Studio intentionally has no arbitrary shell field.
 
-Only after verifying the source and checksum, a developer testing an unsigned build may remove quarantine from this app only:
+## GitHub or Pull Request failure
 
-```bash
-xattr -dr com.apple.quarantine "/Applications/TokenFence Studio.app"
-```
+Use the minimum PAT permissions required for the repository, push the head branch before creating a PR, verify head/base branches, and use `https://github.com/owner/repo`.
 
-Do not run that command on an application from an untrusted source.
+## Computer Use failure
 
-## 3. The application opens to a blank or white window
+Grant Screen Recording and Accessibility permissions in macOS Privacy & Security, then completely restart Chris Studio. Confirm the screenshot before a coordinate click, especially with multiple displays or scaling.
 
-Try these steps in order:
+## MCP failure
 
-1. Quit the app completely and reopen it.
-2. Confirm the app was copied to `/Applications` rather than launched from a read-only DMG window.
-3. Install the latest supported macOS updates.
-4. Reset local application data from Settings when the page is accessible.
-5. Run the app executable from Terminal to capture non-secret errors:
+Remote endpoints require HTTPS; localhost HTTP is allowed. The Beta targets request/JSON-response servers. Long-lived SSE, custom OAuth and proprietary transports may need an adapter. Every `tools/call` requires explicit approval.
+
+## npm ci failure
 
 ```bash
-"/Applications/TokenFence Studio.app/Contents/MacOS/tokenfence-studio"
+cd apps/desktop/ui
+npm install --package-lock-only --legacy-peer-deps --no-audit --no-fund
+npm ci --legacy-peer-deps --no-audit --no-fund
 ```
 
-Do not share lines containing credentials or private prompt content.
+The lockfile must not contain private or internal registry URLs.
 
-For development builds, confirm the desktop UI builds:
+## TypeScript and Rust checks
 
 ```bash
-npm --workspace apps/desktop run ui:build
-```
-
-Then run:
-
-```bash
-npm run desktop:dev
-```
-
-## 4. `npm ci` fails
-
-### `npm ERR! ERESOLVE`
-
-Use the workspace's expected compatibility flag:
-
-```bash
-npm ci --legacy-peer-deps
-```
-
-### The lockfile is out of sync
-
-A contributor changed a package manifest without updating `package-lock.json`.
-
-Use a clean branch, then run:
-
-```bash
-rm -rf node_modules
-npm install --legacy-peer-deps
-```
-
-Review the lockfile diff before committing it. Do not regenerate the lockfile casually in an unrelated change.
-
-### Unsupported Node.js version
-
-The repository expects Node.js 18 through 22. Verify:
-
-```bash
-node -v
-```
-
-With `nvm`:
-
-```bash
-nvm install 22
-nvm use 22
-```
-
-## 5. `tauri: command not found` or desktop scripts fail
-
-Install workspace dependencies from the repository root:
-
-```bash
-npm ci --legacy-peer-deps
-```
-
-Use the repository script instead of a globally installed CLI:
-
-```bash
-npm run desktop:dev
-```
-
-or:
-
-```bash
-npm run desktop:build
-```
-
-## 6. Rust or Cargo is missing
-
-Install Rust using the official rustup installer, restart the terminal, then verify:
-
-```bash
-rustc --version
-cargo --version
-```
-
-For a specific macOS target:
-
-```bash
-rustup target add aarch64-apple-darwin
-rustup target add x86_64-apple-darwin
-```
-
-
-## 7. Xcode Command Line Tools are missing
-
-Run:
-
-```bash
-xcode-select --install
-```
-
-Verify:
-
-```bash
-xcode-select -p
-```
-
-If the path is broken after an Xcode update:
-
-```bash
-sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
-```
-
-Use the second command only when the full Xcode application is installed at that location.
-
-## 8. Local macOS build fails
-
-Run the helper from the repository root:
-
-```bash
-bash scripts/build-macos.sh
-```
-
-Then inspect:
-
-```text
-apps/desktop/src-tauri/target/<target>/release/bundle/
-```
-
-Before retrying, verify the UI independently:
-
-```bash
-npm --workspace apps/desktop run typecheck
-npm --workspace apps/desktop run test:core
-npm --workspace apps/desktop run ui:build
-```
-
-Verify the Rust backend:
-
-```bash
+npm --prefix apps/desktop/ui run typecheck
+npm --prefix apps/desktop/ui run build
 cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
 ```
 
-## 9. GitHub Actions macOS build is not visible
+Install Xcode Command Line Tools on macOS with `xcode-select --install`.
 
-Confirm this file exists on the selected branch:
+## Release links return 404
 
-```text
-.github/workflows/tokenfence-macos.yml
-```
-
-Then open:
-
-```text
-GitHub → Actions → TokenFence macOS Builds and Release → Run workflow
-```
-
-If Actions are disabled for the repository, enable them in repository settings.
-
-## 10. GitHub Actions verification fails before the Mac build
-
-The workflow intentionally verifies the desktop UI first. Open the failed `Verify desktop UI` job and identify the first failed command.
-
-Reproduce locally:
-
-```bash
-npm ci --legacy-peer-deps
-npm --workspace apps/desktop run typecheck
-npm --workspace apps/desktop run test:core
-npm --workspace apps/desktop run ui:build
-python3 scripts/verify_tokenfence_patch.py
-```
-
-Fix the first real failure rather than rerunning repeatedly.
-
-## 11. Apple Silicon build succeeds but Intel fails
-
-The two builds use separate runner architectures and Rust targets.
-
-Check the Intel job for:
-
-- dependency code that only supports arm64;
-- native binaries downloaded for the wrong architecture;
-- a missing `x86_64-apple-darwin` Rust target;
-- a runner-image or third-party action incompatibility.
-
-The workflow uses GitHub's `macos-15-intel` label. If GitHub changes runner availability, compare the workflow label with the current GitHub-hosted runners documentation.
-
-
-The Universal job is optional. It requires both macOS Rust targets and all native dependencies to support combining architectures.
-
-
-## 13. No `.dmg` or `.app.zip` appears in the artifact
-
-Open the `Package artifacts` step. The workflow expects Tauri bundles in:
-
-```text
-apps/desktop/src-tauri/target/<target>/release/bundle/macos/
-apps/desktop/src-tauri/target/<target>/release/bundle/dmg/
-```
-
-Check that:
-
-- Tauri bundling is active;
-- `bundle.targets` has not disabled `app` or `dmg`;
-- the Tauri build step completed successfully;
-- the product name did not produce an unexpected path.
-
-## 14. DeepSeek says no credential is stored
-
-Open **Providers**, enter the key again, save it, and confirm the UI reports that a credential is stored.
-
-On macOS, open **Keychain Access** and search for:
-
-```text
-com.tokenfence.studio
-```
-
-Do not expose the secret value while testing.
-
-If the app is running only in a browser or Vite preview, Keychain access is unavailable. Use the native Tauri app.
-
-## 15. The API key disappears after restarting
-
-Check:
-
-1. The app was running in the native desktop runtime.
-2. macOS did not deny Keychain access.
-3. The credential was saved before closing the app.
-4. The Keychain item for `com.tokenfence.studio` exists.
-5. The app is not being run under a different macOS user account.
-
-Clear the provider credential from Settings, save it again, and test the connection.
-
-## 16. I cannot clear the provider credential
-
-Use:
-
-```text
-Settings → Privacy → Clear provider credential
-```
-
-If that fails on macOS, open Keychain Access, search for `com.tokenfence.studio`, verify it belongs to TokenFence Studio, then delete that item manually.
-
-Do not delete unrelated Keychain items.
-
-## 17. DeepSeek connection test fails
-
-Read the error category and check the matching cause:
-
-### Invalid credential / 401
-
-- The key is missing, revoked, copied incorrectly, or belongs to a different service.
-- Save the correct key again in Providers.
-
-### Forbidden / 403
-
-- The account, region, project, or endpoint may not permit the request.
-- Check the provider account and official service availability.
-
-### Rate limited / 429
-
-- The account exceeded a request or usage limit.
-- Wait, review usage, or use an account with available quota.
-
-### Model not found / 400 or 404
-
-- The selected model is not accepted by the current API account or endpoint.
-- Select a supported model shown by the app and retry.
-
-### Timeout or network error
-
-- Check internet access, VPN/proxy behavior, firewall rules, DNS, and system time.
-- Increase the request timeout in Settings only when the network is known to be slow.
-
-### `DESKTOP_RUNTIME_REQUIRED`
-
-The request was started from a browser preview. Provider calls must run inside the Tauri desktop app.
-
-### Demo Mode works but the real provider does not
-
-Demo Mode does not perform a network request. It only proves that the local UI and safety flow are working.
-
-## 18. The prompt is blocked after I already approved it
-
-Approval is intentionally invalidated when:
-
-- prompt text changes;
-- an attachment is added, removed, or replaced;
-- relevant safety settings change.
-
-Run the scan again and review the new redacted payload.
-
-## 19. An attachment is ignored or cannot be scanned
-
-The current safety flow is intended for supported text content. Binary files, images, encrypted archives, and unsupported formats may not be inspectable.
-
-- Convert the relevant content to a supported text format.
-- Remove secrets manually before attaching.
-- Never assume an unsupported file was scanned.
-
-Also check the maximum file scan size in Settings.
-
-## 20. The scanner reports a false positive
-
-Do not disable all safety checks immediately.
-
-- Review the finding category.
-- Replace or rewrite the test value.
-- Adjust custom sensitive terms.
-- Keep Critical blocking enabled for public demonstrations.
-- Report a redacted, synthetic reproduction when the detector needs improvement.
-
-## 21. Local history is missing
-
-Check:
-
-```text
-Settings → Privacy → Local history enabled
-```
-
-The application stores redacted history only when this option is enabled. Resetting the application or clearing conversations removes local history.
-
-## 22. Language or theme does not update
-
-1. Change the option in Settings.
-2. Click **Save settings**.
-3. Restart the app if the operating-system theme changed while the app was open.
-4. If settings are corrupted, export non-secret settings when possible, then use **Reset application**.
-
-## 23. Reset the application safely
-
-Use:
-
-```text
-Settings → Advanced → Reset application
-```
-
-This removes local settings, credentials, history, and safety receipts. Export settings first when needed. The export does not include the raw provider key.
-
-## 24. What information should I include in a bug report?
-
-Include:
-
-- TokenFence Studio version;
-- operating system version;
-- CPU architecture;
-- installation source: Release or Actions artifact;
-- exact non-secret error message;
-- minimal reproduction steps;
-- whether Demo Mode works;
-- the first failed CI step when relevant.
-
-Never include:
-
-- API keys;
-- passwords;
-- complete private prompts;
-- customer documents;
-- unredacted environment files;
-- credential-store screenshots that reveal values.
-
----
-
-## 20. Builds succeeded but GitHub Releases did not update
-
-This usually means the workflow only uploaded Actions artifacts, or `create_release` was disabled.
-
-Use:
-
-```text
-GitHub → Actions → TokenFence macOS Builds and Release → Run workflow
-```
-
-Set:
-
-```text
-version: v1.7.0
-create_release: true
-make_latest: true
-```
-
-Then confirm that **Create or update GitHub Release** completes successfully. Source commits and Actions artifacts do not update the Releases page on their own.
-
-## 21. README direct download link returns 404
-
-The `releases/latest/download/...` URL works only after:
-
-1. the v1.7.0 Release exists;
-2. it is marked as Latest;
-3. the exact asset filename is attached to the Release.
-
-Open the Release Assets list and compare the filename character-for-character with the README link.
-
----
-
-## DeepSeek was saved but Workspace still shows Local Sandbox
-
-v1.7.0 fixes the old silent fallback. Open Providers, select the DeepSeek profile, use Secure Save, Test Connection, and Set Active. The top provider switcher should then show DeepSeek. If upgraded metadata remains inconsistent, export non-secret settings, reset the application, and configure the profile again.
-
-## Provider test returns UNTRUSTED_ENDPOINT
-
-Built-in profiles verify that the endpoint host matches the selected provider. Use Custom Compatible API for another trusted HTTPS service. Plain HTTP is accepted only for local Ollama or LM Studio endpoints on localhost, 127.0.0.1 or ::1.
-
-## OCR is slow or fails on the first run
-
-Tesseract.js may need to load its language resources. Start with a small, clear and correctly oriented image. The first release defaults to the English pack; multilingual packs remain planned. Always review OCR output before sending it to a provider.
-
-## A PDF produces no text
-
-The document may be image-only. v1.7.0 extracts an existing PDF text layer. Rendered-page OCR is planned. Export the required page as an image and process it with Local OCR as a temporary workflow.
-
-## Spreadsheet processing fails
-
-v1.7.0 uses ExcelJS to convert worksheets into CSV context. Prefer XLSX, stay below the configured file-size limit, and note that protected, macro-heavy and some legacy binary files may not be supported.
-
-## GitHub Updates cannot connect
-
-Verify the configured owner/repository, network, proxy and system clock. A workflow artifact is not a GitHub Release asset; download buttons work only after the Release publishing job succeeds.
-
-## Why are most Computer Use capabilities marked Planned?
-
-This is an intentional safety boundary. v1.7.0 includes permission modes, capability reporting and the Computer Use Guard. Screen, pointer, keyboard, project writes and terminal execution remain disabled until per-action approval, scope limits, stop controls and audit receipts are complete.
+Run a new `Chris Studio macOS Builds and Release` workflow on the new commit with `version=v2.0.0`, `create_release=true`, and `make_latest=true`. Uploading source alone does not create Release assets.

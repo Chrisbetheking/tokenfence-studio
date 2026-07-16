@@ -22,6 +22,10 @@ import { AgentsScreen } from './screens/AgentsScreen';
 import { FilesScreen } from './screens/FilesScreen';
 import { RoutingScreen } from './screens/RoutingScreen';
 import { UpdatesScreen } from './screens/UpdatesScreen';
+import { ProjectsScreen } from './screens/ProjectsScreen';
+import { ComputerScreen } from './screens/ComputerScreen';
+import { SkillsScreen } from './screens/SkillsScreen';
+import { ConnectorsScreen } from './screens/ConnectorsScreen';
 
 const copy = (language: Language, en: string, zh: string) => language === 'zh-CN' ? zh : en;
 
@@ -35,6 +39,10 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { id: 'workspace', icon: 'workspace', en: 'Workspace', zh: '工作台', group: 'work' },
+  { id: 'projects', icon: 'code', en: 'Projects', zh: '项目', group: 'work' },
+  { id: 'computer', icon: 'monitor', en: 'Computer Use', zh: '电脑操作', group: 'work' },
+  { id: 'skills', icon: 'plug', en: 'Skills', zh: 'Skills', group: 'work' },
+  { id: 'connectors', icon: 'globe', en: 'Connectors', zh: '工具连接', group: 'work' },
   { id: 'agents', icon: 'bot', en: 'Agents', zh: 'Agent', group: 'work' },
   { id: 'files', icon: 'folder', en: 'Files', zh: '文件处理', group: 'work' },
   { id: 'routing', icon: 'route', en: 'Model Router', zh: '模型路由', group: 'work' },
@@ -50,7 +58,7 @@ function resolvedTheme(settings: AppSettings): 'light' | 'dark' {
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
-function TokenFenceApp() {
+function ChrisStudioApp() {
   const initialSettings = useMemo(() => loadSettings(), []);
   const [settings, setSettings] = useState<AppSettings>(initialSettings);
   const [active, setActive] = useState<ScreenId>(initialSettings.startScreen);
@@ -143,7 +151,7 @@ function TokenFenceApp() {
       <aside className="app-sidebar">
         <div className="brand-compact">
           <div className="brand-mark"><Icon name="shield" size={20} /></div>
-          <strong>TokenFence</strong>
+          <strong>Chris Studio</strong>
         </div>
 
         <button className="new-session" onClick={startNew}><Icon name="plus" />{copy(language, 'New task', '新建任务')}</button>
@@ -168,13 +176,17 @@ function TokenFenceApp() {
 
         <div className="sidebar-foot">
           <div className="secure-foot"><Icon name="lock" size={14} /><span>{copy(language, 'Local safety layer', '本地安全层')}</span></div>
-          <small>v1.7.1 · macOS</small>
+          <small>v2.0.0 · macOS</small>
         </div>
       </aside>
 
       <div className="app-content">
         <div className="screen-context-mobile">{copy(language, current?.en ?? '', current?.zh ?? '')}</div>
         {active === 'workspace' && <WorkspaceScreen language={language} openConversationId={openConversationId} newSessionNonce={newSessionNonce} onOpenProviders={() => setActive('providers')} onOpenRouting={() => setActive('routing')} onOpenAgents={() => setActive('agents')} />}
+        {active === 'projects' && <ProjectsScreen language={language} />}
+        {active === 'computer' && <ComputerScreen language={language} />}
+        {active === 'skills' && <SkillsScreen language={language} />}
+        {active === 'connectors' && <ConnectorsScreen language={language} />}
         {active === 'agents' && <AgentsScreen language={language} onStart={() => { setActive('workspace'); setNewSessionNonce((value) => value + 1); }} />}
         {active === 'files' && <FilesScreen language={language} onUseInWorkspace={() => setActive('workspace')} />}
         {active === 'routing' && <RoutingScreen language={language} />}
@@ -189,5 +201,5 @@ function TokenFenceApp() {
 }
 
 export function App() {
-  return <ToastProvider><TokenFenceApp /></ToastProvider>;
+  return <ToastProvider><ChrisStudioApp /></ToastProvider>;
 }

@@ -18,6 +18,8 @@ import {
   loadActiveProviderId,
   loadAgents,
   loadConversations,
+  loadCustomSkills,
+  loadKnowledgeIndex,
   loadProviderProfiles,
   loadProviderStatus,
   loadRoutingRules,
@@ -26,8 +28,10 @@ import {
   nowIso,
   saveActiveAgentId,
   saveActiveProviderId,
+  recordTokenUsage,
   saveConversation,
   saveReceipt,
+  tokenUsageSummary,
 } from '../app/store';
 import { providerDefinition } from '../app/providerRegistry';
 import { skillPrompt } from '../app/skills';
@@ -35,6 +39,7 @@ import { formatSafePayload, maxRisk, scanPayload } from '../features/safety/scan
 import { sendProviderChat } from '../features/providers/providerClient';
 import { processFile } from '../features/files/fileProcessor';
 import { routeAttachments } from '../features/files/routing';
+import { formatKnowledgeContext, searchKnowledge } from '../features/files/knowledge';
 import { optimizeText } from '../features/tokens/optimizer';
 import { Icon } from '../components/Icon';
 import { useToast } from '../components/Toast';
@@ -68,8 +73,8 @@ function newConversation(provider: ProviderProfile, mode: WorkspaceMode, agentId
 function localDemoReply(language: Language, findings: number, tokens: number, savedTokens: number): string {
   return copy(
     language,
-    `Local Sandbox completed the protected workflow. TokenFence found ${findings} sensitive item${findings === 1 ? '' : 's'}, prepared an estimated ${tokens}-token request, and saved about ${savedTokens} token${savedTokens === 1 ? '' : 's'} through local compaction. No network request was made.`,
-    `本地沙箱已完成受保护工作流。TokenFence 检测到 ${findings} 处敏感内容，准备了约 ${tokens} Token 的安全请求，并通过本地压缩节约约 ${savedTokens} Token。本次没有发起网络请求。`,
+    `Local Sandbox completed the protected workflow. Chris Studio found ${findings} sensitive item${findings === 1 ? '' : 's'}, prepared an estimated ${tokens}-token request, and saved about ${savedTokens} token${savedTokens === 1 ? '' : 's'} through local compaction. No network request was made.`,
+    `本地沙箱已完成受保护工作流。Chris Studio 检测到 ${findings} 处敏感内容，准备了约 ${tokens} Token 的安全请求，并通过本地压缩节约约 ${savedTokens} Token。本次没有发起网络请求。`,
   );
 }
 
@@ -104,6 +109,7 @@ export function WorkspaceScreen({
   const [sending, setSending] = useState(false);
   const [fileBusy, setFileBusy] = useState(false);
   const [fileProgress, setFileProgress] = useState(0);
+  const [includeVisionImages, setIncludeVisionImages] = useState(false);
   const fileInput = useRef<HTMLInputElement | null>(null);
   const messageEnd = useRef<HTMLDivElement | null>(null);
   const toast = useToast();
@@ -111,6 +117,7 @@ export function WorkspaceScreen({
   const scan = useMemo(() => scanPayload(prompt, attachments, settings.customSensitiveTerms), [prompt, attachments, settings.customSensitiveTerms]);
   const optimization = useMemo(() => optimizeText(prompt, settings.tokenOptimizationMode), [prompt, settings.tokenOptimizationMode]);
   const routingDecision = useMemo(() => routeAttachments(attachments, profiles, loadRoutingRules(), provider.id, language), [attachments, profiles, provider.id, language]);
+  const knowledgeHits = useMemo(() => searchKnowledge(loadKnowledgeIndex(), prompt, 5), [prompt]);
   const effectiveProvider = routingDecision?.profile ?? provider;
   const effectiveModel = routingDecision?.model ?? provider.model;
   const effectiveStatus = loadProviderStatus(effectiveProvider.id);
@@ -118,9 +125,12 @@ export function WorkspaceScreen({
   const isReviewed = reviewedHash === scan.hash;
   const hasInput = Boolean(prompt.trim() || attachments.length);
   const providerDef = providerDefinition(effectiveProvider.providerId);
+  const visionImageCount = attachments.filter((attachment) => attachment.kind === 'image' && attachment.dataUrl).length;
   const providerReady = effectiveProvider.providerId === 'local-demo'
     || (!providerDef.requiresCredential || effectiveProvider.credentialStored) && effectiveStatus.state === 'connected';
   const mustApproveCritical = settings.blockCriticalSends && scan.riskLevel === 'critical';
+  const projectedInputTokens = Math.max(0, scan.estimatedTokens - optimization.savedTokens);
+  const todayUsage = tokenUsageSummary();
 
   useEffect(() => {
     if (!openConversationId) return;
@@ -128,6 +138,7 @@ export function WorkspaceScreen({
     setConversation(found);
     setPrompt('');
     setAttachments([]);
+    setIncludeVisionImages(false);
     setReviewedHash(null);
     setCriticalApproved(false);
     if (found?.mode) setMode(found.mode);
@@ -139,6 +150,7 @@ export function WorkspaceScreen({
     setConversation(null);
     setPrompt('');
     setAttachments([]);
+    setIncludeVisionImages(false);
     setReviewedHash(null);
     setCriticalApproved(false);
   }, [newSessionNonce]);
@@ -235,6 +247,14 @@ export function WorkspaceScreen({
       onOpenProviders();
       return;
     }
+    if (projectedInputTokens > settings.maxRequestTokens) {
+      toast.show(copy(language, `This request is about ${projectedInputTokens} tokens and exceeds the ${settings.maxRequestTokens} per-request limit.`, `本次请求约 ${projectedInputTokens} Token，超过单次 ${settings.maxRequestTokens} Token 的限制。`), 'error');
+      return;
+    }
+    if (todayUsage.totalTokens + projectedInputTokens > settings.dailyTokenBudget) {
+      const approved = window.confirm(copy(language, `This request may exceed today's ${settings.dailyTokenBudget}-token budget. Continue?`, `本次请求可能超过今日 ${settings.dailyTokenBudget} Token 预算，仍然继续吗？`));
+      if (!approved) return;
+    }
 
     setSending(true);
     const safePayload = formatSafePayload(scan);
@@ -261,7 +281,13 @@ export function WorkspaceScreen({
     if (mode === 'agent' && activeAgent) {
       requestMessages.unshift({
         role: 'system',
-        content: `You are ${activeAgent.name}.\n${activeAgent.description}\nPermission mode: ${activeAgent.permissionMode}.\n${skillPrompt(activeAgent.skillIds)}\nBefore any external or destructive action, ask for explicit approval.`,
+        content: `You are ${activeAgent.name}.\n${activeAgent.description}\nPermission mode: ${activeAgent.permissionMode}.\n${skillPrompt(activeAgent.skillIds, loadCustomSkills())}\nBefore any external or destructive action, ask for explicit approval.`,
+      });
+    }
+    if (knowledgeHits.length) {
+      requestMessages.unshift({
+        role: 'system',
+        content: `Relevant local knowledge retrieved by Chris Studio. Cite source labels when used and ignore unrelated chunks.\n\n${formatKnowledgeContext(knowledgeHits)}`,
       });
     }
 
@@ -273,7 +299,7 @@ export function WorkspaceScreen({
       assistantContent = localDemoReply(language, scan.findings.length, scan.estimatedTokens, optimization.savedTokens);
       receiptResult = 'demo';
     } else {
-      const result = await sendProviderChat(effectiveProvider, requestMessages, settings.requestTimeoutMs, effectiveModel);
+      const result = await sendProviderChat(effectiveProvider, requestMessages, settings.requestTimeoutMs, effectiveModel, attachments, includeVisionImages);
       if (result.ok && result.content) assistantContent = result.content;
       else {
         failed = true;
@@ -295,8 +321,13 @@ export function WorkspaceScreen({
       attachmentNames: attachments.map((file) => file.name), requestCharacters: safePayload.length,
       estimatedTokens: scan.estimatedTokens, optimizedTokens: Math.max(0, scan.estimatedTokens - optimization.savedTokens), result: receiptResult,
     });
+    recordTokenUsage({
+      id: makeId('usage'), createdAt: nowIso(), provider: effectiveProvider.displayName, model: effectiveModel,
+      inputTokens: projectedInputTokens, outputTokens: Math.ceil(assistantContent.length / 4), savedTokens: optimization.savedTokens,
+    });
     setPrompt('');
     setAttachments([]);
+    setIncludeVisionImages(false);
     setReviewedHash(null);
     setCriticalApproved(false);
     setSending(false);
@@ -329,7 +360,7 @@ export function WorkspaceScreen({
               <h1>{mode === 'agent' ? copy(language, 'Build with a protected agent.', '让受保护的 Agent 开始工作。') : copy(language, 'One workspace. Every model. Less data and fewer tokens.', '一个工作台，连接所有模型，减少泄露与 Token 浪费。')}</h1>
               <p>{mode === 'agent'
                 ? copy(language, 'Skills, file processors, model routing and approval gates are assembled before the request leaves your Mac.', 'Skills、文件处理、模型路由与操作确认会在请求离开 Mac 前完成。')
-                : copy(language, 'TokenFence scans, compacts and routes each task before it reaches a cloud or local model.', 'TokenFence 会在任务到达云端或本地模型之前完成扫描、压缩与路由。')}</p>
+                : copy(language, 'Chris Studio scans, compacts and routes each task before it reaches a cloud or local model.', 'Chris Studio 会在任务到达云端或本地模型之前完成扫描、压缩与路由。')}</p>
               <div className="starter-grid">
                 <button onClick={() => { setMode('agent'); selectAgent('tokenfence-coder'); setPrompt(copy(language, 'Review this repository, propose a minimal implementation plan, and list the tests required before changing code.', '审查这个仓库，给出最小修改方案，并在改代码前列出必须执行的测试。')); }}><Icon name="code" /><strong>{copy(language, 'Code agent', '代码 Agent')}</strong><span>{copy(language, 'Plan → edit → verify', '规划 → 修改 → 验证')}</span></button>
                 <button onClick={() => fileInput.current?.click()}><Icon name="fileText" /><strong>{copy(language, 'Process a file', '处理文件')}</strong><span>PDF · DOCX · XLSX · OCR</span></button>
@@ -359,8 +390,9 @@ export function WorkspaceScreen({
             <div className="composer-modern-footer">
               <input ref={fileInput} type="file" multiple hidden accept=".txt,.md,.json,.csv,.log,.xml,.yaml,.yml,.js,.jsx,.ts,.tsx,.py,.rs,.go,.java,.html,.css,.pdf,.docx,.xlsx,.xls,.png,.jpg,.jpeg,.webp" onChange={(event) => { void addFiles(event.target.files); event.currentTarget.value = ''; }} />
               <button className="icon-button" onClick={() => fileInput.current?.click()} disabled={fileBusy}><Icon name="paperclip" /></button>
-              <div className="composer-metrics"><span><Icon name="sparkles" size={14} />{optimization.originalTokens} → {optimization.optimizedTokens}</span><span className={`risk-text risk-${scan.riskLevel}`}>{riskLabel(language, scan.riskLevel)}</span><span>{attachments.length} {copy(language, 'files', '文件')}</span></div>
+              <div className="composer-metrics"><span><Icon name="sparkles" size={14} />{optimization.originalTokens} → {optimization.optimizedTokens}</span><span className={`risk-text risk-${scan.riskLevel}`}>{riskLabel(language, scan.riskLevel)}</span><span>{attachments.length} {copy(language, 'files', '文件')}</span>{knowledgeHits.length > 0 && <span>{knowledgeHits.length} RAG</span>}</div>
               {optimization.savedTokens > 0 && <button className="compact-action" onClick={applyOptimization}><Icon name="wand" />-{optimization.savedTokens} tokens</button>}
+              {visionImageCount > 0 && providerDef.capabilities.vision && <button className={`compact-action ${includeVisionImages ? 'active' : ''}`} onClick={() => setIncludeVisionImages((value) => !value)}><Icon name="image" />{includeVisionImages ? copy(language, 'Vision on', '视觉已启用') : copy(language, 'Use vision', '启用视觉')}</button>}
               {!isReviewed ? <button className="button primary" onClick={review} disabled={!hasInput || fileBusy}><Icon name="shield" />{copy(language, 'Review', '发送前审查')}</button> : <button className="button primary" onClick={send} disabled={sending || !providerReady || (mustApproveCritical && !criticalApproved)}><Icon name={mode === 'agent' ? 'bot' : 'send'} />{sending ? copy(language, 'Running…', '执行中…') : mode === 'agent' ? copy(language, 'Run agent', '运行 Agent') : copy(language, 'Send safe version', '发送安全版本')}</button>}
             </div>
           </div>

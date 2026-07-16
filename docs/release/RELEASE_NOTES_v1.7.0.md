@@ -1,6 +1,6 @@
-# TokenFence Studio v1.7.0
+# Chris Studio v1.7.0
 
-v1.7.0 changes TokenFence from a DeepSeek-focused safety demo into the foundation of a multi-provider Safe AI Workspace.
+v1.7.0 changes Chris Studio from a DeepSeek-focused safety demo into the foundation of a multi-provider Safe AI Workspace.
 
 ## Highlights
 

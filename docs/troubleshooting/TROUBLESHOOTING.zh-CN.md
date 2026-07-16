@@ -1,531 +1,226 @@
-# TokenFence Studio 中文故障排查
+# Chris Studio v2.0.0 故障排查
 
-[English](TROUBLESHOOTING.md) | [返回中文 README](../../README.zh-CN.md)
+## 1. macOS 提示“已损坏”或无法验证开发者
 
-本文档适用于 TokenFence Studio v1.7.0，覆盖桌面端安装、macOS 构建、Provider 配置、系统凭证库和开发环境常见问题。
+这通常是 Gatekeeper 拦截未公证社区包，不一定是 DMG 数据损坏。
 
-## 排查前先记录环境
+正式解决：配置 Apple Developer ID 签名与公证，见 [签名与公证说明](../macos/SIGNING_NOTARIZATION.zh-CN.md)。
 
-在修改代码前执行：
-
-```bash
-node -v
-npm -v
-rustc --version
-cargo --version
-```
-
-macOS 还需要执行：
+社区包临时安装：
 
 ```bash
-sw_vers
-uname -m
-xcode-select -p
+sudo xattr -rd com.apple.quarantine "/Applications/Chris Studio.app"
+open "/Applications/Chris Studio.app"
 ```
 
-不要把真实 API Key、密码、私人提示词或客户资料发到日志、截图、GitHub Issue 或聊天中。
+或下载 Release 中与架构匹配的 `Install-Chris-Studio-*.command`，右键选择“打开”。不要关闭全局 Gatekeeper。
 
-## 1. Mac 应该下载哪个版本？
+## 2. 应该下载 Apple Silicon 还是 Intel
 
-在终端执行：
+终端执行：
 
 ```bash
 uname -m
 ```
 
-- 输出 `arm64`：下载 `TokenFence-Studio-macOS-Apple-Silicon`。
-- 输出 `x86_64`：下载 `TokenFence-Studio-macOS-Intel`。
-- Universal 包可同时支持两种架构，但只有可选任务成功时才会提供。
+- `arm64`：Apple Silicon；
+- `x86_64`：Intel。
 
-### 出现 “Bad CPU type in executable” 或应用立即退出
+## 3. App 打开后白屏
 
-安装包架构选错了。删除当前应用，重新下载与芯片匹配的版本。
-
-## 2. macOS 提示无法验证开发者
-
-当前社区构建没有配置 Apple Developer 签名和公证。
-
-第一次启动按以下方式操作：
-
-1. 把应用移动到 `/Applications`。
-2. 打开 Finder → 应用程序。
-3. 按住 Control 点击 **TokenFence Studio**。
-4. 选择 **打开**。
-5. 再次确认 **打开**。
-
-不要全局关闭 Gatekeeper。
-
-### 提示“应用已损坏，无法打开”
-
-先完成以下检查：
-
-- 从官方仓库的 Workflow 或 Release 重新下载。
-- 使用包内 SHA-256 文件校验下载结果。
-- 确认 ZIP 或 DMG 已完整下载并正确解压。
-
-只有在来源和校验值都确认可信之后，开发测试人员才可以仅移除该应用的隔离属性：
+先退出应用，再在终端启动以查看日志：
 
 ```bash
-xattr -dr com.apple.quarantine "/Applications/TokenFence Studio.app"
+open -a "Chris Studio"
 ```
 
-不要对来源不可信的应用执行该命令。
-
-## 3. 打开后白屏或空白窗口
-
-按顺序尝试：
-
-1. 完全退出应用后重新打开。
-2. 确认应用已经复制到 `/Applications`，不是直接从只读 DMG 窗口运行。
-3. 安装当前系统可用的 macOS 更新。
-4. 页面能进入时，在 Settings 中重置本地数据。
-5. 从终端启动应用，查看不含隐私的错误：
+开发环境执行：
 
 ```bash
-"/Applications/TokenFence Studio.app/Contents/MacOS/tokenfence-studio"
+npm ci --prefix apps/desktop/ui --legacy-peer-deps --no-audit --no-fund
+npm --prefix apps/desktop/ui run build
+cd apps/desktop && tauri dev
 ```
 
-分享日志前必须删除凭证和私人提示词内容。
+确认 `apps/desktop/ui/dist/index.html` 已生成，且 Tauri 配置中的 `distDir` 指向正确目录。
 
-开发环境先单独验证桌面 UI：
+## 4. Provider 保存后仍显示 Local Sandbox
+
+1. 在 Providers 页面点击“安全保存”；
+2. 点击“测试连接”；
+3. 点击“设为当前”；
+4. 返回工作台检查顶部 Provider。
+
+v2.0.0 会优先使用当前已连接 Profile，不会静默回退。如果 Keychain 保存被拒绝，请在“钥匙串访问”中搜索 `com.tokenfence.studio.provider`，删除旧条目后重新保存。
+
+## 5. Provider 返回 401 / 403 / 404 / 429
+
+- 401：Key 无效、过期或未从系统凭证库读取；
+- 403：账号、地区、权限或接口策略限制；
+- 404：Base URL、模型名或 API 风格不匹配；
+- 429：速率或余额限制。
+
+先使用 Provider 页面“测试连接”，并核对官方接口地址和模型名称。自定义接口必须是 HTTPS 或本机 localhost 地址。
+
+## 6. 图片没有发送给视觉模型
+
+默认行为是本地 OCR，只把文字发给模型。需要原图视觉能力时：
+
+1. 选择支持 Vision 的 Provider Profile；
+2. 在发送前开启真实图片附件；
+3. 确认安全审查和最终目标。
+
+不开启时，原始图片不会离开设备。
+
+## 7. OCR 首次运行慢或失败
+
+Tesseract.js 首次使用某种语言时可能需要准备语言资源。建议先用清晰、正向、小尺寸图片验证。
+
+可选语言：
+
+```text
+eng
+chi_sim
+eng+chi_sim
+```
+
+OCR 结果必须人工复核。极大图片、手写体、低对比度或复杂表格可能识别不准。
+
+## 8. 扫描 PDF 没有文字
+
+v2.0.0 会对无文本层页面进行 OCR，但默认限制 OCR 页数，避免一次任务占用过多内存。请：
+
+- 在文件处理设置中提高最大 OCR 页数；
+- 先拆分超大 PDF；
+- 选择正确 OCR 语言；
+- 检查页面是否加密或损坏。
+
+## 9. 本地知识库搜不到内容
+
+知识库是本地词法/多语言词元检索，不是远程向量数据库。请确保：
+
+- 文件已经成功处理并加入索引；
+- 查询包含文档中的实体或关键词；
+- 中文查询尽量包含完整短语；
+- 没有清除本地知识库。
+
+## 10. Coding Agent 没生成 Diff
+
+AI Patch Assistant 只使用：仓库树、Git 状态、当前 Diff、任务和当前选中文件。复杂任务可能缺少上下文。
+
+处理：
+
+1. 选择最相关文件；
+2. 把任务缩小为一个可审查修改；
+3. 检查当前 Provider 已连接；
+4. 查看 Agent 返回的 Plan；
+5. 不要要求它凭空修改未提供内容的文件。
+
+模型输出必须包含从 `diff --git` 开始的统一 Diff，否则不会进入应用按钮。
+
+## 11. Patch 无法应用
+
+Chris Studio 会先运行 `git apply --check`。失败通常表示：
+
+- Diff 基于旧文件版本；
+- 路径不在当前受限目录；
+- 已有本地修改与补丁冲突；
+- Diff 格式不完整。
+
+先运行 Git diff，重新生成补丁，或手动编辑并保存。不要绕过检查。
+
+## 12. npm / cargo 检查按钮失败
+
+命令只能从固定白名单中运行，并且工作目录固定为已批准项目目录。请确认项目确实存在对应文件：
+
+- npm：`package.json`；
+- Cargo：`Cargo.toml`；
+- Git：`.git`。
+
+Chris Studio 不提供任意 Shell 输入框。
+
+## 13. GitHub 连接或 PR 创建失败
+
+- PAT 需要访问目标仓库的最小必要权限；
+- 私有仓库必须允许读取和写入；
+- 当前分支必须已经推送到 origin；
+- `head` 和 `base` 分支必须存在；
+- 仓库 URL 使用 `https://github.com/owner/repo`。
+
+PAT 保存在系统凭证库。删除连接后需要重新输入。
+
+## 14. Computer Use 截图、点击或输入失败
+
+进入：
+
+```text
+系统设置 → 隐私与安全性 → 屏幕录制
+系统设置 → 隐私与安全性 → 辅助功能
+```
+
+为 Chris Studio 开启权限，然后完全退出并重开应用。
+
+坐标点击使用当前屏幕坐标；多显示器和缩放可能造成偏差。先截图确认，再执行一次动作。所有动作都需要确认，并记录到本地审计日志。
+
+## 15. MCP 连接失败
+
+- 远程 URL 必须使用 HTTPS；
+- 本机开发服务器可使用 `http://localhost` 或 `http://127.0.0.1`；
+- 当前 Beta 面向一次请求/JSON 响应；
+- 依赖长期 SSE、复杂 OAuth 或专有传输的服务器可能不兼容；
+- `tools/call` 需要在界面中逐次确认。
+
+## 16. GitHub Actions 在 npm ci 失败
+
+确认 `apps/desktop/ui/package.json` 与 `package-lock.json` 同步：
 
 ```bash
-npm --workspace apps/desktop run ui:build
+cd apps/desktop/ui
+npm install --package-lock-only --legacy-peer-deps --no-audit --no-fund
+npm ci --legacy-peer-deps --no-audit --no-fund
 ```
 
-再运行：
+锁文件不得包含私有 Registry、内部网关或区域镜像地址。
 
-```bash
-npm run desktop:dev
-```
-
-## 4. `npm ci` 失败
-
-### 出现 `npm ERR! ERESOLVE`
-
-使用项目当前兼容参数：
-
-```bash
-npm ci --legacy-peer-deps
-```
-
-### package-lock 与 package.json 不一致
-
-通常是修改了依赖但没有同步更新锁文件。
-
-在干净分支中执行：
-
-```bash
-rm -rf node_modules
-npm install --legacy-peer-deps
-```
-
-提交前仔细检查 `package-lock.json` 的差异，不要在无关修改中随意重建锁文件。
-
-### Node.js 版本不支持
-
-仓库要求 Node.js 18–22：
-
-```bash
-node -v
-```
-
-使用 `nvm` 时：
-
-```bash
-nvm install 22
-nvm use 22
-```
-
-## 5. 提示 `tauri: command not found` 或桌面脚本无法运行
-
-在仓库根目录安装完整 workspace 依赖：
-
-```bash
-npm ci --legacy-peer-deps
-```
-
-不要依赖全局安装的 Tauri CLI，使用项目脚本：
-
-```bash
-npm run desktop:dev
-```
-
-或者：
-
-```bash
-npm run desktop:build
-```
-
-## 6. 缺少 Rust 或 Cargo
-
-使用 Rust 官方 rustup 安装器安装，重新打开终端后检查：
-
-```bash
-rustc --version
-cargo --version
-```
-
-添加特定 macOS 架构目标：
-
-```bash
-rustup target add aarch64-apple-darwin
-rustup target add x86_64-apple-darwin
-```
-
-
-## 7. 缺少 Xcode Command Line Tools
+## 17. TypeScript 构建失败
 
 执行：
 
 ```bash
-xcode-select --install
+npm --prefix apps/desktop/ui run typecheck
+npm --prefix apps/desktop/ui run build
 ```
 
-确认路径：
+`tsconfig.json` 应从 `src/main.tsx` 和 `src/vite-env.d.ts` 开始检查正式依赖图。
 
-```bash
-xcode-select -p
-```
+## 18. Rust / Tauri 构建失败
 
-完整 Xcode 更新后路径失效，并且 Xcode 确实安装在默认位置时，可执行：
-
-```bash
-sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
-```
-
-## 8. Mac 本地构建失败
-
-在仓库根目录运行：
-
-```bash
-bash scripts/build-macos.sh
-```
-
-结果目录：
-
-```text
-apps/desktop/src-tauri/target/<target>/release/bundle/
-```
-
-重新构建前，先分别验证桌面 UI：
-
-```bash
-npm --workspace apps/desktop run typecheck
-npm --workspace apps/desktop run test:core
-npm --workspace apps/desktop run ui:build
-```
-
-检查 Rust 后端：
+执行：
 
 ```bash
 cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
 ```
 
-## 9. GitHub Actions 中找不到 Mac 构建任务
-
-确认所选分支存在：
-
-```text
-.github/workflows/tokenfence-macos.yml
-```
-
-然后进入：
-
-```text
-GitHub → Actions → TokenFence macOS Builds and Release → Run workflow
-```
-
-如果仓库禁用了 Actions，需要先在仓库 Settings 中启用。
-
-## 10. GitHub Actions 在 Mac 构建前就失败
-
-工作流会先运行 `Verify desktop UI`，这是有意设计的。打开失败任务，找到第一个报错命令。
-
-本地复现：
+macOS 还需要：
 
 ```bash
-npm ci --legacy-peer-deps
-npm --workspace apps/desktop run typecheck
-npm --workspace apps/desktop run test:core
-npm --workspace apps/desktop run ui:build
-python3 scripts/verify_tokenfence_patch.py
+xcode-select --install
 ```
 
-应该修复第一个真实错误，而不是反复点击重新运行。
+GitHub Actions 中先看 `Check native Rust backend`，再看 `Build Tauri application`。
 
-## 11. Apple Silicon 成功，但 Intel 构建失败
+## 19. Release 没更新或下载 404
 
-两个任务使用不同的 Runner 架构和 Rust target。重点检查：
-
-- 某个依赖只支持 arm64；
-- 下载了错误架构的原生二进制；
-- 缺少 `x86_64-apple-darwin`；
-- Runner 镜像或第三方 Action 不兼容。
-
-当前工作流使用 GitHub 的 `macos-15-intel` 标签。如果 GitHub 调整 Runner 可用性，需要对照 GitHub 最新托管 Runner 文档检查标签。
-
-## 12. Universal 失败，但两个单架构版本成功
-
-Universal 是可选任务。它要求两个 Rust macOS target 同时存在，而且所有原生依赖都能合并双架构。
-
-Apple Silicon 和 Intel 单独安装包仍可正常发布，不应仅因为可选 Universal 失败而阻塞版本。
-
-## 13. Artifact 中没有 `.dmg` 或 `.app.zip`
-
-打开工作流中的 `Package artifacts` 步骤。脚本期望 Tauri 在以下目录生成文件：
+仅上传源码不会自动发布安装包。需要新建工作流运行：
 
 ```text
-apps/desktop/src-tauri/target/<target>/release/bundle/macos/
-apps/desktop/src-tauri/target/<target>/release/bundle/dmg/
-```
-
-检查：
-
-- Tauri bundle 是否启用；
-- `bundle.targets` 是否禁用了 `app` 或 `dmg`；
-- Tauri build 是否真正成功；
-- 产品名称是否导致输出目录与脚本预期不同。
-
-## 14. DeepSeek 提示未保存凭证
-
-进入 **Providers**，重新输入 Key 并保存，确认界面显示凭证已存储。
-
-macOS 可以打开“钥匙串访问”，搜索：
-
-```text
-com.tokenfence.studio
-```
-
-测试时不要显示或复制真实值。
-
-如果你只是在浏览器或 Vite 预览中运行，系统钥匙串不可用，必须启动原生 Tauri 应用。
-
-## 15. 重启后 API Key 消失
-
-逐项检查：
-
-1. 应用是否运行在原生桌面环境中。
-2. macOS 是否拒绝了钥匙串访问。
-3. 关闭应用前是否已完成保存。
-4. 钥匙串中是否存在 `com.tokenfence.studio`。
-5. 当前是否换成了另一个 macOS 用户账号。
-
-在 Settings 中清除 Provider 凭证，重新保存后再次测试连接。
-
-## 16. 无法清除 Provider 凭证
-
-使用：
-
-```text
-Settings → Privacy → Clear provider credential
-```
-
-macOS 上仍失败时，打开“钥匙串访问”，搜索 `com.tokenfence.studio`，确认项目确实属于 TokenFence Studio 后手动删除。
-
-不要删除其他无关的钥匙串项目。
-
-## 17. DeepSeek 测试连接失败
-
-根据错误类别排查：
-
-### 凭证无效或 401
-
-- Key 为空、已撤销、复制不完整，或者不是该服务的 Key。
-- 在 Providers 中重新保存正确凭证。
-
-### Forbidden 或 403
-
-- 账号、地区、项目或接口权限可能不允许请求。
-- 检查 Provider 账号和官方服务可用性。
-
-### Rate limited 或 429
-
-- 请求频率或账户额度达到限制。
-- 等待后重试，检查用量，或者使用仍有额度的账号。
-
-### Model not found、400 或 404
-
-- 当前账户或接口不接受所选模型。
-- 改用应用界面列出的受支持模型后重试。
-
-### Timeout 或网络错误
-
-- 检查网络、VPN/代理、防火墙、DNS 和系统时间。
-- 只有明确确认网络较慢时，才在 Settings 中适当增加超时时间。
-
-### `DESKTOP_RUNTIME_REQUIRED`
-
-当前是在浏览器预览中调用。Provider 请求只能在 Tauri 原生桌面应用中运行。
-
-### Demo Mode 正常，但真实 Provider 失败
-
-Demo Mode 不发送网络请求，只能证明本地 UI 和安全流程能够运行，不能证明真实 DeepSeek 已连接。
-
-## 18. 已经批准过，提示词为什么又被阻止？
-
-以下变化会主动使旧批准失效：
-
-- 修改提示词；
-- 增加、删除或替换附件；
-- 修改相关安全设置。
-
-重新扫描并审查新的脱敏内容即可。
-
-## 19. 附件被忽略或无法扫描
-
-当前安全流程主要面向支持的文本内容。二进制文件、图片、加密压缩包和不支持的格式可能无法检查。
-
-- 把相关内容转换成支持的文本格式。
-- 上传前手动删除秘密信息。
-- 不要默认认为“不支持的文件已经扫描过”。
-
-同时检查 Settings 中的最大附件扫描大小。
-
-## 20. 扫描出现误报
-
-不要立即关闭全部安全功能。
-
-- 查看具体风险类型。
-- 替换或改写测试值。
-- 调整用户自定义敏感词。
-- 公开演示时建议保持严重风险阻断。
-- 反馈检测问题时，只提交脱敏、虚构的最小复现案例。
-
-## 21. 本地历史没有保存
-
-检查：
-
-```text
-Settings → Privacy → Local history enabled
-```
-
-只有启用后才会保存脱敏会话。重置应用或清空会话会删除本地历史。
-
-## 22. 语言或主题没有更新
-
-1. 在 Settings 修改选项。
-2. 点击 **Save settings/保存设置**。
-3. 应用运行期间修改系统主题后，可以重启应用。
-4. 设置数据损坏时，先导出不含凭证的配置，再使用 **Reset application/重置应用**。
-
-## 23. 安全重置应用
-
-使用：
-
-```text
-Settings → Advanced → Reset application
-```
-
-这会删除本地设置、凭证、历史和安全回执。需要保留配置时先导出。导出文件不会包含原始 Provider Key。
-
-## 24. 反馈 Bug 时应该提供什么？
-
-可以提供：
-
-- TokenFence Studio 版本；
-- 操作系统版本；
-- CPU 架构；
-- 安装来源：Release 或 Actions Artifact；
-- 完整但不含敏感信息的错误提示；
-- 最小复现步骤；
-- Demo Mode 是否正常；
-- CI 中第一个失败步骤。
-
-绝对不要提供：
-
-- API Key；
-- 密码；
-- 完整私人提示词；
-- 客户文档；
-- 未脱敏的环境变量文件；
-- 能显示凭证值的钥匙串截图。
-
----
-
-## 20. 构建成功，但 GitHub Releases 没有更新
-
-通常是因为工作流只上传了 Actions Artifact，或者运行时关闭了 `create_release`。
-
-请进入：
-
-```text
-GitHub → Actions → TokenFence macOS Builds and Release → Run workflow
-```
-
-设置：
-
-```text
-version: v1.7.0
+version: v2.0.0
 create_release: true
 make_latest: true
 ```
 
-然后确认 **Create or update GitHub Release** 任务成功。只提交源码、只生成 Actions Artifact，都不会自动更新 Releases 页面。
+不要在旧失败记录上 Re-run，因为旧任务仍绑定旧提交。Release 成功后 README 的 `releases/latest/download/...` 链接才会生效。
 
-## 21. README 里的直接下载链接返回 404
+## 20. 重置本地数据
 
-`releases/latest/download/...` 链接只有在以下条件全部满足后才会生效：
-
-1. v1.7.0 Release 已创建；
-2. v1.7.0 被标记为 Latest；
-3. 对应文件名已经附加到 Release Assets。
-
-请打开 Release 的 Assets 列表，逐字核对安装包文件名和 README 链接是否完全一致。
-
----
-
-## 保存 DeepSeek 后工作台仍显示 Local Sandbox
-
-v1.7.0 已修复旧版本的自动回退问题。请按以下顺序检查：
-
-1. 打开“模型服务”；
-2. 选择 DeepSeek Profile；
-3. 点击“安全保存”；
-4. 点击“测试连接”；
-5. 点击“设为当前模型”；
-6. 回到工作台，确认顶部 Provider 选择器显示 DeepSeek，而不是 Local Sandbox。
-
-如果升级后仍异常，可在“设置”中导出非敏感配置后执行应用重置，再重新保存 Provider。不要把真实 API Key 放进导出的 JSON。
-
-## Provider 测试出现 UNTRUSTED_ENDPOINT
-
-内置 Provider 会校验接口域名，防止把密钥误发给不匹配的网站：
-
-- 使用服务商官方地址时，选择对应 Provider；
-- 使用第三方 OpenAI-compatible 服务时，选择“自定义兼容 API”；
-- 远程地址必须使用 HTTPS；
-- Ollama 与 LM Studio 的 HTTP 地址只能是 localhost、127.0.0.1 或 ::1。
-
-## OCR 第一次运行很慢或失败
-
-Tesseract.js 第一次识别可能需要加载语言资源：
-
-1. 确认网络可访问语言包资源；
-2. 先用较小、清晰、方向正确的图片测试；
-3. 当前默认是英文语言包，中文识别包仍在路线图中；
-4. OCR 结果必须在界面中检查后再发送给模型。
-
-## PDF 能打开但没有提取文字
-
-该 PDF 可能只包含扫描图片，没有嵌入文本。v1.7.0 的 PDF.js 模块只提取已有文本层；整页渲染 OCR 会在后续版本加入。现在可以先将目标页面导出为图片，再使用 Local OCR。
-
-## Excel 文件处理失败
-
-v1.7.0 使用 ExcelJS 读取 XLSX/XLS 并生成 CSV 上下文。建议：
-
-- 先测试 `.xlsx`；
-- 避免超出设置中的最大文件大小；
-- 复杂宏、受密码保护文件和某些旧式二进制格式不保证支持；
-- 处理前保留原始文件备份。
-
-## GitHub 更新页显示无法连接
-
-- 确认设置中的 Owner 是 `Chrisbetheking`，Repo 是 `tokenfence-studio`；
-- 检查网络、代理和系统时间；
-- GitHub 未创建新 Release 时，“当前已是最新版”不代表 Actions Artifact 已发布；
-- Release 下载文件必须出现在 Releases 页，而不只是 Actions 页底部。
-
-## Computer Use 为什么大部分能力显示 Planned
-
-这是有意的安全限制，不是构建失败。v1.7.0 只提供权限模式、能力报告和 Computer Use Guard。屏幕、鼠标、键盘、文件写入和终端执行会在拥有逐操作确认、范围限制、停止按钮和审计回执后再开放。
+优先使用设置页的清理按钮。需要完全重置时，退出应用并清理 Chris Studio 的 WebView 数据、Keychain 中的 Chris Studio 凭证以及项目目录内 `.tokenfence` 备份。操作前先导出非敏感设置和需要保留的历史记录。

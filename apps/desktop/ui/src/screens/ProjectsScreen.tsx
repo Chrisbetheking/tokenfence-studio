@@ -1,409 +1,328 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { tk, onLangChange } from "@tokenfence/shared/src/i18n";
-import { storeGet, storeSet } from "@tokenfence/shared/src/agent-runtime/safeStorage";
-import { estimateTokens } from "@tokenfence/shared/src/providers";
-import { ProjectFileTree } from "../components/ProjectFileTree";
-import { ContextPackPanel } from "../components/ContextPackPanel";
-import { buildMockFileTree, flattenFileTree } from "../data/project-file-tree";
-import { addFilesToContextPack, type ContextPackFile } from "../data/context-pack";
-import { scanProjectDirectory, getScanBridgeStatus } from "../desktop-bridge";
+import { useEffect, useMemo, useState } from 'react';
+import type {
+  GitHubConnectionInfo,
+  GitHubIssueSummary,
+  GitHubRepositoryOverview,
+  ChatMessage,
+  Language,
+  ProjectCommandResult,
+  ProjectFileNode,
+  ProjectWorkspace,
+} from '../app/types';
+import { loadActiveProvider, loadGitHubRepoUrl, loadProjectRoot, loadSettings, recordTokenUsage, saveGitHubRepoUrl, saveProjectRoot } from '../app/store';
+import {
+  applyReviewedPatch,
+  chooseProjectFolder,
+  clonePublicRepository,
+  commitProjectChanges,
+  createGitBranch,
+  projectGitDiff,
+  projectGitStatus,
+  pushGitBranch,
+  readProjectFile,
+  reopenProjectFolder,
+  runProjectPreset,
+  scanProject,
+  writeProjectFile,
+} from '../features/projects/projectClient';
+import {
+  createGitHubPullRequest,
+  deleteGitHubToken,
+  getGitHubRepository,
+  listGitHubIssues,
+  saveGitHubToken,
+  testGitHubConnection,
+} from '../features/github/githubClient';
+import { Icon } from '../components/Icon';
+import { sendProviderChat } from '../features/providers/providerClient';
+import { scanText } from '../features/safety/scanner';
+import { estimateTokens } from '../features/tokens/optimizer';
+import { useToast } from '../components/Toast';
 
-interface ProjectFile {
-  path: string; name: string; extension: string;
-  size: number; modified: string; kind: string;
-  selected: boolean;
+const copy = (language: Language, en: string, zh: string) => language === 'zh-CN' ? zh : en;
+
+function flatten(nodes: ProjectFileNode[]): ProjectFileNode[] {
+  return nodes.flatMap((node) => [node, ...(node.children ? flatten(node.children) : [])]);
 }
 
-interface Project {
-  id: string; name: string; folderPath: string;
-  createdAt: number; lastOpened: number;
-  files: ProjectFile[];
+function repoParts(url: string): { owner: string; repo: string } | null {
+  const match = url.trim().match(/^https:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/);
+  return match ? { owner: match[1], repo: match[2] } : null;
 }
 
-const STORAGE_KEY = "tokenfence-projects";
-const ACTIVE_KEY = "tokenfence-active-project";
+export function ProjectsScreen({ language }: { language: Language }) {
+  const [workspace, setWorkspace] = useState<ProjectWorkspace | null>(null);
+  const [tree, setTree] = useState<ProjectFileNode[]>([]);
+  const [selectedPath, setSelectedPath] = useState('');
+  const [content, setContent] = useState('');
+  const [original, setOriginal] = useState('');
+  const [command, setCommand] = useState<ProjectCommandResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [repoUrl, setRepoUrl] = useState(() => loadGitHubRepoUrl());
+  const [token, setToken] = useState('');
+  const [github, setGithub] = useState<GitHubConnectionInfo | null>(null);
+  const [overview, setOverview] = useState<GitHubRepositoryOverview | null>(null);
+  const [issues, setIssues] = useState<GitHubIssueSummary[]>([]);
+  const [patch, setPatch] = useState('');
+  const [branch, setBranch] = useState('chris-studio/agent-change');
+  const [commitMessage, setCommitMessage] = useState('feat: apply reviewed Chris Studio change');
+  const [prTitle, setPrTitle] = useState('Chris Studio reviewed change');
+  const [prBody, setPrBody] = useState('Created from the Chris Studio scoped coding workspace after local review and checks.');
+  const [baseBranch, setBaseBranch] = useState('main');
+  const [agentTask, setAgentTask] = useState('');
+  const [agentPlan, setAgentPlan] = useState('');
+  const [agentBusy, setAgentBusy] = useState(false);
+  const toast = useToast();
+  const flat = useMemo(() => flatten(tree), [tree]);
+  const dirty = content !== original;
 
-function uid(): string { return Date.now().toString(36) + Math.random().toString(36).slice(2, 9); }
-function loadProjects(): Project[] { try { const r = storeGet(STORAGE_KEY); if (!r) return []; const parsed = JSON.parse(r); return Array.isArray(parsed) ? parsed : []; } catch { return []; } }
-function saveProjects(p: Project[]) { storeSet(STORAGE_KEY, JSON.stringify(p)); }
-function getActiveProjectId(): string | null { try { return storeGet(ACTIVE_KEY) || null; } catch { return null; } }
-function setActiveProjectId(id: string | null) { if (id) storeSet(ACTIVE_KEY, id); else storeSet(ACTIVE_KEY, ""); }
-
-export function ProjectsScreen() {
-  const [, forceRender] = useState(0);
-  useEffect(() => { return onLangChange(() => forceRender((n) => n + 1)); }, []);
-
-
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [newName, setNewName] = useState("");
-  const [newPath, setNewPath] = useState("");
-  const [scanning, setScanning] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [projectLoadError, setProjectLoadError] = useState(false);
-  const [isTauri, setIsTauri] = useState(false);
-  const [cpKey, setCpKey] = useState(0);
-  const [projectFileTree, setProjectFileTree] = useState<ReturnType<typeof buildMockFileTree>>([]);
-  const [isRealTree, setIsRealTree] = useState(false);
-  const [scanningTree, setScanningTree] = useState(false);
-  const [projectScanError, setProjectScanError] = useState<string | null>(null);
-  const [projectScanStatus, setProjectScanStatus] = useState<"idle" | "scanning" | "done" | "failed">("idle");
-  const [scanRawNodeCount, setScanRawNodeCount] = useState<number | null>(null);
-  const [projectScanSource, setProjectScanSource] = useState<string>("not_started");
-  const [manualPath, setManualPath] = useState("");
-  const isZh = tk("common.yes") !== "Yes";
+  const refreshTree = async () => {
+    setTree(await scanProject());
+  };
 
   useEffect(() => {
-    try { setProjects(loadProjects()); } catch { setProjectLoadError(true); }
-  }, []);
-  useEffect(() => {
-    try { setActiveId(getActiveProjectId()); } catch {}
-  }, []);
-  useEffect(() => {
-    setIsTauri(!!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__);
+    const root = loadProjectRoot();
+    if (!root) return;
+    void reopenProjectFolder(root).then((value) => {
+      if (!value) return;
+      setWorkspace(value);
+      void refreshTree();
+    });
   }, []);
 
-  const projectFileCount = useMemo(() => {
-    function countAll(nodes: any[]): number {
-      let n = 0;
-      for (const node of nodes) {
-        if (node.type === "file") n++;
-        if (node.children) n += countAll(node.children);
-      }
-      return n;
-    }
-    return countAll(projectFileTree);
-  }, [projectFileTree]);
+  const openFolder = async () => {
+    const value = await chooseProjectFolder();
+    if (!value) return;
+    setWorkspace(value);
+    saveProjectRoot(value.root);
+    setSelectedPath('');
+    setContent('');
+    setOriginal('');
+    await refreshTree();
+  };
 
-  const projectDirCount = useMemo(() => {
-    function countDirs(nodes: any[]): number {
-      let n = 0;
-      for (const node of nodes) {
-        if (node.type === "directory") n++;
-        if (node.children) n += countDirs(node.children);
-      }
-      return n;
-    }
-    return countDirs(projectFileTree);
-  }, [projectFileTree]);
-
-  const activeProject = projects.find(p => p.id === activeId) ?? null;
-  const selectedFiles = activeProject?.files.filter(f => f.selected) ?? [];
-  const selectedTokens = selectedFiles.reduce((sum, f) => sum + estimateTokens(f.path + f.name), 0);
-
-  // Load real file tree when active project changes (v1.5.3+)
-  useEffect(() => {
-    if (!activeProject) {
-      setProjectFileTree([]);
-      setIsRealTree(false);
-      setScanningTree(false);
-      setProjectScanStatus("idle");
-      setProjectScanError(null);
+  const openFile = async (path: string) => {
+    if (dirty && !window.confirm(copy(language, 'Discard unsaved editor changes?', '放弃尚未保存的编辑内容？'))) return;
+    const result = await readProjectFile(path);
+    if (!result.ok || result.binary) {
+      toast.show(result.errorMessage ?? copy(language, 'This file cannot be edited as text.', '此文件无法作为文本编辑。'), 'warning');
       return;
     }
-    let cancelled = false;
-    async function loadTree() {
-      setScanningTree(true);
-      setProjectScanStatus("scanning");
-      setProjectScanError(null);
-      // Check bridge availability
-      let bridgeStatus: { available: boolean; source: "tauri" | "browser" } = { available: false, source: "browser" };
-      try { bridgeStatus = await getScanBridgeStatus(); } catch {}
-      if (!cancelled) setProjectScanSource(bridgeStatus.source);
-      try {
-        const nodes = await scanProjectDirectory(activeProject!.folderPath);
-        if (!cancelled) {
-          if (nodes && nodes.length > 0) {
-            setProjectFileTree(nodes);
-            setIsRealTree(true);
-            setProjectScanStatus("done");
-            setScanRawNodeCount(nodes.length);
-          } else {
-            setScanRawNodeCount(nodes ? nodes.length : 0);
-            setProjectFileTree([]);
-            setIsRealTree(false);
-            setProjectScanStatus("failed");
-            setProjectScanError(isZh ? "扫描完成，但未找到可显示文件。请确认路径是否为具体项目文件夹。" : "Scan completed, but no displayable files were found. Please make sure the path points to a specific project folder.");
-          }
-        }
-      } catch (e: any) {
-        if (!cancelled) {
-          console.error("File tree scan failed:", e);
-          setProjectFileTree([]);
-          setIsRealTree(false);
-          setProjectScanStatus("failed");
-          setProjectScanError(e?.message ?? String(e));
-        }
-      }
-      if (!cancelled) setScanningTree(false);
+    setSelectedPath(path);
+    setContent(result.content);
+    setOriginal(result.content);
+  };
+
+  const save = async () => {
+    if (!selectedPath || !dirty) return;
+    if (!window.confirm(copy(language, 'Write this reviewed change and create a local backup?', '写入此项已审查修改并创建本地备份？'))) return;
+    const result = await writeProjectFile(selectedPath, content, true);
+    if (!result.ok) return toast.show(result.errorMessage ?? 'Write failed.', 'error');
+    setOriginal(content);
+    toast.show(copy(language, `Saved with backup: ${result.backupPath ?? 'created'}`, `已保存并创建备份：${result.backupPath ?? '完成'}`), 'success');
+    await refreshTree();
+  };
+
+  const run = async (preset: string) => {
+    const destructive = preset === 'git-clean-check';
+    if (destructive && !window.confirm(copy(language, 'Run this approved diagnostic preset?', '运行此项已批准诊断预设？'))) return;
+    setBusy(true);
+    const result = preset === 'git-status' ? await projectGitStatus() : preset === 'git-diff' ? await projectGitDiff() : await runProjectPreset(preset, true);
+    setCommand(result);
+    setBusy(false);
+  };
+
+  const connectGitHub = async () => {
+    if (token.trim()) {
+      const saved = await saveGitHubToken(token.trim());
+      if (!saved.ok) return toast.show(saved.message ?? 'GitHub token could not be stored.', 'error');
+      setToken('');
     }
-    loadTree();
-    return () => { cancelled = true; };
-  }, [activeProject]);
-
-  const addProject = useCallback(() => {
-    if (!newName.trim() || !newPath.trim()) return;
-    const p: Project = { id: uid(), name: newName.trim(), folderPath: newPath.trim(), createdAt: Date.now(), lastOpened: Date.now(), files: [] };
-    const updated = [...projects, p];
-    setProjects(updated); saveProjects(updated);
-    setNewName(""); setNewPath(""); setError(null);
-  }, [newName, newPath, projects]);
-
-  const removeProject = useCallback((id: string) => {
-    const updated = projects.filter(p => p.id !== id);
-    setProjects(updated); saveProjects(updated);
-    if (activeId === id) { setActiveId(null); setActiveProjectId(null); }
-  }, [activeId, projects]);
-
-  const loadProjectAndScan = useCallback(async (folderPath: string) => {
-    const normalizedPath = folderPath.trim();
-    if (!normalizedPath) return;
-    console.log("[ProjectScan] loadProjectAndScan path", normalizedPath);
-
-    const existing = projects.find(p => p.folderPath.toLowerCase() === normalizedPath.toLowerCase());
-    const pid = existing ? existing.id : uid();
-    if (!existing) {
-      const name = normalizedPath.split("\\").pop() || normalizedPath.split("/").pop() || normalizedPath;
-      const newProj: Project = { id: pid, name, folderPath: normalizedPath, createdAt: Date.now(), lastOpened: Date.now(), files: [] };
-      const updated = [newProj, ...projects];
-      setProjects(updated); saveProjects(updated);
+    const status = await testGitHubConnection();
+    setGithub(status);
+    if (!status.ok) return toast.show(status.errorMessage ?? 'GitHub connection failed.', 'error');
+    saveGitHubRepoUrl(repoUrl);
+    const parts = repoParts(repoUrl);
+    if (parts) {
+      const [repo, repoIssues] = await Promise.all([getGitHubRepository(parts.owner, parts.repo), listGitHubIssues(parts.owner, parts.repo)]);
+      setOverview(repo);
+      setIssues(repoIssues);
     }
-    setActiveId(pid); setActiveProjectId(pid);
-    setProjectScanStatus("scanning");
-    setProjectScanError(null);
-    setProjectFileTree([]);
-    setScanRawNodeCount(0);
-    setProjectScanSource("checking");
+    toast.show(copy(language, `Connected as ${status.login}.`, `已连接 GitHub：${status.login}。`), 'success');
+  };
 
-    let bridgeStatus = { available: false, source: "browser" as const };
-    try { bridgeStatus = await getScanBridgeStatus(); } catch (_) {}
-    setProjectScanSource(bridgeStatus.source);
-    console.log("[ProjectScan] bridge source", bridgeStatus.source);
+  const cloneRepo = async () => {
+    const value = await clonePublicRepository(repoUrl);
+    if (!value) return;
+    setWorkspace(value);
+    saveProjectRoot(value.root);
+    await refreshTree();
+  };
 
+  const applyPatch = async () => {
+    if (!patch.trim() || !window.confirm(copy(language, 'Apply this reviewed unified diff to the approved project folder?', '把这份已审查的统一 Diff 应用到当前批准的项目目录？'))) return;
+    setBusy(true);
+    const result = await applyReviewedPatch(patch, true);
+    setCommand(result);
+    setBusy(false);
+    if (result.ok) {
+      setPatch('');
+      await refreshTree();
+      toast.show(copy(language, 'Patch applied. Review Git diff before committing.', '补丁已应用，请在提交前检查 Git Diff。'), 'success');
+    } else toast.show(result.errorMessage ?? result.stderr ?? 'Patch failed.', 'error');
+  };
+
+  const createBranch = async () => {
+    if (!window.confirm(copy(language, `Create branch ${branch}?`, `创建分支 ${branch}？`))) return;
+    const result = await createGitBranch(branch, true);
+    setCommand(result);
+    toast.show(result.ok ? copy(language, 'Branch created.', '分支已创建。') : (result.errorMessage ?? result.stderr), result.ok ? 'success' : 'error');
+  };
+
+  const commitChanges = async () => {
+    if (!window.confirm(copy(language, 'Stage all reviewed project changes and create this commit?', '暂存全部已审查修改并创建该提交？'))) return;
+    const result = await commitProjectChanges(commitMessage, true);
+    setCommand(result);
+    toast.show(result.ok ? copy(language, 'Commit created.', '提交已创建。') : (result.errorMessage ?? result.stderr), result.ok ? 'success' : 'error');
+  };
+
+  const pushBranch = async () => {
+    if (!window.confirm(copy(language, `Push ${branch} to origin using the Mac Git credential configuration?`, `使用 Mac 的 Git 凭证配置把 ${branch} 推送到 origin？`))) return;
+    const result = await pushGitBranch(branch, true);
+    setCommand(result);
+    toast.show(result.ok ? copy(language, 'Branch pushed.', '分支已推送。') : (result.errorMessage ?? result.stderr), result.ok ? 'success' : 'error');
+  };
+
+  const generateAgentPatch = async () => {
+    if (!workspace || !agentTask.trim()) return;
+    const profile = loadActiveProvider();
+    if (profile.providerId === 'local-demo') {
+      toast.show(copy(language, 'Choose a connected model before running the coding agent.', '请先选择并连接真实模型，再运行 Coding Agent。'), 'warning');
+      return;
+    }
+    setAgentBusy(true);
     try {
-      const nodes = await scanProjectDirectory(normalizedPath);
-      console.log("[ProjectScan] raw nodes returned", Array.isArray(nodes) ? nodes.length : typeof nodes);
-      const safeTree = Array.isArray(nodes) ? nodes : [];
-      const flat = flattenFileTree(safeTree);
-      console.log("[ProjectScan] flat nodes", flat.length);
-
-      setProjectFileTree(safeTree);
-      setScanRawNodeCount(flat.length);
-      setIsRealTree(safeTree.length > 0);
-      if (safeTree.length > 0) {
-        setProjectScanStatus("done");
-      } else {
-        setProjectScanStatus("failed");
-        setProjectScanError(isZh ? "Scan returned 0 nodes" : "Scan completed but returned 0 nodes.");
+      const settings = loadSettings();
+      const status = await projectGitStatus();
+      const diff = await projectGitDiff();
+      const fileList = flat.filter((node) => node.kind === 'file').slice(0, 500).map((node) => node.path).join('\n');
+      const selectedFile = selectedPath
+        ? `\nSELECTED FILE: ${selectedPath}\n${content.slice(0, 80_000)}`
+        : '\nNo file is selected. Base the proposal on the repository tree and Git state.';
+      const rawContext = `TASK:\n${agentTask.trim()}\n\nREPOSITORY TREE:\n${fileList}\n\nGIT STATUS:\n${status.stdout || status.stderr}\n\nCURRENT DIFF:\n${(diff.stdout || diff.stderr).slice(0, 40_000)}${selectedFile}`;
+      const safety = scanText(rawContext, settings.customSensitiveTerms);
+      if ((safety.riskLevel === 'critical' || safety.riskLevel === 'high') && !window.confirm(copy(language, 'Sensitive repository data was found. Send only the locally redacted context to the active model?', '检测到敏感仓库数据。是否仅把本地脱敏后的上下文发送给当前模型？'))) {
+        setAgentBusy(false);
+        return;
       }
-    } catch (e: any) {
-      console.error("[ProjectScan] error", e?.message ?? String(e));
-      setProjectScanStatus("failed");
-      setProjectScanError(e?.message ?? "Scan failed");
-    }
-  }, [projects, isZh]);
-
-  const selectProject = useCallback((id: string) => {
-    setActiveId(id); setActiveProjectId(id);
-    const updated = projects.map(p => p.id === id ? { ...p, lastOpened: Date.now() } : p);
-    setProjects(updated); saveProjects(updated);
-    const proj = projects.find(p => p.id === id);
-    if (proj) { loadProjectAndScan(proj.folderPath); }
-  }, [projects, loadProjectAndScan]);
-
-  const scanProject = useCallback(async (project: Project) => {
-    setScanning(project.id); setError(null);
-    try {
-      if (isTauri) {
-        // Real Tauri backend scan
-        const { invoke } = await import("@tauri-apps/api/tauri");
-        const result: any = await invoke("scan_project_directory", { projectPath: project.folderPath });
-        if (result.error) {
-          setError(result.error);
-          setScanning(null);
-          return;
-        }
-        const files: ProjectFile[] = (result.files || []).map((f: any) => ({
-          ...f, selected: true,
-        }));
-        const updated = projects.map(p => p.id === project.id ? { ...p, files, lastOpened: Date.now() } : p);
-        setProjects(updated); saveProjects(updated);
-      } else {
-        // Browser mode fallback
-        setError("Desktop runtime required for real file scanning. Using demo file list.");
-        const demos = ["README.md","package.json","src/index.ts","src/App.tsx","src/utils.ts"];
-        const files: ProjectFile[] = demos.map(name => ({
-          path: project.folderPath + "/" + name, name, extension: name.split(".").pop() ?? "",
-          size: 0, modified: "", kind: "code", selected: true,
-        }));
-        const updated = projects.map(p => p.id === project.id ? { ...p, files, lastOpened: Date.now() } : p);
-        setProjects(updated); saveProjects(updated);
+      const safeContext = safety.findings.length ? safety.redactedText : rawContext;
+      const messages: Pick<ChatMessage, 'role' | 'content'>[] = [
+        {
+          role: 'system',
+          content: 'You are Chris Studio Coding Agent. Produce a minimal, reviewable change for the scoped repository. Never invent file contents. Do not request secrets. Do not include shell commands outside the approved checks. Return exactly two sections: PLAN: a concise numbered plan; PATCH: one valid unified git diff beginning with diff --git. If repository context is insufficient, return PLAN explaining what is missing and PATCH: NONE.',
+        },
+        { role: 'user', content: safeContext },
+      ];
+      const reply = await sendProviderChat(profile, messages, settings.requestTimeoutMs);
+      if (!reply.ok || !reply.content) {
+        toast.show(reply.errorMessage ?? copy(language, 'The coding agent request failed.', 'Coding Agent 请求失败。'), 'error');
+        return;
       }
-    } catch (e: any) {
-      setError(e?.message ?? String(e));
+      const text = reply.content.trim();
+      const patchMatch = text.match(/(?:PATCH:\s*)?(diff --git[\s\S]*?)(?:```\s*$|$)/i);
+      const noPatch = /PATCH:\s*NONE/i.test(text);
+      const extracted = patchMatch?.[1]?.replace(/```(?:diff)?\s*$/i, '').trim() ?? '';
+      const plan = text.split(/\bPATCH:\s*/i)[0].replace(/^PLAN:\s*/i, '').trim();
+      setAgentPlan(plan || text.slice(0, 8_000));
+      if (extracted) {
+        setPatch(extracted);
+        toast.show(copy(language, 'Agent patch generated. Review every line before applying it.', 'Agent 补丁已生成，请逐行审查后再应用。'), 'success');
+      } else if (noPatch) {
+        toast.show(copy(language, 'The agent needs more repository context and did not generate a patch.', 'Agent 需要更多仓库上下文，本次未生成补丁。'), 'warning');
+      } else {
+        toast.show(copy(language, 'The model response did not contain a valid unified diff.', '模型回复中没有有效的统一 Diff。'), 'warning');
+      }
+      recordTokenUsage({
+        id: `agent_${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        provider: profile.displayName,
+        model: reply.model ?? profile.model,
+        inputTokens: estimateTokens(messages.map((message) => message.content).join('\n')),
+        outputTokens: estimateTokens(text),
+        savedTokens: safety.findings.length ? estimateTokens(rawContext) - estimateTokens(safeContext) : 0,
+      });
+    } finally {
+      setAgentBusy(false);
     }
-    setScanning(null);
-  }, [projects, isTauri]);
+  };
 
-  const toggleFile = useCallback((projectId: string, fileName: string) => {
-    const updated = projects.map(p => {
-      if (p.id !== projectId) return p;
-      return { ...p, files: p.files.map(f => f.name === fileName ? { ...f, selected: !f.selected } : f) };
-    });
-    setProjects(updated); saveProjects(updated);
-  }, [projects]);
+  const createPullRequest = async () => {
+    const parts = repoParts(repoUrl);
+    if (!parts) return toast.show(copy(language, 'Enter a valid GitHub repository URL.', '请输入有效的 GitHub 仓库地址。'), 'warning');
+    if (!window.confirm(copy(language, `Create a Pull Request from ${branch} to ${baseBranch}?`, `创建从 ${branch} 到 ${baseBranch} 的 Pull Request？`))) return;
+    const result = await createGitHubPullRequest({ owner: parts.owner, repo: parts.repo, title: prTitle, body: prBody, head: branch, base: baseBranch, confirmed: true });
+    if (!result.ok) return toast.show(result.errorMessage ?? 'Pull Request failed.', 'error');
+    toast.show(copy(language, `Pull Request #${result.number} created.`, `Pull Request #${result.number} 已创建。`), 'success');
+    if (result.url) window.open(result.url, '_blank', 'noopener,noreferrer');
+  };
 
-  const handleAddToContext = useCallback((files: ContextPackFile[]) => {
-    addFilesToContextPack(files);
-    setCpKey(k => k + 1);
-  }, []);
+  return <main className="modern-page projects-page">
+    <header className="compact-page-header">
+      <div><span className="section-kicker">CODING AGENT SANDBOX</span><h1>{copy(language, 'Repository workspace', '仓库工作区')}</h1><p>{copy(language, 'Open a scoped folder, review files, write with backups and run only approved checks.', '打开受限目录，审查文件，带备份写入，并且只运行已批准的检查。')}</p></div>
+      <div className="header-actions"><button className="button secondary" onClick={cloneRepo}><Icon name="git" />{copy(language, 'Clone public repo', '克隆公开仓库')}</button><button className="button primary" onClick={openFolder}><Icon name="folder" />{copy(language, 'Open folder', '打开文件夹')}</button></div>
+    </header>
 
-  const toggleAll = useCallback((projectId: string, select: boolean) => {
-    const updated = projects.map(p => {
-      if (p.id !== projectId) return p;
-      return { ...p, files: p.files.map(f => ({ ...f, selected: select })) };
-    });
-    setProjects(updated); saveProjects(updated);
-  }, [projects]);
+    <section className="github-strip">
+      <div><Icon name="git" /><span><strong>{github?.ok ? `@${github.login}` : copy(language, 'GitHub not connected', 'GitHub 未连接')}</strong><small>{overview?.fullName ?? repoUrl}</small></span></div>
+      <input value={repoUrl} onChange={(event) => setRepoUrl(event.target.value)} placeholder="https://github.com/owner/repo" />
+      <input type="password" value={token} onChange={(event) => setToken(event.target.value)} placeholder={copy(language, 'PAT (stored in Keychain)', 'PAT（保存到钥匙串）')} />
+      <button className="button secondary" onClick={connectGitHub}>{copy(language, 'Connect', '连接')}</button>
+      <button className="icon-button danger" onClick={() => { void deleteGitHubToken(); setGithub(null); }} title={copy(language, 'Remove token', '删除令牌')}><Icon name="trash" /></button>
+    </section>
 
-  return (
-    <div style={{ padding: "28px 32px", height: "100%", overflowY: "auto" }}>
-      {projectLoadError && (
-        <div className="card" style={{ marginBottom: 16, padding: 16, background: "rgba(255,0,0,0.06)", border: "1px solid var(--red)" }}>
-          <div style={{ fontWeight: 600, color: "var(--red)", marginBottom: 8 }}>{isZh ? "项目页面加载失败" : "Project page failed to load"}</div>
-          <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginBottom: 12 }}>{isZh ? "本地项目数据可能已损坏。清除后重新打开即可。" : "Local project data may be corrupted. Clear it and open a project again."}</p>
-          <button className="btn btn-primary" onClick={() => { try { storeSet(STORAGE_KEY, "[]"); storeSet(ACTIVE_KEY, ""); } catch {} setProjects([]); setActiveId(null); setProjectLoadError(false); }} style={{ fontSize: "0.75rem" }}>
-            {isZh ? "清除项目状态" : "Clear project state"}
-          </button>
-        </div>
-      )}
-      {!projectLoadError && projects.length === 0 && (
-        <div className="card" style={{ marginBottom: 16, padding: 28, textAlign: "center" }}>
-          <div style={{ fontSize: "2rem", marginBottom: 12 }}>&#128193;</div>
-          <div style={{ fontSize: "1.1rem", fontWeight: 600, color: "var(--text)", marginBottom: 8 }}>{isZh ? "还没有打开过项目" : "No project opened yet"}</div>
-          <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", maxWidth: 400, margin: "0 auto" }}>{isZh ? "打开一个本地文件夹，开始构建项目上下文。" : "Open a local folder to start building project context."}</p>
-        </div>
-      )}
+    {overview?.ok && <section className="repo-overview-row"><span><strong>{overview.defaultBranch}</strong><small>{copy(language, 'default branch', '默认分支')}</small></span><span><strong>{overview.stars ?? 0}</strong><small>stars</small></span><span><strong>{overview.openIssues ?? 0}</strong><small>{copy(language, 'open issues', '未关闭 Issue')}</small></span><span><strong>{overview.privateRepo ? copy(language, 'Private', '私有') : copy(language, 'Public', '公开')}</strong><small>{overview.pushedAt ? new Date(overview.pushedAt).toLocaleString() : '—'}</small></span></section>}
 
-      {/* Manual project path input */}
-      <div className="card" style={{ marginBottom: 16, padding: 12 }}>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <input
-            type="text"
-            value={manualPath}
-            onChange={(e) => setManualPath(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") loadProjectAndScan(manualPath); }}
-            placeholder={isZh ? "Enter path" : "Enter project folder path..."}
-            style={{ flex: 1, padding: "6px 10px", fontSize: "0.78rem", border: "1px solid var(--border)", borderRadius: 4, background: "var(--surface)", color: "var(--text)" }}
-          />
-          <button
-            onClick={() => loadProjectAndScan(manualPath)}
-            disabled={!manualPath.trim()}
-            className="btn btn-primary"
-            style={{ fontSize: "0.75rem", padding: "6px 14px" }}
-          >
-            {isZh ? "Load" : "Load"}
-          </button>
-        </div>
-      </div>
+    <div className="project-workbench">
+      <aside className="project-tree-panel">
+        <div className="panel-title"><span>{workspace?.name ?? copy(language, 'No project selected', '尚未选择项目')}</span><small>{workspace?.fileCount ?? 0}</small></div>
+        {flat.filter((node) => node.kind === 'file').slice(0, 2_000).map((node) => <button key={node.path} className={selectedPath === node.path ? 'selected' : ''} onClick={() => void openFile(node.path)} style={{ paddingLeft: `${10 + Math.min(node.depth, 6) * 10}px` }}><Icon name="file" size={14} /><span>{node.name}</span></button>)}
+        {!workspace && <div className="file-empty-small"><Icon name="folder" /><p>{copy(language, 'Open a repository folder to start.', '打开仓库文件夹后开始。')}</p></div>}
+      </aside>
 
-      <h3 style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: 12 }}>Recent Projects</h3>
-      {projects.length === 0 ? (
-        <div style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>No projects yet.</div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {projects.sort((a,b) => b.lastOpened - a.lastOpened).map(p => (
-            <div key={p.id} className="card" style={{
-              padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between",
-              border: p.id === activeId ? "1px solid var(--primary)" : "1px solid var(--border)",
-            }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--text)", marginBottom: 2 }}>{p.name}</div>
-                <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>{p.folderPath}</div>
-                <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginTop: 2 }}>
-                  {p.files.length} files 路 {p.files.filter(f => f.selected).length} selected 路 ~{selectedTokens} tokens
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 6 }}>
-                <button onClick={() => selectProject(p.id)} className={`btn ${p.id === activeId ? "btn-primary" : "btn-ghost"}`} style={{ fontSize: "0.75rem", padding: "5px 12px" }}>
-                  {p.id === activeId ? "Active" : "Select"}
-                </button>
-                <button onClick={() => scanProject(p)} className="btn btn-ghost" style={{ fontSize: "0.75rem", padding: "5px 12px" }} disabled={scanning === p.id}>
-                  {scanning === p.id ? "..." : "Scan"}
-                </button>
-                <button onClick={() => removeProject(p.id)} className="btn btn-ghost" style={{ fontSize: "0.75rem", padding: "5px 8px", color: "var(--red)" }}>x</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <section className="project-editor-panel">
+        <header><div><span className="file-kind-pill">{dirty ? copy(language, 'MODIFIED', '已修改') : copy(language, 'REVIEWED FILE', '审查文件')}</span><h2>{selectedPath || copy(language, 'Select a text file', '选择一个文本文件')}</h2></div><button className="button primary" onClick={save} disabled={!dirty}><Icon name="check" />{copy(language, 'Save + backup', '保存并备份')}</button></header>
+        <textarea className="code-editor" value={content} onChange={(event) => setContent(event.target.value)} spellCheck={false} placeholder={copy(language, 'File content appears here. Every write requires confirmation.', '文件内容将在此显示，每次写入都需要确认。')} />
+      </section>
 
-{/* Project Files - always visible */}
-      <div style={{ marginTop: 20 }}>
-        <div className="card" style={{ padding: 16 }} id="project-files-section">
-          <h3 style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: 12 }}>
-            {activeProject
-              ? `${tk("project.projectFiles")}: ${activeProject.name}${projectScanStatus === "scanning" ? (isZh ? " (scanning)" : " (scanning...)") : projectScanStatus === "done" ? ` (${projectFileCount} ${isZh ? "files" : "files"})` : projectScanStatus === "failed" ? (isZh ? " (scan failed)" : " (scan failed)") : ""}`
-              : (isZh ? "Project Files - load a project" : "Project Files - load a project")}
-          </h3>
-          <div className="scan-diagnostics" style={{ padding: "6px 0", marginBottom: 4, fontSize: "0.68rem", color: "var(--text-muted)", display: "flex", flexWrap: "wrap", gap: "4px 16px" }}>
-            <span>{isZh ? "Source" : "Source"}: {projectScanSource === "checking" ? "..." : projectScanSource === "tauri" ? (isZh ? "Desktop/Tauri" : "Desktop/Tauri") : projectScanSource === "browser" ? (isZh ? "Browser/Fallback" : "Browser/Fallback") : (isZh ? "Not started" : "Not started")}</span>
-            <span>{isZh ? "Status" : "Status"}: {projectScanStatus === "scanning" ? (isZh ? "Scanning" : "Scanning") : projectScanStatus === "done" ? (isZh ? "Done" : "Done") : projectScanStatus === "failed" ? (isZh ? "Failed" : "Failed") : (isZh ? "Idle" : "Idle")}</span>
-            <span>{isZh ? "Nodes" : "Nodes"}: {scanRawNodeCount !== null ? scanRawNodeCount : 0}</span>
-            <span>{isZh ? "Files" : "Files"}: {projectFileCount}</span>
-            <span>{isZh ? "Dirs" : "Dirs"}: {projectDirCount}</span>
-          </div>
-          {projectScanStatus === "failed" && projectScanError ? (
-            <div style={{ padding: 12, marginBottom: 8, background: "var(--surface-alt)", borderRadius: 6, fontSize: "0.78rem", color: "var(--amber)", border: "1px solid var(--border)" }}>
-              {projectScanError}
-            </div>
-          ) : projectScanSource === "browser" && projectScanStatus !== "idle" ? (
-            <div style={{ padding: 12, marginBottom: 8, background: "var(--surface-alt)", borderRadius: 6, fontSize: "0.78rem", color: "var(--amber)", border: "1px solid var(--border)" }}>
-              {isZh ? "Tauri unavailable" : "Tauri file scanning is unavailable, so real project files could not be scanned."}
-            </div>
-          ) : null}
-          {projectFileTree.length > 0 ? (
-            <ProjectFileTree
-              nodes={projectFileTree}
-              onAddToContext={handleAddToContext}
-            />
-          ) : projectScanStatus === "done" ? (
-            <div style={{ padding: 16, textAlign: "center", color: "var(--text-muted)", fontSize: "0.8rem" }}>
-              {isZh ? "Scan done but 0 files" : "Scan completed, but no displayable files found."}
-            </div>
-          ) : projectScanStatus === "idle" && !activeProject ? (
-            <div style={{ padding: 16, textAlign: "center", color: "var(--text-muted)", fontSize: "0.8rem" }}>
-              {isZh ? "Enter path and click Load" : "Enter a project path and click Load, or select a recent project below"}
-            </div>
-          ) : projectScanStatus === "idle" ? (
-            <div style={{ padding: 16, textAlign: "center", color: "var(--text-muted)", fontSize: "0.8rem" }}>
-              {isZh ? "Click Select to view file tree" : "Click Select on a project below to view its file tree"}
-            </div>
-          ) : (
-            <div style={{ padding: 16, textAlign: "center", color: "var(--text-muted)", fontSize: "0.8rem" }}>
-              {isZh ? "Loading..." : "Loading..."}
-            </div>
-          )}
-          {activeProject && (
-            <div style={{ marginTop: 2, fontSize: "0.65rem", color: "var(--text-muted)" }}>
-              <button
-                onClick={() => {
-                  setProjectScanStatus("scanning");
-                  setProjectScanError(null);
-                  loadProjectAndScan(activeProject.folderPath);
-                }}
-                className="btn btn-ghost"
-                style={{ fontSize: "0.65rem", padding: "2px 8px" }}
-              >
-                {isZh ? "Rescan" : "Rescan"}
-              </button>
-            </div>
-          )}
-        </div>
-        <div style={{ marginTop: 12 }}>
-          <ContextPackPanel key={cpKey} />
-        </div>
-      </div>
+      <aside className="project-tools-panel">
+        <div className="panel-title"><span>{copy(language, 'Approved checks', '批准的检查')}</span></div>
+        {[
+          ['git-status', 'Git status'], ['git-diff', 'Git diff'], ['npm-typecheck', 'npm typecheck'], ['npm-test', 'npm test'], ['npm-build', 'npm build'], ['cargo-check', 'cargo check'], ['cargo-test', 'cargo test'],
+        ].map(([id, label]) => <button key={id} onClick={() => void run(id)} disabled={!workspace || busy}><Icon name={id.startsWith('git') ? 'git' : 'terminal'} /><span>{label}</span></button>)}
+        <details className="agent-action-group" open>
+          <summary>{copy(language, 'AI patch assistant', 'AI 补丁助手')}</summary>
+          <textarea value={agentTask} onChange={(event) => setAgentTask(event.target.value)} placeholder={copy(language, 'Describe a small repository change. Chris Studio sends a redacted tree, Git state and the selected file to the active model.', '描述一个小型仓库修改。Chris Studio 会把脱敏后的目录、Git 状态和当前文件发送给活跃模型。')} />
+          <button onClick={() => void generateAgentPatch()} disabled={!workspace || !agentTask.trim() || agentBusy}><Icon name="sparkles" /><span>{agentBusy ? copy(language, 'Generating…', '生成中…') : copy(language, 'Generate reviewed diff', '生成待审查 Diff')}</span></button>
+          {agentPlan && <div className="agent-plan-output"><strong>{copy(language, 'Plan', '计划')}</strong><pre>{agentPlan}</pre></div>}
+        </details>
+        <details className="agent-action-group">
+          <summary>{copy(language, 'Reviewed patch', '审查补丁')}</summary>
+          <textarea value={patch} onChange={(event) => setPatch(event.target.value)} placeholder="diff --git a/... b/..." spellCheck={false} />
+          <button onClick={() => void applyPatch()} disabled={!workspace || !patch.trim() || busy}><Icon name="code" /><span>{copy(language, 'Apply checked diff', '应用已检查 Diff')}</span></button>
+        </details>
+        <details className="agent-action-group">
+          <summary>{copy(language, 'Branch, commit and PR', '分支、提交与 PR')}</summary>
+          <input value={branch} onChange={(event) => setBranch(event.target.value)} placeholder="chris-studio/feature" />
+          <input value={commitMessage} onChange={(event) => setCommitMessage(event.target.value)} placeholder="feat: ..." />
+          <div className="action-button-row"><button onClick={() => void createBranch()} disabled={!workspace}>{copy(language, 'Create branch', '创建分支')}</button><button onClick={() => void commitChanges()} disabled={!workspace}>{copy(language, 'Commit', '提交')}</button><button onClick={() => void pushBranch()} disabled={!workspace}>{copy(language, 'Push', '推送')}</button></div>
+          <input value={prTitle} onChange={(event) => setPrTitle(event.target.value)} placeholder={copy(language, 'Pull Request title', 'Pull Request 标题')} />
+          <input value={baseBranch} onChange={(event) => setBaseBranch(event.target.value)} placeholder="main" />
+          <textarea value={prBody} onChange={(event) => setPrBody(event.target.value)} placeholder={copy(language, 'Pull Request summary', 'Pull Request 说明')} />
+          <button onClick={() => void createPullRequest()} disabled={!github?.ok}><Icon name="git" /><span>{copy(language, 'Create Pull Request', '创建 Pull Request')}</span></button>
+        </details>
+        <pre className="command-output">{command ? `$ ${command.command}\n\n${command.stdout}${command.stderr ? `\n${command.stderr}` : ''}` : copy(language, 'Command output and Git diffs appear here.', '命令输出与 Git Diff 将显示在这里。')}</pre>
+        {issues.length > 0 && <div className="issue-mini-list"><div className="panel-title"><span>Issues</span><small>{issues.length}</small></div>{issues.slice(0, 6).map((issue) => <a key={issue.number} href={issue.url} target="_blank" rel="noreferrer">#{issue.number} {issue.title}</a>)}</div>}
+      </aside>
     </div>
-  );
+  </main>;
 }

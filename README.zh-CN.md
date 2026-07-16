@@ -1,239 +1,199 @@
-# TokenFence Studio v1.7.0
+# Chris Studio v2.0.0
 
-[English](README.md) · [下载最新版](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest) · [问题排查](docs/troubleshooting/TROUBLESHOOTING.zh-CN.md)
+<p align="center"><strong>安全、多模型、节省 Token 的本地优先 AI Agent 工作台</strong></p>
 
-**TokenFence Studio** 是一个本地优先的安全 AI 工作台。它把多模型接入、发送前安全审查、Token 优化、文件处理、模型路由和可组合 Agent Skills 放进同一个 macOS 桌面应用。
+Chris Studio 运行在用户与模型之间，在内容发送前完成敏感信息检查、附件处理、Token 压缩、模型路由和权限确认。v2.0.0 将项目从多模型安全聊天基础版升级为可实际读写仓库、运行批准检查、连接 GitHub、调用受审查 MCP 工具并执行 macOS Computer Use 的桌面 Agent 工作台。
 
-> v1.7.0 不再把“本地演示”伪装成已配置模型。保存并启用 DeepSeek、OpenAI、Anthropic 等 Provider 后，工作台会继续使用对应真实配置；Local Sandbox 只在用户明确选择时启用。
+[English](README.md) · [改名说明](RENAME_TO_CHRIS_STUDIO.zh-CN.md) · [快节奏路线](FAST_TRACK_ROADMAP.zh-CN.md) · [功能实现状态](docs/architecture/IMPLEMENTATION_STATUS_v2.0.zh-CN.md) · [macOS 签名与公证](docs/macos/SIGNING_NOTARIZATION.zh-CN.md) · [故障排查](docs/troubleshooting/TROUBLESHOOTING.zh-CN.md)
 
 ## 下载
 
-### macOS Apple Silicon（M1/M2/M3/M4）
+### Apple Silicon（M1 / M2 / M3 / M4 / 后续 Apple 芯片）
 
-- [下载 DMG](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Apple-Silicon.dmg)
-- [下载 APP ZIP](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Apple-Silicon.app.zip)
-- [SHA-256](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/SHA256SUMS-Apple-Silicon.txt)
+- [下载 DMG](https://github.com/Chrisbetheking/chris-studio/releases/latest/download/Chris-Studio-macOS-Apple-Silicon.dmg)
+- [下载 APP ZIP](https://github.com/Chrisbetheking/chris-studio/releases/latest/download/Chris-Studio-macOS-Apple-Silicon.app.zip)
+- [下载社区安装助手](https://github.com/Chrisbetheking/chris-studio/releases/latest/download/Install-Chris-Studio-Apple-Silicon.command)
+- [SHA-256](https://github.com/Chrisbetheking/chris-studio/releases/latest/download/SHA256SUMS-Apple-Silicon.txt)
 
-### macOS Intel
+### Intel Mac
 
-- [下载 DMG](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Intel.dmg)
-- [下载 APP ZIP](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Intel.app.zip)
-- [SHA-256](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/SHA256SUMS-Intel.txt)
+- [下载 DMG](https://github.com/Chrisbetheking/chris-studio/releases/latest/download/Chris-Studio-macOS-Intel.dmg)
+- [下载 APP ZIP](https://github.com/Chrisbetheking/chris-studio/releases/latest/download/Chris-Studio-macOS-Intel.app.zip)
+- [下载社区安装助手](https://github.com/Chrisbetheking/chris-studio/releases/latest/download/Install-Chris-Studio-Intel.command)
+- [SHA-256](https://github.com/Chrisbetheking/chris-studio/releases/latest/download/SHA256SUMS-Intel.txt)
 
-> 下载链接只有在 v1.7.0 Release 构建并上传成功后才会生效。社区构建目前未签名，首次打开可能需要在 Finder 中按住 Control 点击应用并选择“打开”，或按故障排查文档清除该应用的隔离属性。不要全局关闭 Gatekeeper。
+> 上述链接在 v2.0.0 Release 构建并发布成功后生效。使用 Apple Developer ID 签名和 Apple 公证的包可以正常通过 Gatekeeper；没有配置 Apple 凭证时，工作流会发布 ad-hoc 签名社区包，并附带安装助手。
 
-## v1.7.0 核心能力
+## v2.0.0 已实现
 
-### 1. 多模型 Provider 工作台
+### 多模型与 Provider
 
-内置配置模板：
+内置 DeepSeek、OpenAI、Anthropic、Gemini、Qwen、Kimi、豆包/Ark、智谱 GLM、OpenRouter、Ollama、LM Studio、自定义 OpenAI 兼容接口和 Local Sandbox。
 
-- DeepSeek
-- OpenAI
-- Anthropic
-- Google Gemini
-- Qwen
-- Kimi / Moonshot
-- Doubao / Ark
-- Zhipu GLM
-- OpenRouter
-- Ollama
-- LM Studio
-- 自定义 OpenAI-compatible HTTPS API
-- Local Sandbox（显式离线演示）
+- 每个 Provider 可创建多个独立 Profile；
+- API Key 按 Profile 存入 macOS Keychain / Windows Credential Manager；
+- 保存并启用真实 Provider 后不会自动回退到本地模式；
+- 支持 OpenAI-compatible 与 Anthropic 请求格式；
+- 视觉模型可以接收用户明确授权的原始图片数据；
+- 最终发送目标、模型与路由原因在发送前可见。
 
-每个 Provider 都拥有独立 Profile、模型字段、接口地址、连接状态和系统凭证项。API Key 不写入浏览器 localStorage，也不会从系统凭证库返回给 WebView；真实请求由 Rust 后端按 Profile 直接读取密钥。macOS 使用 Keychain，Windows 使用 Credential Manager。模型名称可编辑，因为不同账号、区域和服务商的可用模型可能不同。
+### 安全与 Token 控制
 
-### 2. 发送前安全审查
+- 提示词和附件统一扫描；
+- 检测 API Key、密码、邮箱、访问令牌等敏感内容；
+- 严重风险只允许发送确认后的脱敏版本；
+- 内容变化后旧审查立即失效；
+- 本地历史保存前再次脱敏；
+- Conservative / Balanced Token 压缩；
+- 单次 Token 上限与每日 Token 预算；
+- 今日输入、输出和节约 Token 用量记录；
+- 对话上下文条数限制。
 
-发送顺序固定为：
+### 文件处理、OCR、PDF 与本地知识库
 
-```text
-提示词与附件
-→ 本地提取
-→ 本地敏感信息扫描
-→ 风险展示与脱敏
-→ 用户确认
-→ Token 优化
-→ 模型路由
-→ Provider 请求
-→ 安全回执
-```
+- TXT、Markdown、JSON、CSV、日志和常见代码文件；
+- PDF 文本层提取和页码标记；
+- 扫描版 PDF 页面渲染 OCR；
+- DOCX 文本提取；
+- XLSX 工作表转结构化文本；
+- PNG、JPG、WEBP、BMP、TIFF 本地 OCR；
+- 英文、简体中文和中英混合 OCR；
+- 文件分块、本地索引和检索增强上下文；
+- 不同文件类型可路由到不同 Provider / 模型。
 
-- 首条消息也必须审查；
-- 提示词与附件统一扫描；
-- 编辑提示词、增删附件后旧批准立即失效；
-- 高风险内容默认发送脱敏版本；
-- 本地历史保存前再次扫描；
-- Provider 密钥按 Profile 存入操作系统凭证库。
+### Coding Agent 工作区
 
-### 3. Token 优化
+项目页面提供受限目录式 Coding Agent 基础链路：
 
-工作台提供本地 Token 估算和两种压缩模式：
+1. 用户选择明确项目目录，应用不能越界读取；
+2. 浏览和编辑文本文件；
+3. 每次写入都需确认，并在 `.tokenfence/backups` 创建备份；
+4. 支持审查后应用统一 Diff，补丁归档到 `.tokenfence/patches`；
+5. 只运行固定白名单检查：Git status / diff、npm typecheck / test / build、cargo check / test；
+6. 创建 Git 分支、提交、推送；
+7. 使用 Keychain 中的 GitHub PAT 读取仓库信息、Issues 并创建 Pull Request；
+8. 所有写入、命令、网络推送和 PR 创建均要求用户确认。
 
-- **Conservative**：清理重复空白、冗余段落和明显重复内容；
-- **Balanced**：在保留任务约束与关键上下文的前提下进一步压缩。
+该设计不是“任意 Shell”。模型不能自行执行任意命令，原生后端只暴露固定参数和受限目录能力。
 
-发送前会显示原始 Token、优化后 Token、预计节省数量和具体修改。关闭该功能后不会改写用户内容。
+### Computer Use（macOS Beta）
 
-### 4. 文件处理模块
+- 屏幕截图；
+- 用户批准坐标后的鼠标点击；
+- 用户批准文本后的键盘输入；
+- Enter、Escape、Tab、Space、Delete、Command+S、Command+L 白名单按键；
+- 跳转 macOS 辅助功能权限设置；
+- 本地 Computer Use 审计日志；
+- 每次动作单独确认，不提供无限制后台操控。
 
-文件先在本地提取为可审查文本，再进入安全扫描和模型上下文：
+需要在“系统设置 → 隐私与安全性”中为 Chris Studio 开启屏幕录制与辅助功能权限。
 
-| 文件类型 | 本地模块 | 当前状态 |
-|---|---|---|
-| TXT / Markdown / JSON / CSV / 日志 / 代码 | Text & Code Reader | 已实现 |
-| PDF | PDF.js 文本提取与页码标记 | 已实现 |
-| DOCX | Mammoth 原始文本提取 | 已实现 |
-| XLSX / XLS | ExcelJS 工作表转 CSV 上下文 | 已实现 |
-| PNG / JPG / WEBP 等 | Tesseract.js 本地 OCR | 已实现，首个版本默认英文语言包 |
-| 扫描型 PDF 整页 OCR | PDF 页面渲染 + OCR | 路线图 |
+### Skills 与工具连接
 
-原文件不直接发给 Provider；只有界面中展示并经过审查的提取文本可以进入请求。
+- 20 个内置 Skills，覆盖安全编程、仓库接手、发布诊断、隐私审查、OCR 清洗、表格分析、GitHub 维护、Computer Use Guard、知识库管理和预算控制；
+- 自定义 Skill 创建、权限声明、JSON 导入/导出；
+- Agent 可组合内置和自定义 Skills；
+- MCP / JSON-RPC 工具连接器 Beta；
+- 远程连接器强制 HTTPS，本机连接器可使用 localhost HTTP；
+- `tools/call` 每次都需要用户明确确认；
+- Connector Bearer Token 存入系统凭证库。
 
-### 5. 文件到模型的自动路由
+当前 MCP Beta 支持 JSON 响应的 `initialize`、`tools/list`、`resources/list`、`prompts/list` 和 `tools/call`。需要长期 SSE 会话的服务器可能仍需后续适配。
 
-可以分别给代码、PDF、图片/OCR、表格、Office 文档和通用任务配置：
+### GitHub 更新
 
-- Provider Profile；
-- 可选模型覆盖；
-- 启用/停用规则；
-- 最终发送目标显示。
+应用可以读取指定公开仓库的 Latest Release，显示：
 
-路由发生在本地，未连接或未验证的 Provider 不应被静默调用。
+- 当前版本；
+- 最新版本；
+- 发布时间；
+- Release Notes；
+- Apple Silicon / Intel 安装资源；
+- 是否有新版本。
 
-### 6. Agent Studio 与内置 Skills
+应用不会静默替换自身，下载和安装始终由用户确认。
 
-v1.7.0 内置 12 个可组合 Skills：
+## macOS “已损坏”问题
 
-- Secure Coder
-- Repository Onboarding
-- Release Doctor
-- Token Compressor
-- Privacy Review
-- PDF Research
-- OCR Cleanup
-- Spreadsheet Analyst
-- GitHub Triage
-- Research Brief
-- Computer Use Guard
-- Product Critic
-
-默认 Agent 包括：
-
-- **TokenFence Coder**：代码、仓库、安全和 Release；
-- **Document Analyst**：PDF、OCR、表格和研究总结；
-- **Desktop Operator Beta**：Computer Use 权限与安全确认实验入口。
-
-每个 Skill 声明自身需要的网络、文件、GitHub 或 Computer Use 权限。v1.7.0 已完成 Skill 组合、权限模式和能力检测层；没有开放无限制鼠标、键盘或 Shell 控制。
-
-### 7. GitHub 版本检查
-
-Updates 页面直接检查：
+正式解决方式是给 GitHub Actions 配置 Apple Developer ID 签名和公证所需 Secrets。工作流已支持：
 
 ```text
-Chrisbetheking/tokenfence-studio → Latest GitHub Release
+APPLE_CERTIFICATE
+APPLE_CERTIFICATE_PASSWORD
+APPLE_ID
+APPLE_PASSWORD
+APPLE_TEAM_ID
 ```
 
-应用会展示当前版本、最新版本、发布时间、Release Notes 和安装包列表。外部链接经过桌面后端校验后再交给系统打开。
+未配置这些凭证时，Release 会包含 ad-hoc 签名社区包与 `Install-Chris-Studio-*.command`。安装助手会复制应用到 `/Applications`，只清除 Chris Studio 自身的 quarantine 属性，不会关闭全局 Gatekeeper。
 
-### 8. 更现代的 macOS 界面
-
-- 使用 Overlay 原生标题栏，移除顶部重复的旧式产品标题；
-- 更紧凑的拖拽区、Provider 快速切换和状态入口；
-- Workspace、Agent、文件、路由、Provider 和更新页面采用统一面板体系；
-- 支持浅色、深色和系统主题；
-- 支持中英文界面。
-
-## Computer Use 的真实边界
-
-当前版本提供的是 **Computer Use Beta 基础层**，不是完整的自动控制器：
-
-- 已实现能力状态检测、权限模式、Computer Use Guard Skill 和安全界面；
-- 已实现经过检查的 HTTPS 链接打开；
-- 屏幕捕获、受控点击、键盘输入、项目文件写入和终端执行仍标记为 Planned；
-- 后续操作必须采用逐步授权、作用域限制、可中止执行和审计回执，不能增加一个通用“执行任意命令”后门。
-
-详见 [v1.7 路线图](docs/architecture/ROADMAP_v1.7.md)。
-
-## 开源项目参考
-
-产品架构参考了 OpenHands、Open WebUI、AnythingLLM、LibreChat、MCP Servers 与 LobeChat 等项目的公开设计思想，但没有直接复制它们的业务代码。参考内容包括：Agent 工具分层、多 Provider 管理、文档上下文、Skills/Tools 组合、MCP 扩展和沙箱执行理念。
-
-详见 [开源项目参考与边界](docs/architecture/OPEN_SOURCE_INSPIRATION.md)。
+详见：[macOS 签名、公证与社区安装包](docs/macos/SIGNING_NOTARIZATION.zh-CN.md)。
 
 ## 本地开发
 
-### 环境
+要求：
 
-- Node.js 22
-- npm
-- Rust stable
-- Xcode Command Line Tools（macOS）
+- Node.js 20–22；
+- Rust stable；
+- Xcode Command Line Tools；
+- macOS 原生构建需要 Tauri CLI 1.6.x。
 
-### 安装与前端预览
-
-```bash
-cd apps/desktop/ui
-npm ci --legacy-peer-deps
-npm run dev
-```
-
-浏览器打开：
-
-```text
-http://localhost:1420
-```
-
-网页预览可查看 UI 和本地处理逻辑，但系统凭证库、真实 Provider 后端请求、版本检查和原生能力需要 Tauri 桌面运行时。
-
-### 桌面开发
+安装与前端检查：
 
 ```bash
-npm ci --legacy-peer-deps
-npm ci --prefix apps/desktop/ui --legacy-peer-deps
-npm --workspace apps/desktop run dev
-```
-
-### 验证
-
-```bash
+npm ci --prefix apps/desktop/ui --legacy-peer-deps --no-audit --no-fund
 npm --prefix apps/desktop/ui run typecheck
 npm --prefix apps/desktop/ui run test:core
 npm --prefix apps/desktop/ui run build
-npm --prefix apps/desktop/ui audit --audit-level=moderate
-cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
-python scripts/verify_tokenfence_patch.py
 ```
 
-## 云端构建 macOS Release
+原生检查与开发：
 
-进入 GitHub：
+```bash
+cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
+cd apps/desktop
+tauri dev
+```
+
+生产构建：
+
+```bash
+cd apps/desktop
+tauri build
+```
+
+## 发布 v2.0.0
+
+上传完整源码后进入：
 
 ```text
-Actions
-→ TokenFence macOS Builds and Release
-→ Run workflow
+GitHub → Actions → Chris Studio macOS Builds and Release → Run workflow
 ```
 
 填写：
 
 ```text
-version: v1.7.0
+version: v2.0.0
 create_release: true
 make_latest: true
 ```
 
-工作流会依次执行 TypeScript 检查、隐私测试、前端构建、Rust `cargo check`、Apple Silicon/Intel Tauri 构建、DMG/APP ZIP 打包和 GitHub Release 更新。
+工作流会：
 
-## 隐私与安全说明
+1. 检查锁文件中是否含私有 Registry；
+2. 安装桌面 UI 依赖；
+3. 执行 TypeScript 检查；
+4. 执行隐私、Token 和知识库核心测试；
+5. 构建桌面 UI；
+6. `cargo check` 原生后端；
+7. 分别构建 Apple Silicon 和 Intel；
+8. 有 Apple 凭证时签名并公证；
+9. 无 Apple 凭证时生成 ad-hoc 社区包和安装助手；
+10. 创建或更新 GitHub Release。
 
-- TokenFence 只能降低意外泄露风险，不能保证识别全部敏感内容；
-- 自定义兼容 API 只允许 HTTPS，HTTP 仅允许 localhost；
-- 内置 Provider 会检查接口域名是否与所选服务匹配；
-- OCR、PDF 和 Office 解析依赖第三方开源库，应持续跟踪依赖安全；
-- 不要在测试或 Issue 中粘贴真实密钥；
-- 未签名社区构建需要用户手动确认，正式公开分发仍应配置 Apple Developer ID 签名和 notarization。
+## 安全边界
+
+Chris Studio 不是防病毒软件，也不能保证识别所有隐私。任何涉及项目写入、命令运行、Computer Use、MCP 工具执行、Git 推送和 Pull Request 的操作都必须由用户审查。不要向未知 Provider 或工具服务发送真实机密。
 
 ## License
 

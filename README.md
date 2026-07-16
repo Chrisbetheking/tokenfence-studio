@@ -1,140 +1,151 @@
-# TokenFence Studio v1.7.0
+# Chris Studio v2.0.0
 
-[中文](README.zh-CN.md) · [Latest Release](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest) · [Troubleshooting](docs/troubleshooting/TROUBLESHOOTING.md)
+<p align="center"><strong>A local-first Safe AI Agent workspace for multiple models, lower token usage and reviewed computer actions.</strong></p>
 
-**TokenFence Studio** is a local-first Safe AI Workspace that combines multi-provider access, pre-send privacy review, token optimization, local file processing, model routing, and composable Agent Skills in one macOS desktop application.
+Chris Studio sits between the user and AI providers. Before a request leaves the Mac, it can scan sensitive content, process attachments, compact context, route files, retrieve local knowledge and require approval for native actions. v2.0.0 turns the project into a practical desktop Agent foundation with scoped repository editing, GitHub workflows, macOS Computer Use and reviewed MCP tool connections.
 
-> v1.7.0 no longer falls back to Local Sandbox after a real provider is saved. DeepSeek, OpenAI, Anthropic and other profiles remain active when selected; Local Sandbox is used only through an explicit user choice.
+[简体中文](README.zh-CN.md) · [Rename guide](RENAME_TO_CHRIS_STUDIO.zh-CN.md) · [Fast-track roadmap](FAST_TRACK_ROADMAP.zh-CN.md) · [Implementation status](docs/architecture/IMPLEMENTATION_STATUS_v2.0.md) · [macOS signing](docs/macos/SIGNING_NOTARIZATION.md) · [Troubleshooting](docs/troubleshooting/TROUBLESHOOTING.md)
 
-## Download
+## Downloads
 
-### macOS Apple Silicon (M1/M2/M3/M4)
+### Apple Silicon
 
-- [DMG](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Apple-Silicon.dmg)
-- [APP ZIP](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Apple-Silicon.app.zip)
-- [SHA-256](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/SHA256SUMS-Apple-Silicon.txt)
+- [DMG](https://github.com/Chrisbetheking/chris-studio/releases/latest/download/Chris-Studio-macOS-Apple-Silicon.dmg)
+- [APP ZIP](https://github.com/Chrisbetheking/chris-studio/releases/latest/download/Chris-Studio-macOS-Apple-Silicon.app.zip)
+- [Community installer](https://github.com/Chrisbetheking/chris-studio/releases/latest/download/Install-Chris-Studio-Apple-Silicon.command)
+- [SHA-256](https://github.com/Chrisbetheking/chris-studio/releases/latest/download/SHA256SUMS-Apple-Silicon.txt)
 
-### macOS Intel
+### Intel
 
-- [DMG](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Intel.dmg)
-- [APP ZIP](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Intel.app.zip)
-- [SHA-256](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/SHA256SUMS-Intel.txt)
+- [DMG](https://github.com/Chrisbetheking/chris-studio/releases/latest/download/Chris-Studio-macOS-Intel.dmg)
+- [APP ZIP](https://github.com/Chrisbetheking/chris-studio/releases/latest/download/Chris-Studio-macOS-Intel.app.zip)
+- [Community installer](https://github.com/Chrisbetheking/chris-studio/releases/latest/download/Install-Chris-Studio-Intel.command)
+- [SHA-256](https://github.com/Chrisbetheking/chris-studio/releases/latest/download/SHA256SUMS-Intel.txt)
 
-> Direct asset links work only after the v1.7.0 Release has been built and uploaded. Community packages are currently unsigned. On first launch, macOS may require Control-click → Open or the app-specific quarantine fix in the troubleshooting guide. Do not disable Gatekeeper globally.
+Direct links become available after the v2.0.0 Release workflow succeeds. Developer ID signed and notarized packages pass the normal macOS trust flow. Without Apple credentials, the workflow publishes ad-hoc signed community packages and an app-specific installer helper.
 
-## What v1.7.0 adds
+## Implemented in v2.0.0
 
 ### Multi-provider workspace
 
-Built-in templates are included for DeepSeek, OpenAI, Anthropic, Gemini, Qwen, Kimi, Doubao/Ark, Zhipu GLM, OpenRouter, Ollama, LM Studio, custom OpenAI-compatible HTTPS endpoints, and an explicit offline Local Sandbox.
+Profiles are available for DeepSeek, OpenAI, Anthropic, Gemini, Qwen, Kimi, Doubao/Ark, Zhipu GLM, OpenRouter, Ollama, LM Studio, custom OpenAI-compatible endpoints and Local Sandbox.
 
-Each provider uses an independent profile, model, endpoint, connection state and operating-system credential entry. Keys are not written to browser localStorage. Model fields remain editable because availability can differ by account, region and provider.
+- per-profile operating-system credential storage;
+- no silent fallback after a real provider is selected;
+- OpenAI-compatible and Anthropic request formats;
+- reviewed image attachment delivery to vision-capable providers;
+- visible model and routing decisions before sending.
 
-### Safety before every send
+### Safety and token budgets
+
+- unified prompt and attachment scanning;
+- local redaction and critical-risk approval;
+- review invalidation after edits;
+- defensive redaction before history persistence;
+- conservative and balanced local compaction;
+- per-request and daily token limits;
+- local input, output and saved-token accounting.
+
+### File processors and local retrieval
+
+- text, code, PDF, DOCX, XLSX and image processing;
+- rendered-page OCR fallback for scanned PDFs;
+- English, Simplified Chinese and mixed OCR;
+- local document chunking and lexical retrieval;
+- file-type-specific provider routing;
+- reviewed original-image transfer for real vision calls.
+
+### Scoped coding-agent workspace
+
+- explicit project-folder scope;
+- text file reading and editing;
+- confirmed writes with `.tokenfence/backups`;
+- AI Patch Assistant using locally redacted repository tree, Git state, current diff and selected-file context;
+- model-generated plans and unified diffs remain preview-only until reviewed;
+- reviewed unified-diff application with archived patches;
+- allowlisted Git, npm and Cargo checks;
+- branch creation, commit and push;
+- GitHub PAT storage, repository metadata, Issues and Pull Request creation;
+- confirmation before every write, command, push and PR.
+
+Chris Studio does not expose an unrestricted shell to the model.
+
+### macOS Computer Use Beta
+
+- screen capture;
+- approved coordinate clicks;
+- approved text typing;
+- allowlisted keys and shortcuts;
+- permission settings shortcut;
+- local audit records;
+- no unrestricted background control.
+
+### Skills and MCP connectors
+
+- 20 built-in Skills;
+- local custom Skill editor and JSON import/export;
+- declared permissions and Agent composition;
+- reviewed MCP / JSON-RPC HTTP connectors;
+- HTTPS enforcement for remote endpoints;
+- Keychain storage for connector tokens;
+- explicit approval for every `tools/call`.
+
+The current MCP Beta handles JSON responses for `initialize`, `tools/list`, `resources/list`, `prompts/list` and `tools/call`. Servers that require retained SSE sessions may need a later adapter.
+
+### GitHub Release updates
+
+The app shows current and latest versions, release notes, dates and matching macOS assets. Installation remains user initiated.
+
+## macOS signing and the “damaged” warning
+
+The workflow supports these repository Secrets:
 
 ```text
-Prompt and attachments
-→ local extraction
-→ local sensitive-data scan
-→ risk and redaction review
-→ user approval
-→ token optimization
-→ model routing
-→ provider request
-→ safety receipt
+APPLE_CERTIFICATE
+APPLE_CERTIFICATE_PASSWORD
+APPLE_ID
+APPLE_PASSWORD
+APPLE_TEAM_ID
 ```
 
-The first message is reviewed, attachments participate in the same scan, edits invalidate prior approval, high-risk data defaults to a redacted payload, and local history is scanned again before persistence.
+When configured, Tauri builds can be signed and notarized. Without them, a community package is produced with an ad-hoc signature and `Install-Chris-Studio-*.command`. The helper clears quarantine only for Chris Studio and does not disable Gatekeeper globally.
 
-### Token optimization
-
-Conservative and Balanced local compaction modes estimate original and optimized token use, show the expected saving, and list the applied changes. Optimization can be disabled and is performed before provider billing begins.
-
-### Local file pipeline
-
-| Input | Processor | Status |
-|---|---|---|
-| Text, Markdown, JSON, CSV, logs and code | Text & Code Reader | Implemented |
-| PDF | PDF.js text extraction with page markers | Implemented |
-| DOCX | Mammoth raw-text extraction | Implemented |
-| XLSX / XLS | ExcelJS worksheet-to-CSV context | Implemented |
-| PNG / JPG / WEBP and more | Tesseract.js local OCR | Implemented; English pack by default |
-| Full-page OCR for scanned PDFs | PDF rendering + OCR | Roadmap |
-
-The original file is not sent directly. Only extracted text that is visible and reviewed in TokenFence can enter provider context.
-
-### File-to-model routing
-
-Separate local rules can route code, PDF, images/OCR, spreadsheets, office documents and general tasks to a provider profile and optional model override. The final destination remains visible in the inspector.
-
-### Agent Studio and built-in Skills
-
-Twelve built-in Skills cover secure coding, repository onboarding, release diagnosis, prompt compression, privacy review, PDF research, OCR cleanup, spreadsheet analysis, GitHub triage, research briefs, Computer Use guarding and product critique.
-
-Default Agent profiles include TokenFence Coder, Document Analyst and Desktop Operator Beta. Skills declare network, file, GitHub and computer permissions.
-
-### GitHub update visibility
-
-The Updates screen checks the latest GitHub Release, shows version metadata and assets, and opens reviewed external links through the native backend.
-
-### Modern macOS shell
-
-The native title bar uses an overlay style with no duplicated legacy product title. The compact drag region contains a quick-command entry, provider switcher and connection status, while all product sections share a consistent modern panel system.
-
-## Honest Computer Use scope
-
-v1.7.0 delivers the permission model, capability reporting, UI and Computer Use Guard Skill. It does **not** enable unrestricted mouse, keyboard or shell control. Screen capture, controlled actions, scoped project writes and terminal tasks remain planned until per-action approval, stop controls, restricted scopes and audit receipts are implemented.
-
-See [the v1.7 roadmap](docs/architecture/ROADMAP_v1.7.md).
-
-## Open-source inspiration
-
-TokenFence studies public product and architecture patterns from OpenHands, Open WebUI, AnythingLLM, LibreChat, MCP Servers and LobeChat. The project does not copy their application code. See [Open-source inspiration and boundaries](docs/architecture/OPEN_SOURCE_INSPIRATION.md).
+See [SIGNING_NOTARIZATION.md](docs/macos/SIGNING_NOTARIZATION.md).
 
 ## Development
 
-Requirements: Node.js 22, npm, stable Rust, and Xcode Command Line Tools on macOS.
-
 ```bash
-cd apps/desktop/ui
-npm ci --legacy-peer-deps
-npm run dev
-```
-
-Open `http://localhost:1420` for UI preview. Native credentials, provider requests, updates and desktop capabilities require Tauri:
-
-```bash
-npm ci --legacy-peer-deps
-npm ci --prefix apps/desktop/ui --legacy-peer-deps
-npm --workspace apps/desktop run dev
-```
-
-Validation:
-
-```bash
+npm ci --prefix apps/desktop/ui --legacy-peer-deps --no-audit --no-fund
 npm --prefix apps/desktop/ui run typecheck
 npm --prefix apps/desktop/ui run test:core
 npm --prefix apps/desktop/ui run build
-npm --prefix apps/desktop/ui audit --audit-level=moderate
 cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
-python scripts/verify_tokenfence_patch.py
+cd apps/desktop
+tauri dev
 ```
 
-## Publish macOS v1.7.0
+Production build:
 
-Open GitHub Actions → **TokenFence macOS Builds and Release** → **Run workflow**, then use:
+```bash
+cd apps/desktop
+tauri build
+```
+
+## Release v2.0.0
+
+Run `Chris Studio macOS Builds and Release` from GitHub Actions with:
 
 ```text
-version: v1.7.0
+version: v2.0.0
 create_release: true
 make_latest: true
 ```
 
-The workflow verifies TypeScript, privacy tests, the UI build, Rust, Apple Silicon and Intel Tauri packages, checksums and the GitHub Release.
+The workflow verifies public package sources, TypeScript, privacy/token/retrieval tests and Rust before building Apple Silicon and Intel packages.
 
-## Security notes
+## Security boundary
 
-TokenFence reduces accidental disclosure risk but cannot detect every secret. Built-in providers are restricted to matching hosts; custom remote APIs require HTTPS, while plain HTTP is allowed only for localhost. Third-party parsing dependencies must be continuously audited. Never paste real credentials into Issues or test fixtures. Public friction-free distribution still requires Apple Developer ID signing and notarization.
+Chris Studio is not antivirus software and cannot identify every secret. Review all file writes, commands, Computer Use actions, tool calls, Git pushes and Pull Requests. Never trust an unknown model or tool endpoint with real secrets.
 
 ## License
 

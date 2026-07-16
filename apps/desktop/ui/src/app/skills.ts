@@ -1,4 +1,4 @@
-import type { AgentProfile, SkillDefinition } from './types';
+import type { AgentProfile, CustomSkillDefinition, SkillDefinition } from './types';
 
 export const BUILT_IN_SKILLS: SkillDefinition[] = [
   {
@@ -97,13 +97,79 @@ export const BUILT_IN_SKILLS: SkillDefinition[] = [
     permissions: [],
     systemPrompt: 'Review the product as a first-time user. Identify unclear hierarchy, dead ends, hidden state, unnecessary text and weak feedback. Recommend concrete interface changes.',
   },
+
+  {
+    id: 'patch-reviewer', icon: 'edit', category: 'coding', builtIn: true,
+    nameEn: 'Patch Reviewer', nameZh: '补丁审查',
+    descriptionEn: 'Reviews proposed file edits, edge cases, tests and rollback before write approval.',
+    descriptionZh: '在写入前审查文件修改、边界条件、测试与回滚方案。',
+    permissions: ['files-read', 'files-write'],
+    systemPrompt: 'Review each proposed patch before writing. Identify behavior changes, missing tests, security regressions and rollback steps. Prefer small auditable edits.',
+  },
+  {
+    id: 'test-runner', icon: 'terminal', category: 'coding', builtIn: true,
+    nameEn: 'Safe Test Runner', nameZh: '安全测试执行',
+    descriptionEn: 'Chooses from approved build and test presets; never invents arbitrary shell commands.',
+    descriptionZh: '只使用批准的构建与测试预设，不生成任意终端命令。',
+    permissions: ['files-read', 'terminal-safe'],
+    systemPrompt: 'Select only from the available approved command presets. Explain why the check is needed, expected duration, and how to interpret failure.',
+  },
+  {
+    id: 'rag-librarian', icon: 'brain', category: 'documents', builtIn: true,
+    nameEn: 'Knowledge Librarian', nameZh: '知识库管理员',
+    descriptionEn: 'Chunks local documents, retrieves evidence and keeps source labels in answers.',
+    descriptionZh: '切分本地文档、检索证据并在回答中保留来源标记。',
+    permissions: ['files-read'],
+    systemPrompt: 'Use retrieved local knowledge only when relevant. Preserve source labels, separate evidence from inference, and say when the index is insufficient.',
+  },
+  {
+    id: 'vision-router', icon: 'image', category: 'documents', builtIn: true,
+    nameEn: 'Vision Router', nameZh: '视觉路由',
+    descriptionEn: 'Chooses OCR or a vision-capable provider based on image quality and task intent.',
+    descriptionZh: '根据图像质量与任务意图选择 OCR 或视觉模型。',
+    permissions: ['files-read', 'network'],
+    systemPrompt: 'Prefer local OCR for plain text extraction. Use a vision-capable model only when layout, objects, charts or visual relationships matter.',
+  },
+  {
+    id: 'github-maintainer', icon: 'git', category: 'automation', builtIn: true,
+    nameEn: 'GitHub Maintainer', nameZh: 'GitHub 维护助手',
+    descriptionEn: 'Reads repository metadata and issues, prepares branches and pull-request summaries.',
+    descriptionZh: '读取仓库元数据与 Issue，并准备分支和 Pull Request 摘要。',
+    permissions: ['github', 'network', 'files-read'],
+    systemPrompt: 'Use GitHub metadata to ground decisions. Never push, merge, close, publish or alter remote state without explicit user approval.',
+  },
+  {
+    id: 'desktop-observer', icon: 'monitor', category: 'automation', builtIn: true,
+    nameEn: 'Desktop Observer', nameZh: '桌面观察',
+    descriptionEn: 'Captures the screen for user-reviewed analysis without taking control.',
+    descriptionZh: '仅在用户审查下截取屏幕并分析，不主动控制。',
+    permissions: ['computer-view'],
+    systemPrompt: 'Observe only. Describe visible state, uncertainty and the exact next action that would require approval. Do not click or type.',
+  },
+  {
+    id: 'budget-guardian', icon: 'sliders', category: 'security', builtIn: true,
+    nameEn: 'Budget Guardian', nameZh: '预算守卫',
+    descriptionEn: 'Keeps token and request usage inside per-task and daily limits.',
+    descriptionZh: '把 Token 与请求用量控制在单任务和每日预算内。',
+    permissions: [],
+    systemPrompt: 'Minimize model calls and context. Reuse local results, stop loops, state estimated cost before expensive actions, and ask before exceeding configured budgets.',
+  },
+  {
+    id: 'mcp-tool-auditor', icon: 'plug', category: 'security', builtIn: true,
+    nameEn: 'Tool Connector Auditor', nameZh: '工具连接审查',
+    descriptionEn: 'Reviews external tool schemas, permissions and outbound data before enabling a connector.',
+    descriptionZh: '启用外部工具前审查工具结构、权限和出站数据。',
+    permissions: ['network'],
+    systemPrompt: 'Treat every external tool as untrusted. Review endpoint, schema, authentication, data exposure and side effects before enabling it.',
+  },
+
 ];
 
 const stamp = new Date(0).toISOString();
 
 export const DEFAULT_AGENTS: AgentProfile[] = [
   {
-    id: 'tokenfence-coder', name: 'TokenFence Coder', description: 'Codex-style coding workflow with security and release checks.',
+    id: 'tokenfence-coder', name: 'Chris Studio Coder', description: 'Codex-style coding workflow with security and release checks.',
     skillIds: ['secure-coder', 'repo-onboarding', 'release-doctor', 'token-compressor', 'privacy-review'],
     permissionMode: 'ask', enabled: true, createdAt: stamp, updatedAt: stamp,
   },
@@ -119,7 +185,7 @@ export const DEFAULT_AGENTS: AgentProfile[] = [
   },
 ];
 
-export function skillPrompt(skillIds: string[]): string {
-  const selected = BUILT_IN_SKILLS.filter((skill) => skillIds.includes(skill.id));
+export function skillPrompt(skillIds: string[], customSkills: CustomSkillDefinition[] = []): string {
+  const selected = [...BUILT_IN_SKILLS, ...customSkills].filter((skill) => skillIds.includes(skill.id));
   return selected.map((skill) => `## ${skill.nameEn}\n${skill.systemPrompt}`).join('\n\n');
 }

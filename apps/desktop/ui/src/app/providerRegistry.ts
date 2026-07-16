@@ -3,7 +3,7 @@ import type { ProviderDefinition, ProviderId } from './types';
 export const PROVIDERS: ProviderDefinition[] = [
   {
     id: 'local-demo', name: 'Local Sandbox', shortName: 'LOCAL', apiStyle: 'local-demo',
-    defaultBaseUrl: 'local://tokenfence', defaultModel: 'tokenfence-safety-demo', modelSuggestions: ['tokenfence-safety-demo'],
+    defaultBaseUrl: 'local://chris-studio', defaultModel: 'chris-studio-safety-demo', modelSuggestions: ['chris-studio-safety-demo'],
     requiresCredential: false, accent: '#0f766e',
     capabilities: { vision: false, tools: false, reasoning: false, local: true, files: true },
     descriptionEn: 'Offline safety and UI demonstration. No provider request is sent.',

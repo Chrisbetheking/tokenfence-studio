@@ -2,6 +2,10 @@ export type Language = 'en' | 'zh-CN';
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type ScreenId =
   | 'workspace'
+  | 'projects'
+  | 'computer'
+  | 'skills'
+  | 'connectors'
   | 'agents'
   | 'files'
   | 'routing'
@@ -32,7 +36,14 @@ export type ProviderStatusState = 'not-configured' | 'configured' | 'connected' 
 export type FileKind = 'text' | 'code' | 'pdf' | 'document' | 'spreadsheet' | 'image' | 'unknown';
 export type ProcessorId = 'text-reader' | 'pdf-extractor' | 'docx-reader' | 'sheet-reader' | 'local-ocr';
 export type WorkspaceMode = 'chat' | 'agent';
-export type SkillPermission = 'network' | 'files-read' | 'files-write' | 'github' | 'computer-view' | 'computer-control';
+export type SkillPermission =
+  | 'network'
+  | 'files-read'
+  | 'files-write'
+  | 'github'
+  | 'terminal-safe'
+  | 'computer-view'
+  | 'computer-control';
 
 export interface AttachmentDraft {
   id: string;
@@ -44,6 +55,8 @@ export interface AttachmentDraft {
   mimeType?: string;
   pageCount?: number;
   warnings?: string[];
+  dataUrl?: string;
+  ocrLanguage?: string;
 }
 
 export interface ChatMessage {
@@ -197,6 +210,8 @@ export interface AppSettings {
   experimentalFeatures: boolean;
   debugMode: boolean;
   tokenOptimizationMode: 'off' | 'conservative' | 'balanced';
+  maxRequestTokens: number;
+  dailyTokenBudget: number;
   githubOwner: string;
   githubRepo: string;
   autoCheckUpdates: boolean;
@@ -227,6 +242,23 @@ export interface TokenOptimizationResult {
   changes: string[];
 }
 
+export interface TokenUsageEntry {
+  id: string;
+  createdAt: string;
+  provider: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  savedTokens: number;
+}
+
+export interface TokenUsageSummary {
+  inputTokens: number;
+  outputTokens: number;
+  savedTokens: number;
+  totalTokens: number;
+}
+
 export interface ReleaseAsset {
   name: string;
   downloadUrl: string;
@@ -251,4 +283,143 @@ export interface ComputerCapability {
   permissionRequired: boolean;
   status: 'ready' | 'permission-needed' | 'planned';
   message: string;
+}
+
+
+export interface ProjectFileNode {
+  path: string;
+  name: string;
+  kind: 'file' | 'directory';
+  size: number;
+  depth: number;
+  children?: ProjectFileNode[];
+}
+
+export interface ProjectWorkspace {
+  root: string;
+  name: string;
+  fileCount: number;
+  gitRepository: boolean;
+}
+
+export interface ProjectFileContent {
+  ok: boolean;
+  path: string;
+  content: string;
+  binary: boolean;
+  size: number;
+  errorMessage?: string;
+}
+
+export interface ProjectWriteResult {
+  ok: boolean;
+  path: string;
+  backupPath?: string;
+  bytesWritten: number;
+  errorMessage?: string;
+}
+
+export interface ProjectCommandResult {
+  ok: boolean;
+  preset: string;
+  command: string;
+  stdout: string;
+  stderr: string;
+  exitCode?: number;
+  durationMs: number;
+  errorMessage?: string;
+}
+
+export interface GitHubConnectionInfo {
+  ok: boolean;
+  login?: string;
+  name?: string;
+  avatarUrl?: string;
+  errorMessage?: string;
+}
+
+export interface GitHubRepositoryOverview {
+  ok: boolean;
+  fullName?: string;
+  defaultBranch?: string;
+  privateRepo?: boolean;
+  stars?: number;
+  openIssues?: number;
+  pushedAt?: string;
+  htmlUrl?: string;
+  errorMessage?: string;
+}
+
+export interface GitHubIssueSummary {
+  number: number;
+  title: string;
+  state: string;
+  url: string;
+  updatedAt?: string;
+}
+
+
+export interface GitHubPullRequestResult {
+  ok: boolean;
+  number?: number;
+  url?: string;
+  title?: string;
+  errorMessage?: string;
+}
+
+export interface ComputerActionResult {
+  ok: boolean;
+  action: string;
+  message: string;
+  screenshotDataUrl?: string;
+  timestamp: string;
+}
+
+export interface ComputerAuditEntry {
+  id: string;
+  action: string;
+  detail: string;
+  ok: boolean;
+  createdAt: string;
+}
+
+export interface KnowledgeChunk {
+  id: string;
+  sourceId: string;
+  sourceName: string;
+  text: string;
+  tokens: string[];
+  index: number;
+}
+
+export interface KnowledgeSearchHit {
+  chunk: KnowledgeChunk;
+  score: number;
+}
+
+export interface CustomSkillDefinition extends SkillDefinition {
+  version: string;
+  source: 'local' | 'imported';
+  updatedAt: string;
+}
+
+export interface ToolConnectorProfile {
+  id: string;
+  name: string;
+  url: string;
+  enabled: boolean;
+  requiresCredential: boolean;
+  credentialStored: boolean;
+  token: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface McpReply {
+  ok: boolean;
+  status: number;
+  result?: unknown;
+  errorCode?: string;
+  errorMessage?: string;
+  latencyMs: number;
 }

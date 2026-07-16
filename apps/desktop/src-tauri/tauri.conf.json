@@ -6,8 +6,8 @@
     "beforeDevCommand": "npm run ui:dev"
   },
   "package": {
-    "productName": "TokenFence Studio",
-    "version": "1.7.1"
+    "productName": "Chris Studio",
+    "version": "2.0.0"
   },
   "tauri": {
     "bundle": {

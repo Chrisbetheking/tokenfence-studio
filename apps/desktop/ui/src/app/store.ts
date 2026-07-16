@@ -6,6 +6,12 @@ import type {
   ProviderStatus,
   RoutingRule,
   SafetyReceipt,
+  ComputerAuditEntry,
+  CustomSkillDefinition,
+  KnowledgeChunk,
+  TokenUsageEntry,
+  TokenUsageSummary,
+  ToolConnectorProfile,
 } from './types';
 import { scanText } from '../features/safety/scanner';
 import { providerDefinition } from './providerRegistry';
@@ -26,6 +32,13 @@ const KEYS = {
   routing: 'tokenfence.routing.v170',
   agents: 'tokenfence.agents.v170',
   activeAgent: 'tokenfence.active-agent.v170',
+  customSkills: 'tokenfence.custom-skills.v180',
+  knowledge: 'tokenfence.knowledge.v180',
+  computerAudit: 'tokenfence.computer-audit.v180',
+  projectRoot: 'tokenfence.project-root.v180',
+  githubRepoUrl: 'tokenfence.github-repo-url.v180',
+  tokenUsage: 'tokenfence.token-usage.v180',
+  connectors: 'tokenfence.connectors.v180',
 } as const;
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -46,8 +59,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   experimentalFeatures: true,
   debugMode: false,
   tokenOptimizationMode: 'balanced',
+  maxRequestTokens: 32_000,
+  dailyTokenBudget: 250_000,
   githubOwner: 'Chrisbetheking',
-  githubRepo: 'tokenfence-studio',
+  githubRepo: 'chris-studio',
   autoCheckUpdates: true,
 };
 
@@ -73,7 +88,7 @@ function safeRead<T>(key: string, fallback: T, backupCorrupt = true): T {
       try {
         window.localStorage.setItem(`${key}.corrupt.${Date.now()}`, sanitizeCorruptBackup(raw));
       } catch {
-        // Storage failures must not crash TokenFence.
+        // Storage failures must not crash Chris Studio.
       }
     }
     window.localStorage.removeItem(key);
@@ -131,7 +146,7 @@ function migrateLegacyProvider(): ProviderProfile[] | null {
     },
     {
       id: 'local-sandbox', providerId: 'local-demo', displayName: 'Local Sandbox', apiStyle: 'local-demo',
-      baseUrl: 'local://tokenfence', model: 'tokenfence-safety-demo', enabled: true,
+      baseUrl: 'local://chris-studio', model: 'chris-studio-safety-demo', enabled: true,
       credentialStored: false, apiKey: '', createdAt: timestamp, updatedAt: timestamp,
     },
   ];
@@ -334,4 +349,109 @@ export function resetApplication(): void {
   if (!canUseStorage()) return;
   Object.values(KEYS).forEach((key) => window.localStorage.removeItem(key));
   window.dispatchEvent(new CustomEvent('tokenfence:reset'));
+}
+
+
+export function loadCustomSkills(): CustomSkillDefinition[] {
+  const saved = safeRead<CustomSkillDefinition[]>(KEYS.customSkills, []);
+  return Array.isArray(saved) ? saved.filter((skill) => skill && typeof skill.id === 'string') : [];
+}
+
+export function saveCustomSkills(skills: CustomSkillDefinition[]): void {
+  safeWrite(KEYS.customSkills, skills.slice(0, 200));
+  window.dispatchEvent(new CustomEvent('tokenfence:skills-updated'));
+}
+
+export function loadKnowledgeIndex(): KnowledgeChunk[] {
+  const saved = safeRead<KnowledgeChunk[]>(KEYS.knowledge, []);
+  return Array.isArray(saved) ? saved.slice(0, 12_000) : [];
+}
+
+export function saveKnowledgeIndex(chunks: KnowledgeChunk[]): void {
+  safeWrite(KEYS.knowledge, chunks.slice(0, 12_000));
+  window.dispatchEvent(new CustomEvent('tokenfence:knowledge-updated'));
+}
+
+export function clearKnowledgeIndex(): void {
+  safeWrite(KEYS.knowledge, []);
+  window.dispatchEvent(new CustomEvent('tokenfence:knowledge-updated'));
+}
+
+export function loadComputerAudit(): ComputerAuditEntry[] {
+  const saved = safeRead<ComputerAuditEntry[]>(KEYS.computerAudit, []);
+  return Array.isArray(saved) ? saved : [];
+}
+
+export function appendComputerAudit(entry: ComputerAuditEntry): void {
+  safeWrite(KEYS.computerAudit, [entry, ...loadComputerAudit()].slice(0, 500));
+  window.dispatchEvent(new CustomEvent('tokenfence:computer-audit-updated'));
+}
+
+export function clearComputerAudit(): void {
+  safeWrite(KEYS.computerAudit, []);
+  window.dispatchEvent(new CustomEvent('tokenfence:computer-audit-updated'));
+}
+
+export function loadProjectRoot(): string {
+  return safeRead<string>(KEYS.projectRoot, '');
+}
+
+export function saveProjectRoot(root: string): void {
+  safeWrite(KEYS.projectRoot, root);
+  window.dispatchEvent(new CustomEvent('tokenfence:project-updated'));
+}
+
+export function loadGitHubRepoUrl(): string {
+  return safeRead<string>(KEYS.githubRepoUrl, 'https://github.com/Chrisbetheking/chris-studio');
+}
+
+export function saveGitHubRepoUrl(url: string): void {
+  safeWrite(KEYS.githubRepoUrl, url.trim());
+  window.dispatchEvent(new CustomEvent('tokenfence:github-updated'));
+}
+
+export function loadTokenUsage(): TokenUsageEntry[] {
+  const saved = safeRead<TokenUsageEntry[]>(KEYS.tokenUsage, []);
+  return Array.isArray(saved) ? saved.slice(0, 5_000) : [];
+}
+
+export function recordTokenUsage(entry: TokenUsageEntry): void {
+  safeWrite(KEYS.tokenUsage, [entry, ...loadTokenUsage()].slice(0, 5_000));
+  window.dispatchEvent(new CustomEvent('tokenfence:token-usage-updated'));
+}
+
+export function tokenUsageSummary(datePrefix = new Date().toISOString().slice(0, 10)): TokenUsageSummary {
+  return loadTokenUsage().filter((entry) => entry.createdAt.startsWith(datePrefix)).reduce<TokenUsageSummary>((summary, entry) => ({
+    inputTokens: summary.inputTokens + Math.max(0, entry.inputTokens || 0),
+    outputTokens: summary.outputTokens + Math.max(0, entry.outputTokens || 0),
+    savedTokens: summary.savedTokens + Math.max(0, entry.savedTokens || 0),
+    totalTokens: summary.totalTokens + Math.max(0, entry.inputTokens || 0) + Math.max(0, entry.outputTokens || 0),
+  }), { inputTokens: 0, outputTokens: 0, savedTokens: 0, totalTokens: 0 });
+}
+
+export function clearTokenUsage(): void {
+  safeWrite(KEYS.tokenUsage, []);
+  window.dispatchEvent(new CustomEvent('tokenfence:token-usage-updated'));
+}
+
+export function loadToolConnectors(): ToolConnectorProfile[] {
+  const saved = safeRead<ToolConnectorProfile[]>(KEYS.connectors, []);
+  return Array.isArray(saved) ? saved.map((connector) => ({ ...connector, token: '' })).slice(0, 50) : [];
+}
+
+export function saveToolConnectors(connectors: ToolConnectorProfile[]): void {
+  safeWrite(KEYS.connectors, connectors.slice(0, 50).map((connector) => ({
+    ...connector,
+    token: '',
+    credentialStored: Boolean(connector.credentialStored || connector.token.trim()),
+  })));
+  window.dispatchEvent(new CustomEvent('tokenfence:connectors-updated'));
+}
+
+export function saveToolConnector(connector: ToolConnectorProfile): void {
+  saveToolConnectors([connector, ...loadToolConnectors().filter((item) => item.id !== connector.id)]);
+}
+
+export function deleteToolConnector(id: string): void {
+  saveToolConnectors(loadToolConnectors().filter((item) => item.id !== id));
 }

@@ -1,66 +1,60 @@
-# TokenFence Studio macOS build and test
+# Chris Studio v2.0.0 — macOS build and test
 
-## What this patch adds
+## Local prerequisites
 
-- Native Tauri macOS application bundles (`.app` and `.dmg`).
-- Independent GitHub Actions builds for Apple Silicon and Intel Macs.
-- Optional Universal macOS package.
-- Native macOS application menu entries for New Session, Preferences, About and Quit.
-- DeepSeek API credentials stored in macOS Keychain instead of browser localStorage.
-- Runtime platform information shown on the About page.
+- macOS with Xcode Command Line Tools;
+- Node.js 20–22 and npm;
+- Rust stable and Cargo;
+- internet access to the public npm and crates.io registries;
+- Apple Developer credentials only when testing signed/notarized distribution.
 
-## Build without owning a second Mac
-
-1. Upload this patch to the repository root.
-2. Open GitHub → Actions.
-3. Select **TokenFence macOS Builds and Release**.
-4. Choose **Run workflow** on the `main` branch.
-5. After completion, download one of these artifacts:
-   - `TokenFence-Studio-macOS-Apple-Silicon`
-   - `TokenFence-Studio-macOS-Intel`
-
-Apple Silicon is for M1/M2/M3/M4 and newer Apple chips. Intel is for older Intel-based Macs.
-
-## Build locally on a Mac
-
-From the repository root:
+## UI and safety validation
 
 ```bash
-bash scripts/build-macos.sh
+npm ci --prefix apps/desktop/ui --legacy-peer-deps --no-audit --no-fund
+npm --prefix apps/desktop/ui run typecheck
+npm --prefix apps/desktop/ui run test:core
+npm --prefix apps/desktop/ui run build
+python3 scripts/verify_tokenfence_patch.py
 ```
 
-The output is under:
+## Native validation
+
+```bash
+cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
+```
+
+## Build the current Mac architecture
+
+```bash
+./scripts/build-macos.sh
+```
+
+The script detects `arm64` or `x86_64`, validates the UI and backend, then builds the matching Tauri target.
+
+## GitHub Actions release
+
+Run `Chris Studio macOS Builds and Release` with:
 
 ```text
-apps/desktop/src-tauri/target/<target>/release/bundle/
+version: v2.0.0
+create_release: true
+make_latest: true
 ```
 
-## First launch of an unsigned build
+The workflow builds Apple Silicon and Intel separately. Configure the Apple Secrets documented in `SIGNING_NOTARIZATION.md` for trusted distribution.
 
-Until Apple Developer signing and notarization are configured, macOS can show a security warning.
+## Smoke-test checklist
 
-Use Finder:
+1. Launch and switch language/theme.
+2. Save a test Provider key to Keychain, test and set active.
+3. Run a local safety scan with fictional credentials.
+4. Process text, image OCR, a text PDF and a scanned PDF.
+5. Add a document to local knowledge and retrieve it from Workspace.
+6. Open a disposable Git repository, edit with backup, generate a review-only AI diff and run an approved check.
+7. Connect a test GitHub repository and read Issues; only create a PR in a disposable branch.
+8. Grant macOS privacy permissions and test one screenshot, one click and one typing action.
+9. Connect a disposable local MCP server and confirm one safe tool call.
+10. Check the Updates page against the published Release.
 
-1. Drag TokenFence Studio to Applications.
-2. Control-click the app.
-3. Choose **Open**.
-4. Confirm **Open** again.
-
-Do not disable Gatekeeper globally.
-
-## macOS verification checklist
-
-- Application opens from `/Applications`.
-- `TokenFence Studio` appears in the macOS menu bar.
-- `Command + N` creates a new safe session.
-- Preferences opens Settings.
-- About shows `macos` and either `aarch64` or `x86_64`.
-- Saving a DeepSeek key creates a Keychain entry for service `com.tokenfence.studio`.
-- Restarting the app keeps provider configuration without writing the raw key to localStorage.
-- Clearing the credential removes the Keychain entry.
-- Demo mode works without a network request.
-- Prompt and attachment review still blocks unapproved Critical payloads.
-
-## Signing and notarization
-
-The build workflow intentionally works without Apple Developer secrets. For public distribution without the first-launch warning, add Apple Developer signing and notarization in a later release. Do not place certificates, passwords or App Store Connect keys in the repository.
+Never use production secrets or production repositories during first-run validation.

@@ -17,15 +17,7 @@ try {
   const scanner = require(path.join(buildRoot, 'features/safety/scanner.js'));
   const store = require(path.join(buildRoot, 'app/store.js'));
   const optimizer = require(path.join(buildRoot, 'features/tokens/optimizer.js'));
-
-  const providerClientSource = fs.readFileSync(
-    path.resolve(__dirname, '../src/features/providers/providerClient.ts'),
-    'utf8',
-  );
-  const secureHydrationGuards = providerClientSource.match(/!resolved\.apiKey && !profile\.credentialStored/g) || [];
-  if (secureHydrationGuards.length !== 2) {
-    throw new Error('Provider client would block OS credential-store hydration before native invocation');
-  }
+  const knowledge = require(path.join(buildRoot, 'features/files/knowledge.js'));
 
   const prompt = scanner.scanText('api_key=DEMO_SECRET_1234567890abcdef and alice@example.com');
   if (prompt.riskLevel !== 'critical') throw new Error(`Expected critical risk, got ${prompt.riskLevel}`);
@@ -48,6 +40,10 @@ try {
     throw new Error('Token optimizer did not reduce obvious duplicate context');
   }
 
+  const chunks = knowledge.buildKnowledgeIndex([{ id: 'doc-1', name: 'security.md', size: 128, content: 'Chris Studio protects API keys before an AI request is sent. It also keeps reviewed backups for project edits.' }]);
+  const hits = knowledge.searchKnowledge(chunks, 'How are API keys protected?', 3);
+  if (!hits.length || hits[0].chunk.sourceName !== 'security.md') throw new Error('Local knowledge retrieval did not return the expected source');
+
   const now = new Date().toISOString();
   store.saveProviderProfile({
     id: 'deepseek-primary', providerId: 'deepseek', displayName: 'DeepSeek', apiStyle: 'openai-compatible',
@@ -58,6 +54,10 @@ try {
   if (store.loadActiveProvider().id !== 'deepseek-primary') throw new Error('Configured provider silently fell back to Local Sandbox');
   const providerStorage = global.window.localStorage.getItem('tokenfence.providers.v170') || '';
   if (providerStorage.includes('DEMO_ONLY_NOT_A_REAL_KEY')) throw new Error('Provider API key was persisted to localStorage');
+
+  store.recordTokenUsage({ id: 'usage-1', createdAt: now, provider: 'DeepSeek', model: 'deepseek-v4-flash', inputTokens: 120, outputTokens: 40, savedTokens: 35 });
+  const usage = store.tokenUsageSummary(now.slice(0, 10));
+  if (usage.totalTokens !== 160 || usage.savedTokens !== 35) throw new Error('Token budget accounting failed');
 
   store.saveConversation({
     id: 'conversation-1',

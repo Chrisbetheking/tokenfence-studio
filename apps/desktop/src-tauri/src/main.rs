@@ -2,11 +2,21 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
+use std::fs;
+use std::path::{Component, Path, PathBuf};
 use std::process::Command;
-use std::time::{Duration, Instant};
-use tauri::{CustomMenuItem, Manager, Menu, MenuItem, Submenu};
+use std::sync::Mutex;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use tauri::{CustomMenuItem, Manager, Menu, MenuItem, State, Submenu};
 use url::Url;
 
+
+
+#[derive(Default)]
+struct AppState {
+    project_root: Mutex<Option<PathBuf>>,
+}
 const MAX_TIMEOUT_MS: u64 = 180_000;
 const MIN_TIMEOUT_MS: u64 = 5_000;
 const CREDENTIAL_SERVICE: &str = "com.tokenfence.studio.provider";
@@ -28,7 +38,7 @@ struct ProviderConfigInput {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct ProviderMessage {
     role: String,
-    content: String,
+    content: Value,
 }
 
 #[derive(Debug, Deserialize)]
@@ -137,6 +147,137 @@ struct UpdateInfo {
     error_message: Option<String>,
 }
 
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ProjectFileNode {
+    path: String,
+    name: String,
+    kind: String,
+    size: u64,
+    depth: usize,
+    children: Option<Vec<ProjectFileNode>>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectWorkspace {
+    root: String,
+    name: String,
+    file_count: usize,
+    git_repository: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectFileContent {
+    ok: bool,
+    path: String,
+    content: String,
+    binary: bool,
+    size: u64,
+    error_message: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectWriteResult {
+    ok: bool,
+    path: String,
+    backup_path: Option<String>,
+    bytes_written: usize,
+    error_message: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectCommandResult {
+    ok: bool,
+    preset: String,
+    command: String,
+    stdout: String,
+    stderr: String,
+    exit_code: Option<i32>,
+    duration_ms: u128,
+    error_message: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GitHubConnectionInfo {
+    ok: bool,
+    login: Option<String>,
+    name: Option<String>,
+    avatar_url: Option<String>,
+    error_message: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GitHubRepositoryOverview {
+    ok: bool,
+    full_name: Option<String>,
+    default_branch: Option<String>,
+    private_repo: Option<bool>,
+    stars: Option<u64>,
+    open_issues: Option<u64>,
+    pushed_at: Option<String>,
+    html_url: Option<String>,
+    error_message: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GitHubIssueSummary {
+    number: u64,
+    title: String,
+    state: String,
+    url: String,
+    updated_at: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GitHubPullRequestResult {
+    ok: bool,
+    number: Option<u64>,
+    url: Option<String>,
+    title: Option<String>,
+    error_message: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct McpRequestInput {
+    profile_id: String,
+    url: String,
+    token: String,
+    requires_credential: bool,
+    method: String,
+    params: Value,
+    confirmed: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct McpReply {
+    ok: bool,
+    status: u16,
+    result: Option<Value>,
+    error_code: Option<String>,
+    error_message: Option<String>,
+    latency_ms: u128,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ComputerActionResult {
+    ok: bool,
+    action: String,
+    message: String,
+    screenshot_data_url: Option<String>,
+    timestamp: String,
+}
 fn provider_name(provider_id: &str) -> &'static str {
     match provider_id {
         "deepseek" => "DeepSeek",
@@ -244,7 +385,7 @@ fn validate_messages(messages: &[ProviderMessage], started: Instant) -> Result<(
         || messages.len() > 160
         || messages.iter().any(|message| {
             !matches!(message.role.as_str(), "user" | "assistant" | "system")
-                || message.content.len() > MAX_MESSAGE_CHARS
+                || serde_json::to_string(&message.content).map(|value| value.len()).unwrap_or(MAX_MESSAGE_CHARS + 1) > MAX_MESSAGE_CHARS
         })
     {
         return Err(ProviderReply::failure(
@@ -319,8 +460,8 @@ fn send_openai_compatible(
     }
     if config.provider_id == "openrouter" {
         request = request
-            .set("HTTP-Referer", "https://github.com/Chrisbetheking/tokenfence-studio")
-            .set("X-Title", "TokenFence Studio");
+            .set("HTTP-Referer", "https://github.com/Chrisbetheking/chris-studio")
+            .set("X-Title", "Chris Studio");
     }
 
     match request.send_json(body) {
@@ -397,13 +538,30 @@ fn send_anthropic(
     let system = messages
         .iter()
         .filter(|message| message.role == "system")
-        .map(|message| message.content.as_str())
+        .filter_map(|message| message.content.as_str())
         .collect::<Vec<_>>()
         .join("\n\n");
     let chat_messages: Vec<Value> = messages
         .into_iter()
         .filter(|message| message.role != "system")
-        .map(|message| json!({ "role": message.role, "content": message.content }))
+        .map(|message| {
+            let content = match message.content {
+                Value::Array(items) => Value::Array(items.into_iter().filter_map(|item| {
+                    match item.get("type").and_then(Value::as_str) {
+                        Some("text") => Some(json!({ "type": "text", "text": item.get("text").and_then(Value::as_str).unwrap_or_default() })),
+                        Some("image_url") => {
+                            let url = item.pointer("/image_url/url").and_then(Value::as_str)?;
+                            let data = url.strip_prefix("data:")?;
+                            let (media_type, encoded) = data.split_once(";base64,")?;
+                            Some(json!({ "type": "image", "source": { "type": "base64", "media_type": media_type, "data": encoded } }))
+                        }
+                        _ => None,
+                    }
+                }).collect()),
+                other => other,
+            };
+            json!({ "role": message.role, "content": content })
+        })
         .collect();
     let mut body = json!({
         "model": model,
@@ -670,7 +828,7 @@ fn provider_connection_test(config: ProviderConfigInput) -> ProviderReply {
         config,
         vec![ProviderMessage {
             role: "user".to_string(),
-            content: "Reply with exactly: TokenFence connection verified.".to_string(),
+            content: Value::String("Reply with exactly: Chris Studio connection verified.".to_string()),
         }],
         48,
         0.0,
@@ -721,48 +879,49 @@ fn platform_info() -> PlatformInfo {
 
 #[tauri::command]
 fn computer_capabilities() -> Vec<ComputerCapability> {
+    let native_ready = cfg!(target_os = "macos");
     vec![
         ComputerCapability {
             id: "screen-capture",
-            available: false,
+            available: native_ready,
             permission_required: true,
-            status: "planned",
-            message: "Permission-gated screen capture is the next native Computer Use milestone.",
+            status: if native_ready { "permission-needed" } else { "planned" },
+            message: if native_ready { "Available after macOS Screen Recording permission is granted." } else { "Currently implemented for macOS builds." },
         },
         ComputerCapability {
             id: "open-url",
             available: true,
             permission_required: false,
             status: "ready",
-            message: "TokenFence can open reviewed HTTPS links through the operating system.",
+            message: "Chris Studio can open reviewed HTTP and HTTPS links through the operating system.",
         },
         ComputerCapability {
             id: "keyboard",
-            available: false,
+            available: native_ready,
             permission_required: true,
-            status: "planned",
-            message: "Keyboard control is disabled until per-action approval and audit receipts are implemented.",
+            status: if native_ready { "permission-needed" } else { "planned" },
+            message: if native_ready { "Approved typing and allowlisted keys require Accessibility permission." } else { "Currently implemented for macOS builds." },
         },
         ComputerCapability {
             id: "pointer",
-            available: false,
+            available: native_ready,
             permission_required: true,
-            status: "planned",
-            message: "Pointer control is disabled until per-action approval and audit receipts are implemented.",
+            status: if native_ready { "permission-needed" } else { "planned" },
+            message: if native_ready { "Approved coordinate clicks require Accessibility permission." } else { "Currently implemented for macOS builds." },
         },
         ComputerCapability {
             id: "project-files",
-            available: false,
+            available: true,
             permission_required: true,
-            status: "planned",
-            message: "Scoped project folders will be introduced with the coding-agent sandbox.",
+            status: "ready",
+            message: "Scoped project folders support read, reviewed writes and automatic backups.",
         },
         ComputerCapability {
             id: "terminal",
-            available: false,
+            available: true,
             permission_required: true,
-            status: "planned",
-            message: "There is no unrestricted shell command in this release.",
+            status: "ready",
+            message: "Only fixed build, test and Git diagnostics from the command allowlist can run.",
         },
     ]
 }
@@ -844,7 +1003,7 @@ fn github_release_check(owner: String, repo: String) -> UpdateInfo {
     let response = agent
         .get(&endpoint)
         .set("Accept", "application/vnd.github+json")
-        .set("User-Agent", "TokenFence-Studio")
+        .set("User-Agent", "Chris-Studio")
         .call();
 
     match response {
@@ -956,22 +1115,839 @@ fn open_external_url(url: String) -> Result<(), String> {
         .map_err(|_| "The operating system could not open the link.".to_string())
 }
 
+fn unix_timestamp() -> String {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+        .to_string()
+}
+
+fn truncate_output(value: &[u8]) -> String {
+    String::from_utf8_lossy(value).chars().take(80_000).collect()
+}
+
+fn ignored_project_name(name: &str) -> bool {
+    matches!(
+        name,
+        ".git" | "node_modules" | "target" | "dist" | "build" | ".next" | ".cache" | ".idea" | ".vscode" | ".tokenfence"
+    ) || name.starts_with(".DS_Store")
+}
+
+fn count_project_files(path: &Path, depth: usize, count: &mut usize) {
+    if depth > 16 || *count >= 20_000 {
+        return;
+    }
+    let entries = match fs::read_dir(path) {
+        Ok(entries) => entries,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if ignored_project_name(&name) {
+            continue;
+        }
+        let metadata = match entry.metadata() {
+            Ok(metadata) => metadata,
+            Err(_) => continue,
+        };
+        if metadata.file_type().is_symlink() {
+            continue;
+        }
+        if metadata.is_dir() {
+            count_project_files(&entry.path(), depth + 1, count);
+        } else if metadata.is_file() {
+            *count += 1;
+        }
+        if *count >= 20_000 {
+            break;
+        }
+    }
+}
+
+fn project_workspace(root: &Path) -> ProjectWorkspace {
+    let mut file_count = 0;
+    count_project_files(root, 0, &mut file_count);
+    ProjectWorkspace {
+        root: root.to_string_lossy().to_string(),
+        name: root.file_name().and_then(|value| value.to_str()).unwrap_or("Project").to_string(),
+        file_count,
+        git_repository: root.join(".git").is_dir(),
+    }
+}
+
+fn set_project_root_path(root: PathBuf, state: &State<'_, AppState>) -> Result<ProjectWorkspace, String> {
+    let canonical = root.canonicalize().map_err(|_| "The selected project folder could not be opened.".to_string())?;
+    if !canonical.is_dir() {
+        return Err("The selected project path is not a folder.".to_string());
+    }
+    let mut slot = state.project_root.lock().map_err(|_| "The project workspace is busy.".to_string())?;
+    *slot = Some(canonical.clone());
+    Ok(project_workspace(&canonical))
+}
+
+fn current_project_root(state: &State<'_, AppState>) -> Result<PathBuf, String> {
+    state
+        .project_root
+        .lock()
+        .map_err(|_| "The project workspace is busy.".to_string())?
+        .clone()
+        .ok_or_else(|| "Open a project folder first.".to_string())
+}
+
+fn clean_relative_path(value: &str) -> Result<PathBuf, String> {
+    let path = PathBuf::from(value.trim());
+    if path.as_os_str().is_empty() || path.is_absolute() {
+        return Err("The project file path is invalid.".to_string());
+    }
+    for component in path.components() {
+        match component {
+            Component::Normal(_) => {}
+            _ => return Err("Parent traversal is not allowed in project paths.".to_string()),
+        }
+    }
+    if path.components().any(|component| component.as_os_str() == ".git") {
+        return Err("Direct writes inside .git are blocked.".to_string());
+    }
+    Ok(path)
+}
+
+fn resolve_project_path(root: &Path, relative: &str, require_existing: bool) -> Result<(PathBuf, PathBuf), String> {
+    let clean = clean_relative_path(relative)?;
+    let joined = root.join(&clean);
+    if require_existing {
+        let canonical = joined.canonicalize().map_err(|_| "The requested project file does not exist.".to_string())?;
+        if !canonical.starts_with(root) {
+            return Err("The requested file is outside the approved project folder.".to_string());
+        }
+        Ok((canonical, clean))
+    } else {
+        let parent = joined.parent().ok_or_else(|| "The project file has no parent folder.".to_string())?;
+        let canonical_parent = parent.canonicalize().map_err(|_| "The parent folder does not exist.".to_string())?;
+        if !canonical_parent.starts_with(root) {
+            return Err("The requested file is outside the approved project folder.".to_string());
+        }
+        Ok((joined, clean))
+    }
+}
+
+fn scan_project_directory(root: &Path, current: &Path, depth: usize, count: &mut usize) -> Vec<ProjectFileNode> {
+    if depth > 12 || *count >= 5_000 {
+        return vec![];
+    }
+    let mut entries = match fs::read_dir(current) {
+        Ok(entries) => entries.flatten().collect::<Vec<_>>(),
+        Err(_) => return vec![],
+    };
+    entries.sort_by_key(|entry| entry.file_name().to_string_lossy().to_lowercase());
+    let mut nodes = vec![];
+    for entry in entries {
+        if *count >= 5_000 {
+            break;
+        }
+        let name = entry.file_name().to_string_lossy().to_string();
+        if ignored_project_name(&name) {
+            continue;
+        }
+        let metadata = match entry.metadata() {
+            Ok(metadata) => metadata,
+            Err(_) => continue,
+        };
+        if metadata.file_type().is_symlink() {
+            continue;
+        }
+        let path = entry.path();
+        let relative = path.strip_prefix(root).unwrap_or(&path).to_string_lossy().to_string();
+        if metadata.is_dir() {
+            nodes.push(ProjectFileNode {
+                path: relative,
+                name,
+                kind: "directory".to_string(),
+                size: 0,
+                depth,
+                children: Some(scan_project_directory(root, &path, depth + 1, count)),
+            });
+        } else if metadata.is_file() {
+            *count += 1;
+            nodes.push(ProjectFileNode {
+                path: relative,
+                name,
+                kind: "file".to_string(),
+                size: metadata.len(),
+                depth,
+                children: None,
+            });
+        }
+    }
+    nodes
+}
+
+#[tauri::command]
+fn project_choose_folder(state: State<'_, AppState>) -> Result<Option<ProjectWorkspace>, String> {
+    let selected = tauri::api::dialog::blocking::FileDialogBuilder::new().pick_folder();
+    match selected {
+        Some(root) => set_project_root_path(root, &state).map(Some),
+        None => Ok(None),
+    }
+}
+
+#[tauri::command]
+fn project_set_root(root: String, state: State<'_, AppState>) -> Result<Option<ProjectWorkspace>, String> {
+    set_project_root_path(PathBuf::from(root), &state).map(Some)
+}
+
+#[tauri::command]
+fn project_scan(state: State<'_, AppState>) -> Result<Vec<ProjectFileNode>, String> {
+    let root = current_project_root(&state)?;
+    let mut count = 0;
+    Ok(scan_project_directory(&root, &root, 0, &mut count))
+}
+
+#[tauri::command]
+fn project_read_file(path: String, state: State<'_, AppState>) -> ProjectFileContent {
+    let root = match current_project_root(&state) {
+        Ok(root) => root,
+        Err(message) => return ProjectFileContent { ok: false, path, content: String::new(), binary: false, size: 0, error_message: Some(message) },
+    };
+    let (file_path, clean) = match resolve_project_path(&root, &path, true) {
+        Ok(value) => value,
+        Err(message) => return ProjectFileContent { ok: false, path, content: String::new(), binary: false, size: 0, error_message: Some(message) },
+    };
+    let metadata = match fs::metadata(&file_path) {
+        Ok(metadata) => metadata,
+        Err(_) => return ProjectFileContent { ok: false, path, content: String::new(), binary: false, size: 0, error_message: Some("The file could not be inspected.".to_string()) },
+    };
+    if metadata.len() > 2_500_000 {
+        return ProjectFileContent { ok: false, path, content: String::new(), binary: false, size: metadata.len(), error_message: Some("Files larger than 2.5 MB are not opened in the code editor.".to_string()) };
+    }
+    match fs::read(&file_path) {
+        Ok(bytes) => {
+            let binary = bytes.iter().take(8_192).any(|byte| *byte == 0);
+            if binary {
+                ProjectFileContent { ok: true, path: clean.to_string_lossy().to_string(), content: String::new(), binary: true, size: bytes.len() as u64, error_message: None }
+            } else {
+                ProjectFileContent { ok: true, path: clean.to_string_lossy().to_string(), content: String::from_utf8_lossy(&bytes).to_string(), binary: false, size: bytes.len() as u64, error_message: None }
+            }
+        }
+        Err(_) => ProjectFileContent { ok: false, path, content: String::new(), binary: false, size: metadata.len(), error_message: Some("The file could not be read.".to_string()) },
+    }
+}
+
+#[tauri::command]
+fn project_write_file(path: String, content: String, confirmed: bool, state: State<'_, AppState>) -> ProjectWriteResult {
+    if !confirmed {
+        return ProjectWriteResult { ok: false, path, backup_path: None, bytes_written: 0, error_message: Some("Explicit write approval is required.".to_string()) };
+    }
+    if content.len() > 2_500_000 {
+        return ProjectWriteResult { ok: false, path, backup_path: None, bytes_written: 0, error_message: Some("Editor writes are limited to 2.5 MB.".to_string()) };
+    }
+    let root = match current_project_root(&state) {
+        Ok(root) => root,
+        Err(message) => return ProjectWriteResult { ok: false, path, backup_path: None, bytes_written: 0, error_message: Some(message) },
+    };
+    let (file_path, clean) = match resolve_project_path(&root, &path, false) {
+        Ok(value) => value,
+        Err(message) => return ProjectWriteResult { ok: false, path, backup_path: None, bytes_written: 0, error_message: Some(message) },
+    };
+    let mut backup_path = None;
+    if file_path.exists() {
+        let backup = root.join(".tokenfence").join("backups").join(unix_timestamp()).join(&clean);
+        if let Some(parent) = backup.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        if fs::copy(&file_path, &backup).is_ok() {
+            backup_path = Some(backup.to_string_lossy().to_string());
+        }
+    }
+    if let Some(parent) = file_path.parent() {
+        if fs::create_dir_all(parent).is_err() {
+            return ProjectWriteResult { ok: false, path, backup_path, bytes_written: 0, error_message: Some("The target folder could not be created.".to_string()) };
+        }
+    }
+    match fs::write(&file_path, content.as_bytes()) {
+        Ok(()) => ProjectWriteResult { ok: true, path: clean.to_string_lossy().to_string(), backup_path, bytes_written: content.len(), error_message: None },
+        Err(_) => ProjectWriteResult { ok: false, path, backup_path, bytes_written: 0, error_message: Some("The operating system rejected the project write.".to_string()) },
+    }
+}
+
+fn run_project_command(root: &Path, preset: &str, program: &str, args: &[&str]) -> ProjectCommandResult {
+    let started = Instant::now();
+    let command_display = std::iter::once(program).chain(args.iter().copied()).collect::<Vec<_>>().join(" ");
+    match Command::new(program).args(args).current_dir(root).env("CI", "true").output() {
+        Ok(output) => ProjectCommandResult {
+            ok: output.status.success(),
+            preset: preset.to_string(),
+            command: command_display,
+            stdout: truncate_output(&output.stdout),
+            stderr: truncate_output(&output.stderr),
+            exit_code: output.status.code(),
+            duration_ms: started.elapsed().as_millis(),
+            error_message: None,
+        },
+        Err(_) => ProjectCommandResult {
+            ok: false,
+            preset: preset.to_string(),
+            command: command_display,
+            stdout: String::new(),
+            stderr: String::new(),
+            exit_code: None,
+            duration_ms: started.elapsed().as_millis(),
+            error_message: Some(format!("The required executable '{program}' is not available.")),
+        },
+    }
+}
+
+fn execute_project_preset(preset: &str, root: &Path) -> ProjectCommandResult {
+    match preset {
+        "git-status" => run_project_command(root, preset, "git", &["status", "--short", "--branch"]),
+        "git-diff" => run_project_command(root, preset, "git", &["diff", "--no-ext-diff", "--"]),
+        "npm-typecheck" => run_project_command(root, preset, "npm", &["run", "typecheck", "--if-present"]),
+        "npm-test" => run_project_command(root, preset, "npm", &["test", "--if-present"]),
+        "npm-build" => run_project_command(root, preset, "npm", &["run", "build", "--if-present"]),
+        "cargo-check" => run_project_command(root, preset, "cargo", &["check"]),
+        "cargo-test" => run_project_command(root, preset, "cargo", &["test"]),
+        _ => ProjectCommandResult { ok: false, preset: preset.to_string(), command: String::new(), stdout: String::new(), stderr: String::new(), exit_code: None, duration_ms: 0, error_message: Some("This command is not in the Chris Studio allowlist.".to_string()) },
+    }
+}
+
+#[tauri::command]
+fn project_run_preset(preset: String, confirmed: bool, state: State<'_, AppState>) -> ProjectCommandResult {
+    if !confirmed {
+        return ProjectCommandResult { ok: false, preset, command: String::new(), stdout: String::new(), stderr: String::new(), exit_code: None, duration_ms: 0, error_message: Some("Explicit command approval is required.".to_string()) };
+    }
+    match current_project_root(&state) {
+        Ok(root) => execute_project_preset(&preset, &root),
+        Err(message) => ProjectCommandResult { ok: false, preset, command: String::new(), stdout: String::new(), stderr: String::new(), exit_code: None, duration_ms: 0, error_message: Some(message) },
+    }
+}
+
+#[tauri::command]
+fn project_git_status(state: State<'_, AppState>) -> ProjectCommandResult {
+    match current_project_root(&state) {
+        Ok(root) => execute_project_preset("git-status", &root),
+        Err(message) => ProjectCommandResult { ok: false, preset: "git-status".to_string(), command: String::new(), stdout: String::new(), stderr: String::new(), exit_code: None, duration_ms: 0, error_message: Some(message) },
+    }
+}
+
+#[tauri::command]
+fn project_git_diff(state: State<'_, AppState>) -> ProjectCommandResult {
+    match current_project_root(&state) {
+        Ok(root) => execute_project_preset("git-diff", &root),
+        Err(message) => ProjectCommandResult { ok: false, preset: "git-diff".to_string(), command: String::new(), stdout: String::new(), stderr: String::new(), exit_code: None, duration_ms: 0, error_message: Some(message) },
+    }
+}
+
+
+fn valid_git_branch(value: &str) -> bool {
+    let value = value.trim();
+    !value.is_empty()
+        && value.len() <= 120
+        && !value.starts_with('-')
+        && !value.starts_with('.')
+        && !value.ends_with('/')
+        && !value.contains("..")
+        && !value.contains("//")
+        && value.chars().all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.' | '/'))
+}
+
+fn command_result_from_output(preset: &str, command: &str, started: Instant, output: std::process::Output) -> ProjectCommandResult {
+    ProjectCommandResult {
+        ok: output.status.success(),
+        preset: preset.to_string(),
+        command: command.to_string(),
+        stdout: truncate_output(&output.stdout),
+        stderr: truncate_output(&output.stderr),
+        exit_code: output.status.code(),
+        duration_ms: started.elapsed().as_millis(),
+        error_message: None,
+    }
+}
+
+#[tauri::command]
+fn project_apply_patch(patch: String, confirmed: bool, state: State<'_, AppState>) -> ProjectCommandResult {
+    let started = Instant::now();
+    let preset = "git-apply";
+    if !confirmed {
+        return ProjectCommandResult { ok: false, preset: preset.to_string(), command: "git apply".to_string(), stdout: String::new(), stderr: String::new(), exit_code: None, duration_ms: 0, error_message: Some("Explicit patch approval is required.".to_string()) };
+    }
+    if patch.is_empty() || patch.len() > 1_000_000 || (!patch.contains("diff --git") && !patch.contains("--- ")) {
+        return ProjectCommandResult { ok: false, preset: preset.to_string(), command: "git apply".to_string(), stdout: String::new(), stderr: String::new(), exit_code: None, duration_ms: 0, error_message: Some("Provide a reviewed unified diff smaller than 1 MB.".to_string()) };
+    }
+    if patch.lines().any(|line| line.contains("/.git/") || line.contains(" b/.git/") || line.contains(" a/.git/")) {
+        return ProjectCommandResult { ok: false, preset: preset.to_string(), command: "git apply".to_string(), stdout: String::new(), stderr: String::new(), exit_code: None, duration_ms: 0, error_message: Some("Patches that target .git are blocked.".to_string()) };
+    }
+    let root = match current_project_root(&state) {
+        Ok(root) => root,
+        Err(message) => return ProjectCommandResult { ok: false, preset: preset.to_string(), command: "git apply".to_string(), stdout: String::new(), stderr: String::new(), exit_code: None, duration_ms: 0, error_message: Some(message) },
+    };
+    let patch_dir = root.join(".tokenfence").join("patches");
+    if fs::create_dir_all(&patch_dir).is_err() {
+        return ProjectCommandResult { ok: false, preset: preset.to_string(), command: "git apply".to_string(), stdout: String::new(), stderr: String::new(), exit_code: None, duration_ms: started.elapsed().as_millis(), error_message: Some("The reviewed patch archive could not be created.".to_string()) };
+    }
+    let archive = patch_dir.join(format!("{}.diff", unix_timestamp()));
+    if fs::write(&archive, patch.as_bytes()).is_err() {
+        return ProjectCommandResult { ok: false, preset: preset.to_string(), command: "git apply".to_string(), stdout: String::new(), stderr: String::new(), exit_code: None, duration_ms: started.elapsed().as_millis(), error_message: Some("The reviewed patch could not be archived.".to_string()) };
+    }
+    let checked = Command::new("git").args(["apply", "--check", "--whitespace=nowarn"]).arg(&archive).current_dir(&root).output();
+    match checked {
+        Ok(output) if output.status.success() => {}
+        Ok(output) => return command_result_from_output(preset, "git apply --check", started, output),
+        Err(_) => return ProjectCommandResult { ok: false, preset: preset.to_string(), command: "git apply --check".to_string(), stdout: String::new(), stderr: String::new(), exit_code: None, duration_ms: started.elapsed().as_millis(), error_message: Some("Git is not installed or could not be started.".to_string()) },
+    }
+    match Command::new("git").args(["apply", "--whitespace=nowarn"]).arg(&archive).current_dir(&root).output() {
+        Ok(output) => command_result_from_output(preset, "git apply --whitespace=nowarn", started, output),
+        Err(_) => ProjectCommandResult { ok: false, preset: preset.to_string(), command: "git apply".to_string(), stdout: String::new(), stderr: String::new(), exit_code: None, duration_ms: started.elapsed().as_millis(), error_message: Some("Git is not installed or could not be started.".to_string()) },
+    }
+}
+
+#[tauri::command]
+fn project_git_create_branch(branch: String, confirmed: bool, state: State<'_, AppState>) -> ProjectCommandResult {
+    if !confirmed || !valid_git_branch(&branch) {
+        return ProjectCommandResult { ok: false, preset: "git-branch".to_string(), command: "git switch -c".to_string(), stdout: String::new(), stderr: String::new(), exit_code: None, duration_ms: 0, error_message: Some("Enter a valid branch name and approve branch creation.".to_string()) };
+    }
+    match current_project_root(&state) {
+        Ok(root) => run_project_command(&root, "git-branch", "git", &["switch", "-c", branch.trim()]),
+        Err(message) => ProjectCommandResult { ok: false, preset: "git-branch".to_string(), command: "git switch -c".to_string(), stdout: String::new(), stderr: String::new(), exit_code: None, duration_ms: 0, error_message: Some(message) },
+    }
+}
+
+#[tauri::command]
+fn project_git_commit(message: String, confirmed: bool, state: State<'_, AppState>) -> ProjectCommandResult {
+    let message = message.trim();
+    if !confirmed || message.len() < 3 || message.len() > 240 || message.contains('\n') || message.contains('\r') {
+        return ProjectCommandResult { ok: false, preset: "git-commit".to_string(), command: "git add -A && git commit".to_string(), stdout: String::new(), stderr: String::new(), exit_code: None, duration_ms: 0, error_message: Some("Enter a one-line commit message and approve the commit.".to_string()) };
+    }
+    let root = match current_project_root(&state) {
+        Ok(root) => root,
+        Err(error) => return ProjectCommandResult { ok: false, preset: "git-commit".to_string(), command: "git commit".to_string(), stdout: String::new(), stderr: String::new(), exit_code: None, duration_ms: 0, error_message: Some(error) },
+    };
+    let add = run_project_command(&root, "git-add", "git", &["add", "-A"]);
+    if !add.ok { return add; }
+    run_project_command(&root, "git-commit", "git", &["commit", "-m", message])
+}
+
+#[tauri::command]
+fn project_git_push(branch: String, confirmed: bool, state: State<'_, AppState>) -> ProjectCommandResult {
+    if !confirmed || !valid_git_branch(&branch) {
+        return ProjectCommandResult { ok: false, preset: "git-push".to_string(), command: "git push".to_string(), stdout: String::new(), stderr: String::new(), exit_code: None, duration_ms: 0, error_message: Some("Enter a valid branch name and approve the network push.".to_string()) };
+    }
+    match current_project_root(&state) {
+        Ok(root) => run_project_command(&root, "git-push", "git", &["push", "--set-upstream", "origin", branch.trim()]),
+        Err(message) => ProjectCommandResult { ok: false, preset: "git-push".to_string(), command: "git push".to_string(), stdout: String::new(), stderr: String::new(), exit_code: None, duration_ms: 0, error_message: Some(message) },
+    }
+}
+
+fn validate_public_github_url(value: &str) -> Result<(String, String, String), String> {
+    let parsed = Url::parse(value.trim()).map_err(|_| "Enter a valid GitHub repository URL.".to_string())?;
+    if parsed.scheme() != "https" || parsed.host_str() != Some("github.com") {
+        return Err("Only HTTPS github.com repository URLs can be cloned here.".to_string());
+    }
+    let segments = parsed.path_segments().map(|segments| segments.filter(|segment| !segment.is_empty()).collect::<Vec<_>>()).unwrap_or_default();
+    if segments.len() != 2 {
+        return Err("Use a repository URL in the form https://github.com/owner/repo.".to_string());
+    }
+    let owner = clean_repo_segment(segments[0]).ok_or_else(|| "The GitHub owner is invalid.".to_string())?;
+    let repo = clean_repo_segment(segments[1].trim_end_matches(".git")).ok_or_else(|| "The GitHub repository name is invalid.".to_string())?;
+    Ok((owner, repo, format!("https://github.com/{}/{}.git", segments[0], segments[1].trim_end_matches(".git"))))
+}
+
+#[tauri::command]
+fn project_clone_public(url: String, state: State<'_, AppState>) -> Result<Option<ProjectWorkspace>, String> {
+    let (_, repo, clone_url) = validate_public_github_url(&url)?;
+    let parent = match tauri::api::dialog::blocking::FileDialogBuilder::new().pick_folder() {
+        Some(path) => path,
+        None => return Ok(None),
+    };
+    let destination = parent.join(&repo);
+    if destination.exists() {
+        return Err("The destination folder already exists.".to_string());
+    }
+    let result = Command::new("git").args(["clone", "--depth", "1", &clone_url]).arg(&destination).current_dir(&parent).output().map_err(|_| "Git is not installed or could not be started.".to_string())?;
+    if !result.status.success() {
+        return Err(truncate_output(&result.stderr));
+    }
+    set_project_root_path(destination, &state).map(Some)
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn github_token() -> Result<String, String> {
+    credential_entry("github-primary")?.get_password().map_err(|_| "No GitHub token is stored in the operating-system credential store.".to_string())
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn github_token() -> Result<String, String> {
+    Err("Secure GitHub credentials are unavailable on this platform.".to_string())
+}
+
+#[tauri::command]
+fn github_token_save(token: String) -> SecretReply {
+    let trimmed = token.trim();
+    if trimmed.len() < 20 || trimmed.len() > 500 {
+        return SecretReply::failure("The GitHub token format is invalid.");
+    }
+    secret_save("github-primary".to_string(), trimmed.to_string())
+}
+
+#[tauri::command]
+fn github_token_delete() -> SecretReply {
+    secret_delete("github-primary".to_string())
+}
+
+fn github_json(endpoint: &str, require_token: bool) -> Result<Value, String> {
+    let agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(25)).build();
+    let mut request = agent.get(endpoint).set("Accept", "application/vnd.github+json").set("X-GitHub-Api-Version", "2022-11-28").set("User-Agent", "Chris-Studio");
+    if let Ok(token) = github_token() {
+        request = request.set("Authorization", &format!("Bearer {token}"));
+    } else if require_token {
+        return Err("Store a GitHub Personal Access Token first.".to_string());
+    }
+    match request.call() {
+        Ok(response) => response.into_json().map_err(|_| "GitHub returned unreadable JSON.".to_string()),
+        Err(ureq::Error::Status(status, _)) => Err(format!("GitHub returned HTTP {status}. Check token permissions and repository access.")),
+        Err(_) => Err("Could not reach GitHub.".to_string()),
+    }
+}
+
+#[tauri::command]
+fn github_connection_test() -> GitHubConnectionInfo {
+    match github_json("https://api.github.com/user", true) {
+        Ok(value) => GitHubConnectionInfo {
+            ok: true,
+            login: value.get("login").and_then(Value::as_str).map(ToOwned::to_owned),
+            name: value.get("name").and_then(Value::as_str).map(ToOwned::to_owned),
+            avatar_url: value.get("avatar_url").and_then(Value::as_str).map(ToOwned::to_owned),
+            error_message: None,
+        },
+        Err(message) => GitHubConnectionInfo { ok: false, login: None, name: None, avatar_url: None, error_message: Some(message) },
+    }
+}
+
+#[tauri::command]
+fn github_repository_overview(owner: String, repo: String) -> GitHubRepositoryOverview {
+    let owner = match clean_repo_segment(&owner) { Some(value) => value, None => return GitHubRepositoryOverview { ok: false, full_name: None, default_branch: None, private_repo: None, stars: None, open_issues: None, pushed_at: None, html_url: None, error_message: Some("Invalid GitHub owner.".to_string()) } };
+    let repo = match clean_repo_segment(&repo) { Some(value) => value, None => return GitHubRepositoryOverview { ok: false, full_name: None, default_branch: None, private_repo: None, stars: None, open_issues: None, pushed_at: None, html_url: None, error_message: Some("Invalid GitHub repository.".to_string()) } };
+    match github_json(&format!("https://api.github.com/repos/{owner}/{repo}"), false) {
+        Ok(value) => GitHubRepositoryOverview {
+            ok: true,
+            full_name: value.get("full_name").and_then(Value::as_str).map(ToOwned::to_owned),
+            default_branch: value.get("default_branch").and_then(Value::as_str).map(ToOwned::to_owned),
+            private_repo: value.get("private").and_then(Value::as_bool),
+            stars: value.get("stargazers_count").and_then(Value::as_u64),
+            open_issues: value.get("open_issues_count").and_then(Value::as_u64),
+            pushed_at: value.get("pushed_at").and_then(Value::as_str).map(ToOwned::to_owned),
+            html_url: value.get("html_url").and_then(Value::as_str).map(ToOwned::to_owned),
+            error_message: None,
+        },
+        Err(message) => GitHubRepositoryOverview { ok: false, full_name: None, default_branch: None, private_repo: None, stars: None, open_issues: None, pushed_at: None, html_url: None, error_message: Some(message) },
+    }
+}
+
+#[tauri::command]
+fn github_issue_list(owner: String, repo: String) -> Vec<GitHubIssueSummary> {
+    let owner = match clean_repo_segment(&owner) { Some(value) => value, None => return vec![] };
+    let repo = match clean_repo_segment(&repo) { Some(value) => value, None => return vec![] };
+    let value = match github_json(&format!("https://api.github.com/repos/{owner}/{repo}/issues?state=open&per_page=30"), false) { Ok(value) => value, Err(_) => return vec![] };
+    value.as_array().map(|items| items.iter().filter(|item| item.get("pull_request").is_none()).filter_map(|item| Some(GitHubIssueSummary {
+        number: item.get("number")?.as_u64()?,
+        title: item.get("title")?.as_str()?.to_string(),
+        state: item.get("state")?.as_str()?.to_string(),
+        url: item.get("html_url")?.as_str()?.to_string(),
+        updated_at: item.get("updated_at").and_then(Value::as_str).map(ToOwned::to_owned),
+    })).collect()).unwrap_or_default()
+}
+
+
+#[tauri::command]
+fn github_create_pull_request(
+    owner: String,
+    repo: String,
+    title: String,
+    body: String,
+    head: String,
+    base: String,
+    confirmed: bool,
+) -> GitHubPullRequestResult {
+    if !confirmed {
+        return GitHubPullRequestResult { ok: false, number: None, url: None, title: None, error_message: Some("Explicit Pull Request approval is required.".to_string()) };
+    }
+    let owner = match clean_repo_segment(&owner) { Some(value) => value, None => return GitHubPullRequestResult { ok: false, number: None, url: None, title: None, error_message: Some("Invalid GitHub owner.".to_string()) } };
+    let repo = match clean_repo_segment(&repo) { Some(value) => value, None => return GitHubPullRequestResult { ok: false, number: None, url: None, title: None, error_message: Some("Invalid GitHub repository.".to_string()) } };
+    if title.trim().len() < 3 || title.trim().len() > 240 || !valid_git_branch(&head) || !valid_git_branch(&base) || body.len() > 20_000 {
+        return GitHubPullRequestResult { ok: false, number: None, url: None, title: None, error_message: Some("Check the Pull Request title, branches and body length.".to_string()) };
+    }
+    let token = match github_token() {
+        Ok(token) => token,
+        Err(message) => return GitHubPullRequestResult { ok: false, number: None, url: None, title: None, error_message: Some(message) },
+    };
+    let endpoint = format!("https://api.github.com/repos/{owner}/{repo}/pulls");
+    let payload = json!({ "title": title.trim(), "body": body, "head": head.trim(), "base": base.trim() });
+    let request = ureq::AgentBuilder::new().timeout(Duration::from_secs(25)).build()
+        .post(&endpoint)
+        .set("Accept", "application/vnd.github+json")
+        .set("X-GitHub-Api-Version", "2022-11-28")
+        .set("User-Agent", "Chris-Studio")
+        .set("Authorization", &format!("Bearer {token}"));
+    match request.send_json(payload) {
+        Ok(response) => match response.into_json::<Value>() {
+            Ok(value) => GitHubPullRequestResult {
+                ok: true,
+                number: value.get("number").and_then(Value::as_u64),
+                url: value.get("html_url").and_then(Value::as_str).map(ToOwned::to_owned),
+                title: value.get("title").and_then(Value::as_str).map(ToOwned::to_owned),
+                error_message: None,
+            },
+            Err(_) => GitHubPullRequestResult { ok: false, number: None, url: None, title: None, error_message: Some("GitHub returned unreadable Pull Request data.".to_string()) },
+        },
+        Err(ureq::Error::Status(status, response)) => {
+            let message = response.into_json::<Value>().ok().and_then(|value| value.get("message").and_then(Value::as_str).map(ToOwned::to_owned)).unwrap_or_else(|| format!("GitHub returned HTTP {status}."));
+            GitHubPullRequestResult { ok: false, number: None, url: None, title: None, error_message: Some(message) }
+        }
+        Err(_) => GitHubPullRequestResult { ok: false, number: None, url: None, title: None, error_message: Some("Could not reach GitHub.".to_string()) },
+    }
+}
+
+
+fn mcp_credential_id(profile_id: &str) -> Result<String, String> {
+    Ok(format!("mcp-{}", credential_user(profile_id)?))
+}
+
+#[tauri::command]
+fn mcp_connector_secret_save(profile_id: String, secret: String) -> SecretReply {
+    let id = match mcp_credential_id(&profile_id) {
+        Ok(value) => value,
+        Err(message) => return SecretReply::failure(&message),
+    };
+    secret_save(id, secret)
+}
+
+#[tauri::command]
+fn mcp_connector_secret_delete(profile_id: String) -> SecretReply {
+    let id = match mcp_credential_id(&profile_id) {
+        Ok(value) => value,
+        Err(message) => return SecretReply::failure(&message),
+    };
+    secret_delete(id)
+}
+
+fn validate_mcp_endpoint(raw: &str) -> Result<String, String> {
+    let parsed = Url::parse(raw.trim()).map_err(|_| "Enter a valid MCP endpoint URL.".to_string())?;
+    let host = parsed.host_str().unwrap_or_default();
+    let local = is_local_host(host);
+    if parsed.scheme() != "https" && !(parsed.scheme() == "http" && local) {
+        return Err("Remote MCP connectors require HTTPS; HTTP is allowed only for localhost.".to_string());
+    }
+    if parsed.username() != "" || parsed.password().is_some() {
+        return Err("Credentials must not be embedded in the MCP URL.".to_string());
+    }
+    Ok(parsed.to_string())
+}
+
+#[tauri::command]
+fn mcp_request(mut request: McpRequestInput) -> McpReply {
+    let started = Instant::now();
+    let allowed = matches!(request.method.as_str(), "initialize" | "tools/list" | "resources/list" | "prompts/list" | "tools/call");
+    if !allowed {
+        return McpReply { ok: false, status: 0, result: None, error_code: Some("METHOD_BLOCKED".to_string()), error_message: Some("This MCP method is not in the Chris Studio allowlist.".to_string()), latency_ms: 0 };
+    }
+    if request.method == "tools/call" && !request.confirmed {
+        return McpReply { ok: false, status: 0, result: None, error_code: Some("APPROVAL_REQUIRED".to_string()), error_message: Some("Explicit approval is required for MCP tool execution.".to_string()), latency_ms: 0 };
+    }
+    let params_size = serde_json::to_string(&request.params).map(|value| value.len()).unwrap_or(200_001);
+    if params_size > 200_000 {
+        return McpReply { ok: false, status: 0, result: None, error_code: Some("PAYLOAD_TOO_LARGE".to_string()), error_message: Some("MCP parameters exceed the 200 KB safety limit.".to_string()), latency_ms: 0 };
+    }
+    let endpoint = match validate_mcp_endpoint(&request.url) {
+        Ok(value) => value,
+        Err(message) => return McpReply { ok: false, status: 0, result: None, error_code: Some("INVALID_ENDPOINT".to_string()), error_message: Some(message), latency_ms: 0 },
+    };
+    if request.requires_credential && request.token.trim().is_empty() {
+        let id = match mcp_credential_id(&request.profile_id) {
+            Ok(value) => value,
+            Err(message) => return McpReply { ok: false, status: 0, result: None, error_code: Some("SECURE_STORE_ERROR".to_string()), error_message: Some(message), latency_ms: 0 },
+        };
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        {
+            request.token = match credential_entry(&id).and_then(|entry| entry.get_password().map_err(|_| "No MCP credential is stored for this connector.".to_string())) {
+                Ok(value) => value,
+                Err(message) => return McpReply { ok: false, status: 0, result: None, error_code: Some("INVALID_CREDENTIAL".to_string()), error_message: Some(message), latency_ms: 0 },
+            };
+        }
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        {
+            return McpReply { ok: false, status: 0, result: None, error_code: Some("SECURE_STORE_UNAVAILABLE".to_string()), error_message: Some("Secure connector credentials require the macOS or Windows desktop build.".to_string()), latency_ms: 0 };
+        }
+    }
+    let body = json!({
+        "jsonrpc": "2.0",
+        "id": unix_timestamp(),
+        "method": request.method,
+        "params": request.params,
+    });
+    let agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(45)).build();
+    let mut call = agent.post(&endpoint)
+        .set("Content-Type", "application/json")
+        .set("Accept", "application/json, text/event-stream")
+        .set("User-Agent", "Chris-Studio");
+    if !request.token.trim().is_empty() {
+        call = call.set("Authorization", &format!("Bearer {}", request.token.trim()));
+    }
+    match call.send_json(body) {
+        Ok(response) => {
+            let status = response.status();
+            match response.into_json::<Value>() {
+                Ok(value) => {
+                    if let Some(error) = value.get("error") {
+                        McpReply { ok: false, status, result: None, error_code: error.get("code").map(ToString::to_string), error_message: error.get("message").and_then(Value::as_str).map(ToOwned::to_owned), latency_ms: started.elapsed().as_millis() }
+                    } else {
+                        McpReply { ok: true, status, result: value.get("result").cloned().or(Some(value)), error_code: None, error_message: None, latency_ms: started.elapsed().as_millis() }
+                    }
+                }
+                Err(_) => McpReply { ok: false, status, result: None, error_code: Some("UNSUPPORTED_STREAM".to_string()), error_message: Some("This Beta expects a JSON MCP response. Long-lived SSE sessions are not yet retained.".to_string()), latency_ms: started.elapsed().as_millis() },
+            }
+        }
+        Err(ureq::Error::Status(status, response)) => {
+            let message = response.into_json::<Value>().ok().and_then(|value| value.get("message").and_then(Value::as_str).map(ToOwned::to_owned)).unwrap_or_else(|| format!("MCP endpoint returned HTTP {status}."));
+            McpReply { ok: false, status, result: None, error_code: Some("MCP_HTTP_ERROR".to_string()), error_message: Some(message), latency_ms: started.elapsed().as_millis() }
+        }
+        Err(_) => McpReply { ok: false, status: 0, result: None, error_code: Some("NETWORK_ERROR".to_string()), error_message: Some("Could not reach the MCP endpoint.".to_string()), latency_ms: started.elapsed().as_millis() },
+    }
+}
+
+fn computer_result(ok: bool, action: &str, message: String, screenshot_data_url: Option<String>) -> ComputerActionResult {
+    ComputerActionResult { ok, action: action.to_string(), message, screenshot_data_url, timestamp: unix_timestamp() }
+}
+
+#[tauri::command]
+fn computer_capture_screen(confirmed: bool) -> ComputerActionResult {
+    if !confirmed {
+        return computer_result(false, "screen-capture", "Explicit screen-capture approval is required.".to_string(), None);
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let path = std::env::temp_dir().join(format!("chris-studio-capture-{}.png", unix_timestamp()));
+        let status = Command::new("/usr/sbin/screencapture").arg("-x").arg(&path).status();
+        match status {
+            Ok(status) if status.success() => match fs::read(&path) {
+                Ok(bytes) => {
+                    let _ = fs::remove_file(&path);
+                    let data = format!("data:image/png;base64,{}", BASE64_STANDARD.encode(bytes));
+                    computer_result(true, "screen-capture", "Screen captured locally. Review the preview before any control action.".to_string(), Some(data))
+                }
+                Err(_) => computer_result(false, "screen-capture", "The captured screen image could not be read.".to_string(), None),
+            },
+            _ => computer_result(false, "screen-capture", "macOS denied screen capture. Enable Screen Recording permission for Chris Studio.".to_string(), None),
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    computer_result(false, "screen-capture", "Screen capture is currently implemented for macOS builds.".to_string(), None)
+}
+
+#[tauri::command]
+fn computer_click(x: i32, y: i32, confirmed: bool) -> ComputerActionResult {
+    if !confirmed {
+        return computer_result(false, "pointer-click", "Explicit pointer approval is required.".to_string(), None);
+    }
+    if x < 0 || y < 0 || x > 20_000 || y > 20_000 {
+        return computer_result(false, "pointer-click", "Pointer coordinates are outside the accepted range.".to_string(), None);
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let script = format!("tell application \"System Events\" to click at {{{x}, {y}}}");
+        match Command::new("/usr/bin/osascript").args(["-e", &script]).output() {
+            Ok(output) if output.status.success() => computer_result(true, "pointer-click", format!("Clicked the approved coordinate ({x}, {y})."), None),
+            Ok(output) => computer_result(false, "pointer-click", format!("macOS rejected the click: {}", truncate_output(&output.stderr)), None),
+            Err(_) => computer_result(false, "pointer-click", "AppleScript could not be started.".to_string(), None),
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    computer_result(false, "pointer-click", "Pointer control is currently implemented for macOS builds.".to_string(), None)
+}
+
+#[tauri::command]
+fn computer_type_text(text: String, confirmed: bool) -> ComputerActionResult {
+    if !confirmed {
+        return computer_result(false, "keyboard-type", "Explicit keyboard approval is required.".to_string(), None);
+    }
+    if text.is_empty() || text.chars().count() > 4_000 {
+        return computer_result(false, "keyboard-type", "Approved typing must contain 1 to 4,000 characters.".to_string(), None);
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let output = Command::new("/usr/bin/osascript")
+            .args(["-e", "on run argv", "-e", "tell application \"System Events\" to keystroke (item 1 of argv)", "-e", "end run", "--", &text])
+            .output();
+        match output {
+            Ok(output) if output.status.success() => computer_result(true, "keyboard-type", format!("Typed {} approved characters.", text.chars().count()), None),
+            Ok(output) => computer_result(false, "keyboard-type", format!("macOS rejected keyboard control: {}", truncate_output(&output.stderr)), None),
+            Err(_) => computer_result(false, "keyboard-type", "AppleScript could not be started.".to_string(), None),
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    computer_result(false, "keyboard-type", "Keyboard control is currently implemented for macOS builds.".to_string(), None)
+}
+
+#[tauri::command]
+fn computer_press_key(key: String, confirmed: bool) -> ComputerActionResult {
+    if !confirmed {
+        return computer_result(false, "keyboard-key", "Explicit key approval is required.".to_string(), None);
+    }
+    let script = match key.as_str() {
+        "enter" => "tell application \"System Events\" to key code 36",
+        "escape" => "tell application \"System Events\" to key code 53",
+        "tab" => "tell application \"System Events\" to key code 48",
+        "space" => "tell application \"System Events\" to key code 49",
+        "delete" => "tell application \"System Events\" to key code 51",
+        "cmd+s" => "tell application \"System Events\" to keystroke \"s\" using command down",
+        "cmd+l" => "tell application \"System Events\" to keystroke \"l\" using command down",
+        _ => return computer_result(false, "keyboard-key", "This key is not in the Chris Studio allowlist.".to_string(), None),
+    };
+    #[cfg(target_os = "macos")]
+    {
+        match Command::new("/usr/bin/osascript").args(["-e", script]).output() {
+            Ok(output) if output.status.success() => computer_result(true, "keyboard-key", format!("Pressed the approved key: {key}."), None),
+            Ok(output) => computer_result(false, "keyboard-key", format!("macOS rejected the key action: {}", truncate_output(&output.stderr)), None),
+            Err(_) => computer_result(false, "keyboard-key", "AppleScript could not be started.".to_string(), None),
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    computer_result(false, "keyboard-key", "Keyboard control is currently implemented for macOS builds.".to_string(), None)
+}
+
+#[tauri::command]
+fn computer_open_privacy_settings() -> ComputerActionResult {
+    #[cfg(target_os = "macos")]
+    {
+        let url = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility";
+        match Command::new("/usr/bin/open").arg(url).spawn() {
+            Ok(_) => computer_result(true, "open-privacy-settings", "Opened macOS Privacy & Security settings.".to_string(), None),
+            Err(_) => computer_result(false, "open-privacy-settings", "Could not open macOS Privacy & Security settings.".to_string(), None),
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    computer_result(false, "open-privacy-settings", "This shortcut is available on macOS.".to_string(), None)
+}
+
+
 fn application_menu() -> Menu {
-    let about = CustomMenuItem::new("about", "About TokenFence Studio");
+    let about = CustomMenuItem::new("about", "About Chris Studio");
     let preferences = CustomMenuItem::new("preferences", "Preferences…");
     let updates = CustomMenuItem::new("updates", "Check for Updates…");
-    let quit = CustomMenuItem::new("quit", "Quit TokenFence Studio").accelerator("CmdOrCtrl+Q");
+    let quit = CustomMenuItem::new("quit", "Quit Chris Studio").accelerator("CmdOrCtrl+Q");
     let new_session = CustomMenuItem::new("new_session", "New Session").accelerator("CmdOrCtrl+N");
+    let projects = CustomMenuItem::new("projects", "Open Projects Workspace…").accelerator("CmdOrCtrl+Shift+O");
+    let computer = CustomMenuItem::new("computer", "Computer Use…");
+    let skills = CustomMenuItem::new("skills", "Skill Library…");
 
     let app_menu = Submenu::new(
-        "TokenFence Studio",
+        "Chris Studio",
         Menu::new()
             .add_item(about)
             .add_item(preferences)
             .add_item(updates)
             .add_item(quit),
     );
-    let file_menu = Submenu::new("File", Menu::new().add_item(new_session));
+    let file_menu = Submenu::new("File", Menu::new().add_item(new_session).add_item(projects));
+    let tools_menu = Submenu::new("Tools", Menu::new().add_item(computer).add_item(skills));
     let edit_menu = Submenu::new(
         "Edit",
         Menu::new()
@@ -988,10 +1964,12 @@ fn application_menu() -> Menu {
         .add_submenu(app_menu)
         .add_submenu(file_menu)
         .add_submenu(edit_menu)
+        .add_submenu(tools_menu)
 }
 
 fn main() {
     tauri::Builder::default()
+        .manage(AppState::default())
         .menu(application_menu())
         .on_menu_event(|event| match event.menu_item_id() {
             "new_session" => {
@@ -1003,6 +1981,9 @@ fn main() {
             "updates" => {
                 let _ = event.window().emit("tokenfence://navigate", "updates");
             }
+            "projects" => { let _ = event.window().emit("tokenfence://navigate", "projects"); }
+            "computer" => { let _ = event.window().emit("tokenfence://navigate", "computer"); }
+            "skills" => { let _ = event.window().emit("tokenfence://navigate", "skills"); }
             "about" => {
                 let _ = event.window().emit("tokenfence://navigate", "about");
             }
@@ -1018,8 +1999,35 @@ fn main() {
             platform_info,
             computer_capabilities,
             github_release_check,
-            open_external_url
+            open_external_url,
+            project_choose_folder,
+            project_set_root,
+            project_scan,
+            project_read_file,
+            project_write_file,
+            project_run_preset,
+            project_git_status,
+            project_git_diff,
+            project_apply_patch,
+            project_git_create_branch,
+            project_git_commit,
+            project_git_push,
+            project_clone_public,
+            github_token_save,
+            github_token_delete,
+            github_connection_test,
+            github_repository_overview,
+            github_issue_list,
+            github_create_pull_request,
+            mcp_connector_secret_save,
+            mcp_connector_secret_delete,
+            mcp_request,
+            computer_capture_screen,
+            computer_click,
+            computer_type_text,
+            computer_press_key,
+            computer_open_privacy_settings
         ])
         .run(tauri::generate_context!())
-        .expect("failed to run TokenFence Studio");
+        .expect("failed to run Chris Studio");
 }

@@ -2,7 +2,7 @@
 
 [English](TROUBLESHOOTING.md) | [返回中文 README](../../README.zh-CN.md)
 
-本文档适用于 TokenFence Studio v1.6.1，覆盖桌面端安装、macOS 构建、Provider 配置、系统凭证库和开发环境常见问题。
+本文档适用于 TokenFence Studio v1.7.0，覆盖桌面端安装、macOS 构建、Provider 配置、系统凭证库和开发环境常见问题。
 
 ## 排查前先记录环境
 
@@ -456,7 +456,7 @@ GitHub → Actions → TokenFence macOS Builds and Release → Run workflow
 设置：
 
 ```text
-version: v1.6.1
+version: v1.7.0
 create_release: true
 make_latest: true
 ```
@@ -467,8 +467,65 @@ make_latest: true
 
 `releases/latest/download/...` 链接只有在以下条件全部满足后才会生效：
 
-1. v1.6.1 Release 已创建；
-2. v1.6.1 被标记为 Latest；
+1. v1.7.0 Release 已创建；
+2. v1.7.0 被标记为 Latest；
 3. 对应文件名已经附加到 Release Assets。
 
 请打开 Release 的 Assets 列表，逐字核对安装包文件名和 README 链接是否完全一致。
+
+---
+
+## 保存 DeepSeek 后工作台仍显示 Local Sandbox
+
+v1.7.0 已修复旧版本的自动回退问题。请按以下顺序检查：
+
+1. 打开“模型服务”；
+2. 选择 DeepSeek Profile；
+3. 点击“安全保存”；
+4. 点击“测试连接”；
+5. 点击“设为当前模型”；
+6. 回到工作台，确认顶部 Provider 选择器显示 DeepSeek，而不是 Local Sandbox。
+
+如果升级后仍异常，可在“设置”中导出非敏感配置后执行应用重置，再重新保存 Provider。不要把真实 API Key 放进导出的 JSON。
+
+## Provider 测试出现 UNTRUSTED_ENDPOINT
+
+内置 Provider 会校验接口域名，防止把密钥误发给不匹配的网站：
+
+- 使用服务商官方地址时，选择对应 Provider；
+- 使用第三方 OpenAI-compatible 服务时，选择“自定义兼容 API”；
+- 远程地址必须使用 HTTPS；
+- Ollama 与 LM Studio 的 HTTP 地址只能是 localhost、127.0.0.1 或 ::1。
+
+## OCR 第一次运行很慢或失败
+
+Tesseract.js 第一次识别可能需要加载语言资源：
+
+1. 确认网络可访问语言包资源；
+2. 先用较小、清晰、方向正确的图片测试；
+3. 当前默认是英文语言包，中文识别包仍在路线图中；
+4. OCR 结果必须在界面中检查后再发送给模型。
+
+## PDF 能打开但没有提取文字
+
+该 PDF 可能只包含扫描图片，没有嵌入文本。v1.7.0 的 PDF.js 模块只提取已有文本层；整页渲染 OCR 会在后续版本加入。现在可以先将目标页面导出为图片，再使用 Local OCR。
+
+## Excel 文件处理失败
+
+v1.7.0 使用 ExcelJS 读取 XLSX/XLS 并生成 CSV 上下文。建议：
+
+- 先测试 `.xlsx`；
+- 避免超出设置中的最大文件大小；
+- 复杂宏、受密码保护文件和某些旧式二进制格式不保证支持；
+- 处理前保留原始文件备份。
+
+## GitHub 更新页显示无法连接
+
+- 确认设置中的 Owner 是 `Chrisbetheking`，Repo 是 `tokenfence-studio`；
+- 检查网络、代理和系统时间；
+- GitHub 未创建新 Release 时，“当前已是最新版”不代表 Actions Artifact 已发布；
+- Release 下载文件必须出现在 Releases 页，而不只是 Actions 页底部。
+
+## Computer Use 为什么大部分能力显示 Planned
+
+这是有意的安全限制，不是构建失败。v1.7.0 只提供权限模式、能力报告和 Computer Use Guard。屏幕、鼠标、键盘、文件写入和终端执行会在拥有逐操作确认、范围限制、停止按钮和审计回执后再开放。

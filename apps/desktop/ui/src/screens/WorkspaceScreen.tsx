@@ -1,27 +1,41 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
+  AgentProfile,
   AppSettings,
   AttachmentDraft,
   ChatMessage,
   Conversation,
   Language,
-  ProviderConfig,
+  ProviderProfile,
   ProviderStatus,
   RiskLevel,
   SafetyReceipt,
+  WorkspaceMode,
 } from '../app/types';
 import {
+  loadActiveAgentId,
+  loadActiveProvider,
+  loadActiveProviderId,
+  loadAgents,
   loadConversations,
-  loadProviderConfig,
+  loadProviderProfiles,
   loadProviderStatus,
+  loadRoutingRules,
   loadSettings,
   makeId,
   nowIso,
+  saveActiveAgentId,
+  saveActiveProviderId,
   saveConversation,
   saveReceipt,
 } from '../app/store';
+import { providerDefinition } from '../app/providerRegistry';
+import { skillPrompt } from '../app/skills';
 import { formatSafePayload, maxRisk, scanPayload } from '../features/safety/scanner';
-import { sendDeepSeekChat } from '../features/providers/providerClient';
+import { sendProviderChat } from '../features/providers/providerClient';
+import { processFile } from '../features/files/fileProcessor';
+import { routeAttachments } from '../features/files/routing';
+import { optimizeText } from '../features/tokens/optimizer';
 import { Icon } from '../components/Icon';
 import { useToast } from '../components/Toast';
 
@@ -35,25 +49,27 @@ const riskLabel = (language: Language, level: RiskLevel) => ({
   critical: copy(language, 'Critical', '严重风险'),
 }[level]);
 
-function newConversation(provider: ProviderConfig): Conversation {
+function newConversation(provider: ProviderProfile, mode: WorkspaceMode, agentId?: string): Conversation {
   const timestamp = nowIso();
   return {
     id: makeId('conversation'),
-    title: 'New safe conversation',
+    title: 'New protected task',
     createdAt: timestamp,
     updatedAt: timestamp,
-    provider: 'DeepSeek',
+    provider: provider.displayName,
     model: provider.model,
     riskSummary: 'safe',
+    mode,
+    agentId,
     messages: [],
   };
 }
 
-function localDemoReply(language: Language, findings: number, tokens: number): string {
+function localDemoReply(language: Language, findings: number, tokens: number, savedTokens: number): string {
   return copy(
     language,
-    `Local demo complete. TokenFence reviewed the full payload, redacted ${findings} sensitive finding${findings === 1 ? '' : 's'}, and prepared an estimated ${tokens}-token request. No network request was made.`,
-    `本地演示完成。TokenFence 已审查完整请求、脱敏 ${findings} 处敏感内容，并准备了约 ${tokens} Token 的安全请求。本次未发起网络请求。`,
+    `Local Sandbox completed the protected workflow. TokenFence found ${findings} sensitive item${findings === 1 ? '' : 's'}, prepared an estimated ${tokens}-token request, and saved about ${savedTokens} token${savedTokens === 1 ? '' : 's'} through local compaction. No network request was made.`,
+    `本地沙箱已完成受保护工作流。TokenFence 检测到 ${findings} 处敏感内容，准备了约 ${tokens} Token 的安全请求，并通过本地压缩节约约 ${savedTokens} Token。本次没有发起网络请求。`,
   );
 }
 
@@ -62,38 +78,49 @@ export function WorkspaceScreen({
   openConversationId,
   newSessionNonce,
   onOpenProviders,
+  onOpenRouting,
+  onOpenAgents,
 }: {
   language: Language;
   openConversationId?: string;
   newSessionNonce: number;
   onOpenProviders: () => void;
+  onOpenRouting: () => void;
+  onOpenAgents: () => void;
 }) {
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [prompt, setPrompt] = useState('');
   const [attachments, setAttachments] = useState<AttachmentDraft[]>([]);
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
-  const [provider, setProvider] = useState<ProviderConfig>(() => loadProviderConfig());
-  const [providerStatus, setProviderStatus] = useState<ProviderStatus>(() => loadProviderStatus());
+  const [profiles, setProfiles] = useState<ProviderProfile[]>(() => loadProviderProfiles());
+  const [provider, setProvider] = useState<ProviderProfile>(() => loadActiveProvider());
+  const [providerStatus, setProviderStatus] = useState<ProviderStatus>(() => loadProviderStatus(loadActiveProviderId()));
+  const [agents, setAgents] = useState<AgentProfile[]>(() => loadAgents());
+  const [activeAgentId, setActiveAgentId] = useState(() => loadActiveAgentId());
+  const [mode, setMode] = useState<WorkspaceMode>('chat');
   const [reviewedHash, setReviewedHash] = useState<string | null>(null);
   const [criticalApproved, setCriticalApproved] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(() => loadSettings().autoOpenInspector);
   const [sending, setSending] = useState(false);
+  const [fileBusy, setFileBusy] = useState(false);
+  const [fileProgress, setFileProgress] = useState(0);
   const fileInput = useRef<HTMLInputElement | null>(null);
   const messageEnd = useRef<HTMLDivElement | null>(null);
   const toast = useToast();
 
-  const scan = useMemo(
-    () => scanPayload(prompt, attachments, settings.customSensitiveTerms),
-    [prompt, attachments, settings.customSensitiveTerms],
-  );
+  const scan = useMemo(() => scanPayload(prompt, attachments, settings.customSensitiveTerms), [prompt, attachments, settings.customSensitiveTerms]);
+  const optimization = useMemo(() => optimizeText(prompt, settings.tokenOptimizationMode), [prompt, settings.tokenOptimizationMode]);
+  const routingDecision = useMemo(() => routeAttachments(attachments, profiles, loadRoutingRules(), provider.id, language), [attachments, profiles, provider.id, language]);
+  const effectiveProvider = routingDecision?.profile ?? provider;
+  const effectiveModel = routingDecision?.model ?? provider.model;
+  const effectiveStatus = loadProviderStatus(effectiveProvider.id);
+  const activeAgent = agents.find((agent) => agent.id === activeAgentId) ?? agents[0];
   const isReviewed = reviewedHash === scan.hash;
   const hasInput = Boolean(prompt.trim() || attachments.length);
-  const providerReady = provider.demoMode || (provider.credentialStored && providerStatus.state === 'connected');
+  const providerDef = providerDefinition(effectiveProvider.providerId);
+  const providerReady = effectiveProvider.providerId === 'local-demo'
+    || (!providerDef.requiresCredential || effectiveProvider.credentialStored) && effectiveStatus.state === 'connected';
   const mustApproveCritical = settings.blockCriticalSends && scan.riskLevel === 'critical';
-  const showLiveScan = settings.autoScan || isReviewed;
-  const inspectorFindings = showLiveScan ? scan.findings : [];
-  const inspectorRiskLevel: RiskLevel = showLiveScan ? scan.riskLevel : 'safe';
-  const inspectorRiskScore = showLiveScan ? scan.riskScore : 0;
 
   useEffect(() => {
     if (!openConversationId) return;
@@ -103,6 +130,8 @@ export function WorkspaceScreen({
     setAttachments([]);
     setReviewedHash(null);
     setCriticalApproved(false);
+    if (found?.mode) setMode(found.mode);
+    if (found?.agentId) setActiveAgentId(found.agentId);
   }, [openConversationId]);
 
   useEffect(() => {
@@ -116,293 +145,241 @@ export function WorkspaceScreen({
 
   useEffect(() => {
     const updateProvider = () => {
-      setProvider(loadProviderConfig());
-      setProviderStatus(loadProviderStatus());
+      const nextProfiles = loadProviderProfiles();
+      const next = loadActiveProvider();
+      setProfiles(nextProfiles);
+      setProvider(next);
+      setProviderStatus(loadProviderStatus(next.id));
     };
     const updateSettings = () => setSettings(loadSettings());
-    window.addEventListener('tokenfence:provider-updated', updateProvider);
+    const updateAgents = () => {
+      setAgents(loadAgents());
+      setActiveAgentId(loadActiveAgentId());
+    };
+    window.addEventListener('tokenfence:providers-updated', updateProvider);
     window.addEventListener('tokenfence:settings-updated', updateSettings);
+    window.addEventListener('tokenfence:agents-updated', updateAgents);
     return () => {
-      window.removeEventListener('tokenfence:provider-updated', updateProvider);
+      window.removeEventListener('tokenfence:providers-updated', updateProvider);
       window.removeEventListener('tokenfence:settings-updated', updateSettings);
+      window.removeEventListener('tokenfence:agents-updated', updateAgents);
     };
   }, []);
 
   useEffect(() => {
-    if (settings.autoScan && settings.autoOpenInspector && scan.findings.length > 0) setInspectorOpen(true);
-  }, [scan.findings.length, settings.autoOpenInspector, settings.autoScan]);
-
-  useEffect(() => {
     setReviewedHash(null);
     setCriticalApproved(false);
-  }, [scan.hash]);
+  }, [prompt, attachments]);
 
   useEffect(() => {
     messageEnd.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [conversation?.messages.length, sending]);
+  }, [conversation?.messages.length]);
 
-  const persist = (next: Conversation) => {
-    setConversation(next);
-    if (settings.localHistoryEnabled) saveConversation(next);
+  const selectProvider = (id: string) => {
+    saveActiveProviderId(id);
+    const next = profiles.find((profile) => profile.id === id);
+    if (next) {
+      setProvider(next);
+      setProviderStatus(loadProviderStatus(next.id));
+    }
+  };
+
+  const selectAgent = (id: string) => {
+    saveActiveAgentId(id);
+    setActiveAgentId(id);
+  };
+
+  const addFiles = async (files: FileList | null) => {
+    if (!files?.length) return;
+    setFileBusy(true);
+    setFileProgress(0);
+    const next: AttachmentDraft[] = [];
+    for (const file of Array.from(files)) {
+      try {
+        const processed = await processFile(file, settings.maxFileScanSize, setFileProgress);
+        next.push(processed);
+      } catch (error) {
+        toast.show(error instanceof Error ? error.message : copy(language, 'File processing failed.', '文件处理失败。'), 'error');
+      }
+    }
+    setAttachments((current) => [...current, ...next].slice(0, 12));
+    setFileBusy(false);
+    setFileProgress(0);
+    if (next.length) toast.show(copy(language, `${next.length} file${next.length === 1 ? '' : 's'} processed locally.`, `已在本地处理 ${next.length} 个文件。`), 'success');
   };
 
   const review = () => {
     if (!hasInput) return;
-    if (prompt.length > settings.maxTextScanSize) {
-      toast.show(copy(language, 'Prompt exceeds the configured scan limit.', '提示词超过设置的扫描上限。'), 'error');
-      return;
-    }
-    if (scan.riskLevel === 'critical' && !settings.autoRedactCritical) {
-      toast.show(copy(language, 'Critical data was detected. Enable automatic Critical redaction before approval.', '检测到严重敏感数据。请先启用“自动脱敏严重风险”再批准。'), 'error');
-      setInspectorOpen(true);
-      return;
-    }
     setReviewedHash(scan.hash);
     setInspectorOpen(true);
-    toast.show(
-      scan.findings.length
-        ? copy(language, `Review ready: ${scan.findings.length} finding(s) redacted.`, `审查完成：已脱敏 ${scan.findings.length} 处内容。`)
-        : copy(language, 'Review ready: no sensitive values detected.', '审查完成：未检测到敏感内容。'),
-      scan.findings.length ? 'warning' : 'success',
-    );
+    toast.show(copy(language, 'Safety review locked to the current prompt and files.', '安全审查已锁定到当前提示词和文件。'), 'success');
   };
 
-  const attachFiles = async (files: FileList | null) => {
-    if (!files) return;
-    const accepted: AttachmentDraft[] = [];
-    for (const file of Array.from(files)) {
-      if (file.size > settings.maxFileScanSize) {
-        toast.show(copy(language, `${file.name} exceeds the file scan limit.`, `${file.name} 超过文件扫描上限。`), 'error');
-        continue;
-      }
-      const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
-      if (!['txt', 'md', 'json', 'csv', 'log', 'xml', 'yaml', 'yml'].includes(extension)) {
-        toast.show(copy(language, `${file.name} is not a supported text file.`, `${file.name} 不是支持的文本文件。`), 'warning');
-        continue;
-      }
-      try {
-        accepted.push({ id: makeId('attachment'), name: file.name, size: file.size, content: await file.text() });
-      } catch {
-        toast.show(copy(language, `Could not read ${file.name}.`, `无法读取 ${file.name}。`), 'error');
-      }
+  const applyOptimization = () => {
+    if (!optimization.savedTokens) {
+      toast.show(copy(language, 'No safe local compression opportunity was found.', '没有发现可安全压缩的内容。'), 'warning');
+      return;
     }
-    setAttachments((current) => [...current, ...accepted].slice(0, 12));
-    if (fileInput.current) fileInput.current.value = '';
+    setPrompt(optimization.optimizedText);
+    toast.show(copy(language, `Saved about ${optimization.savedTokens} tokens locally.`, `已在本地节约约 ${optimization.savedTokens} Token。`), 'success');
   };
 
   const send = async () => {
-    if (!hasInput || sending) return;
-    if (!isReviewed) {
-      review();
-      return;
-    }
+    if (!hasInput || !isReviewed || sending) return;
     if (mustApproveCritical && !criticalApproved) {
-      toast.show(copy(language, 'Approve the redacted payload before sending.', '请先确认仅发送脱敏后的内容。'), 'warning');
+      toast.show(copy(language, 'Confirm the redacted critical payload before sending.', '请先确认严重风险内容的脱敏版本。'), 'warning');
       return;
     }
     if (!providerReady) {
+      toast.show(copy(language, `${effectiveProvider.displayName} is not connected.`, `${effectiveProvider.displayName} 尚未连接。`), 'warning');
       onOpenProviders();
       return;
     }
 
-    const safePayload = formatSafePayload(scan);
-    if (!safePayload) return;
-    const base = conversation ?? newConversation(provider);
-    const createdAt = nowIso();
-    const safeUserMessage: ChatMessage = {
-      id: makeId('message'),
-      role: 'user',
-      content: safePayload,
-      createdAt,
-      provider: 'DeepSeek',
-      model: provider.model,
-      riskLevel: scan.riskLevel,
-    };
-    const withUser: Conversation = {
-      ...base,
-      title: base.messages.length ? base.title : (scan.prompt.redactedText.trim().slice(0, 58) || attachments[0]?.name || 'Safe conversation'),
-      updatedAt: createdAt,
-      provider: provider.demoMode ? 'Local demo' : 'DeepSeek',
-      model: provider.demoMode ? 'local-safety-demo' : provider.model,
-      riskSummary: maxRisk(base.riskSummary, scan.riskLevel),
-      messages: [...base.messages, safeUserMessage],
-    };
-    persist(withUser);
     setSending(true);
-
-    let assistantContent = '';
-    let failed = false;
-    let result: SafetyReceipt['result'] = provider.demoMode ? 'demo' : 'sent';
-
-    if (provider.demoMode) {
-      assistantContent = localDemoReply(language, scan.findings.length, scan.estimatedTokens);
-    } else {
-      const context = withUser.messages.slice(-Math.max(2, settings.conversationContextLimit));
-      const reply = await sendDeepSeekChat(provider, context, settings.requestTimeoutMs);
-      if (reply.ok && reply.content?.trim()) {
-        assistantContent = reply.content.trim();
-      } else {
-        failed = true;
-        result = 'failed';
-        assistantContent = copy(
-          language,
-          `DeepSeek request failed. ${reply.errorMessage ?? 'Check the connection, API key, account balance and model availability.'}`,
-          `DeepSeek 请求失败。${reply.errorMessage ?? '请检查网络、API Key、账户余额和模型可用性。'}`,
-        );
-      }
-    }
-
-    const finishedAt = nowIso();
-    const assistantMessage: ChatMessage = {
-      id: makeId('message'),
-      role: 'assistant',
-      content: assistantContent,
-      createdAt: finishedAt,
-      provider: provider.demoMode ? 'Local demo' : 'DeepSeek',
-      model: provider.demoMode ? 'local-safety-demo' : provider.model,
-      failed,
+    const safePayload = formatSafePayload(scan);
+    const now = nowIso();
+    const current = conversation ?? newConversation(effectiveProvider, mode, mode === 'agent' ? activeAgent?.id : undefined);
+    const userMessage: ChatMessage = {
+      id: makeId('message'), role: 'user', content: safePayload, createdAt: now,
+      provider: effectiveProvider.displayName, model: effectiveModel, riskLevel: scan.riskLevel,
     };
-    const completed = { ...withUser, updatedAt: finishedAt, messages: [...withUser.messages, assistantMessage] };
-    persist(completed);
+    const pending: Conversation = {
+      ...current,
+      title: current.messages.length ? current.title : (prompt.trim().slice(0, 54) || attachments[0]?.name || 'Protected task'),
+      updatedAt: now,
+      provider: effectiveProvider.displayName,
+      model: effectiveModel,
+      mode,
+      agentId: mode === 'agent' ? activeAgent?.id : undefined,
+      riskSummary: maxRisk(current.riskSummary, scan.riskLevel),
+      messages: [...current.messages, userMessage],
+    };
+    setConversation(pending);
 
-    if (settings.safetyReceiptsEnabled) {
-      saveReceipt({
-        id: makeId('receipt'),
-        conversationId: completed.id,
-        createdAt: finishedAt,
-        provider: provider.demoMode ? 'Local demo' : 'DeepSeek',
-        model: provider.demoMode ? 'local-safety-demo' : provider.model,
-        riskLevel: scan.riskLevel,
-        findingKinds: Array.from(new Set(scan.findings.map((finding) => finding.kind))),
-        attachmentNames: attachments.map((attachment) => attachment.name),
-        requestCharacters: safePayload.length,
-        result,
+    const requestMessages: Pick<ChatMessage, 'role' | 'content'>[] = pending.messages.slice(-settings.conversationContextLimit).map(({ role, content }) => ({ role, content }));
+    if (mode === 'agent' && activeAgent) {
+      requestMessages.unshift({
+        role: 'system',
+        content: `You are ${activeAgent.name}.\n${activeAgent.description}\nPermission mode: ${activeAgent.permissionMode}.\n${skillPrompt(activeAgent.skillIds)}\nBefore any external or destructive action, ask for explicit approval.`,
       });
     }
 
+    let assistantContent = '';
+    let failed = false;
+    let receiptResult: SafetyReceipt['result'] = 'sent';
+
+    if (effectiveProvider.providerId === 'local-demo') {
+      assistantContent = localDemoReply(language, scan.findings.length, scan.estimatedTokens, optimization.savedTokens);
+      receiptResult = 'demo';
+    } else {
+      const result = await sendProviderChat(effectiveProvider, requestMessages, settings.requestTimeoutMs, effectiveModel);
+      if (result.ok && result.content) assistantContent = result.content;
+      else {
+        failed = true;
+        receiptResult = 'failed';
+        assistantContent = copy(language, `Request failed: ${result.errorMessage ?? 'Unknown provider error.'}`, `请求失败：${result.errorMessage ?? '未知模型错误。'}`);
+      }
+    }
+
+    const assistantMessage: ChatMessage = {
+      id: makeId('message'), role: 'assistant', content: assistantContent, createdAt: nowIso(),
+      provider: effectiveProvider.displayName, model: effectiveModel, failed,
+    };
+    const completed: Conversation = { ...pending, updatedAt: nowIso(), messages: [...pending.messages, assistantMessage] };
+    setConversation(completed);
+    if (settings.localHistoryEnabled) saveConversation(completed);
+    if (settings.safetyReceiptsEnabled) saveReceipt({
+      id: makeId('receipt'), conversationId: completed.id, createdAt: nowIso(), provider: effectiveProvider.displayName,
+      model: effectiveModel, riskLevel: scan.riskLevel, findingKinds: Array.from(new Set(scan.findings.map((finding) => finding.kind))),
+      attachmentNames: attachments.map((file) => file.name), requestCharacters: safePayload.length,
+      estimatedTokens: scan.estimatedTokens, optimizedTokens: Math.max(0, scan.estimatedTokens - optimization.savedTokens), result: receiptResult,
+    });
     setPrompt('');
     setAttachments([]);
     setReviewedHash(null);
     setCriticalApproved(false);
     setSending(false);
-    toast.show(
-      failed ? copy(language, 'Safe payload retained; provider request failed.', '安全请求已保留，但 Provider 调用失败。') : copy(language, 'Safe payload sent.', '安全请求已发送。'),
-      failed ? 'error' : 'success',
-    );
   };
 
-  const clearCurrent = () => {
-    if (conversation?.messages.length && !window.confirm(copy(language, 'Start a new conversation?', '确定开始新会话吗？'))) return;
-    setConversation(null);
-    setPrompt('');
-    setAttachments([]);
-    setReviewedHash(null);
-  };
+  const empty = !conversation?.messages.length;
 
   return (
-    <main className={`workspace ${inspectorOpen ? 'inspector-visible' : ''}`}>
-      <section className="chat-pane">
-        <header className="workspace-topbar">
-          <div>
-            <h1>{conversation?.title || copy(language, 'New safe conversation', '新建安全会话')}</h1>
-            <p>{copy(language, 'Review the exact redacted payload before it leaves your device.', '在内容离开设备前，审查将要发送的准确脱敏版本。')}</p>
+    <main className={`workspace-modern ${inspectorOpen ? 'inspector-visible' : ''}`}>
+      <section className="workspace-main">
+        <header className="workspace-toolbar">
+          <div className="mode-switch">
+            <button className={mode === 'chat' ? 'active' : ''} onClick={() => setMode('chat')}><Icon name="workspace" />{copy(language, 'Chat', '对话')}</button>
+            <button className={mode === 'agent' ? 'active' : ''} onClick={() => setMode('agent')}><Icon name="bot" />Agent</button>
           </div>
-          <div className="topbar-actions">
-            {settings.debugMode && <div className="debug-chip">{scan.hash} · {isReviewed ? 'reviewed' : 'draft'}</div>}
-            <div className={`provider-chip provider-${provider.demoMode ? 'demo' : providerStatus.state}`}>
-              <span />
-              <div><strong>{provider.demoMode ? copy(language, 'Local demo', '本地演示') : 'DeepSeek'}</strong><small>{provider.demoMode ? 'local-safety-demo' : provider.model}</small></div>
-            </div>
-            <button className="icon-button" onClick={clearCurrent} aria-label="New conversation"><Icon name="plus" /></button>
-            <button className={`icon-button ${inspectorOpen ? 'active' : ''}`} onClick={() => setInspectorOpen((value) => !value)} aria-label="Toggle safety inspector"><Icon name="panel" /></button>
-          </div>
+          {mode === 'agent' && (
+            <select value={activeAgentId} onChange={(event) => selectAgent(event.target.value)} className="agent-select">
+              {agents.filter((agent) => agent.enabled).map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
+            </select>
+          )}
+          <div className="workspace-toolbar-spacer" />
+          <button className="route-chip" onClick={onOpenRouting}><Icon name="route" /><span>{routingDecision?.reason ?? copy(language, 'Default route', '默认路由')}</span></button>
+          <button className={`icon-button ${inspectorOpen ? 'active' : ''}`} onClick={() => setInspectorOpen((value) => !value)}><Icon name="panel" /></button>
         </header>
 
-        <div className="message-scroll">
-          {!conversation?.messages.length ? (
-            <div className="workspace-empty">
-              <div className="empty-shield"><Icon name="shield" size={38} /></div>
-              <h2>{copy(language, 'Protect your data before it reaches AI.', '在内容发送给 AI 之前保护你的数据。')}</h2>
-              <p>{copy(language, 'TokenFence scans prompts and text files locally, redacts sensitive information, and shows exactly what will be sent.', 'TokenFence 会在本地扫描提示词和文本文件、自动脱敏，并准确展示即将发送的内容。')}</p>
-              {!providerReady && <button className="button primary" onClick={onOpenProviders}>{copy(language, 'Connect DeepSeek', '连接 DeepSeek')}</button>}
-              <div className="suggestion-row">
-                {[copy(language, 'Review a support ticket', '审查客服工单'), copy(language, 'Sanitize a config file', '脱敏配置文件'), copy(language, 'Check a client prompt', '检查客户提示词')].map((item) => <button key={item} onClick={() => setPrompt(item)}>{item}</button>)}
-                {settings.experimentalFeatures && <button onClick={() => setPrompt('Review contact alice@example.com and api_key=DEMO_SECRET_1234567890abcdef before sending.')}>{copy(language, 'Load redaction demo', '载入脱敏演示')}</button>}
+        <div className="conversation-stage">
+          {empty ? (
+            <div className="workspace-empty-modern">
+              <div className="empty-orb"><Icon name={mode === 'agent' ? 'bot' : 'shield'} size={28} /></div>
+              <h1>{mode === 'agent' ? copy(language, 'Build with a protected agent.', '让受保护的 Agent 开始工作。') : copy(language, 'One workspace. Every model. Less data and fewer tokens.', '一个工作台，连接所有模型，减少泄露与 Token 浪费。')}</h1>
+              <p>{mode === 'agent'
+                ? copy(language, 'Skills, file processors, model routing and approval gates are assembled before the request leaves your Mac.', 'Skills、文件处理、模型路由与操作确认会在请求离开 Mac 前完成。')
+                : copy(language, 'TokenFence scans, compacts and routes each task before it reaches a cloud or local model.', 'TokenFence 会在任务到达云端或本地模型之前完成扫描、压缩与路由。')}</p>
+              <div className="starter-grid">
+                <button onClick={() => { setMode('agent'); selectAgent('tokenfence-coder'); setPrompt(copy(language, 'Review this repository, propose a minimal implementation plan, and list the tests required before changing code.', '审查这个仓库，给出最小修改方案，并在改代码前列出必须执行的测试。')); }}><Icon name="code" /><strong>{copy(language, 'Code agent', '代码 Agent')}</strong><span>{copy(language, 'Plan → edit → verify', '规划 → 修改 → 验证')}</span></button>
+                <button onClick={() => fileInput.current?.click()}><Icon name="fileText" /><strong>{copy(language, 'Process a file', '处理文件')}</strong><span>PDF · DOCX · XLSX · OCR</span></button>
+                <button onClick={() => setPrompt('API_KEY=sk-test-example-1234567890\nemail=demo@example.com\nPlease summarize this configuration safely.')}><Icon name="shield" /><strong>{copy(language, 'Safety demo', '安全演示')}</strong><span>{copy(language, 'Detect and redact locally', '本地检测与脱敏')}</span></button>
               </div>
+              <div className="workspace-links"><button onClick={onOpenAgents}><Icon name="bot" />{copy(language, 'Explore built-in skills', '查看内置 Skills')}</button><button onClick={onOpenProviders}><Icon name="server" />{copy(language, 'Connect more models', '连接更多模型')}</button></div>
             </div>
           ) : (
-            <div className="message-list">
-              {conversation.messages.map((message) => (
-                <article className={`message message-${message.role} ${message.failed ? 'message-failed' : ''}`} key={message.id}>
-                  <div className="message-avatar">{message.role === 'user' ? 'YOU' : <Icon name="shield" size={17} />}</div>
-                  <div className="message-body">
-                    <div className="message-meta"><strong>{message.role === 'user' ? copy(language, 'Reviewed payload', '已审查请求') : message.provider}</strong><span>{new Date(message.createdAt).toLocaleTimeString()}</span>{message.riskLevel && <span className={`risk-text risk-${message.riskLevel}`}>{riskLabel(language, message.riskLevel)}</span>}</div>
-                    <pre>{message.content}</pre>
-                  </div>
+            <div className="message-list-modern">
+              {conversation?.messages.filter((message) => message.role !== 'system').map((message) => (
+                <article key={message.id} className={`message-bubble ${message.role} ${message.failed ? 'failed' : ''}`}>
+                  <header><span>{message.role === 'user' ? copy(language, 'Protected request', '受保护请求') : message.provider}</span><small>{new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</small></header>
+                  <div>{message.content}</div>
+                  {message.model && <footer>{message.model}</footer>}
                 </article>
               ))}
-              {sending && <article className="message message-assistant"><div className="message-avatar"><Icon name="shield" size={17} /></div><div className="message-body"><div className="typing"><span/><span/><span/></div></div></article>}
               <div ref={messageEnd} />
             </div>
           )}
         </div>
 
-        <div className="composer-wrap">
-          {attachments.length > 0 && <div className="attachment-strip">{attachments.map((attachment) => <div className="attachment-chip" key={attachment.id}><Icon name="paperclip" size={15}/><span>{attachment.name}</span><small>{Math.ceil(attachment.size / 1024)} KB</small><button onClick={() => setAttachments((current) => current.filter((item) => item.id !== attachment.id))}><Icon name="x" size={14}/></button></div>)}</div>}
-          <div className={`composer ${isReviewed ? 'reviewed' : ''}`}>
-            <textarea
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              placeholder={copy(language, 'Type a prompt or attach a supported text file…', '输入提示词或添加支持的文本文件…')}
-              rows={3}
-              onKeyDown={(event) => {
-                if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') void send();
-              }}
-            />
-            <div className="composer-footer">
-              <input ref={fileInput} type="file" hidden multiple accept=".txt,.md,.json,.csv,.log,.xml,.yaml,.yml" onChange={(event) => void attachFiles(event.target.files)} />
-              <button className="icon-button" onClick={() => fileInput.current?.click()} aria-label="Attach text file"><Icon name="paperclip" /></button>
-              <span className="composer-status">{scan.estimatedTokens.toLocaleString()} {copy(language, 'estimated tokens', '预估 Token')} · {showLiveScan ? scan.findings.length : '—'} {copy(language, 'findings', '项风险')}</span>
-              {!isReviewed ? (
-                <button className="button primary" onClick={review} disabled={!hasInput}><Icon name="shield" />{copy(language, 'Review before send', '发送前审查')}</button>
-              ) : (
-                <button className="button primary" onClick={() => void send()} disabled={!hasInput || sending || (mustApproveCritical && !criticalApproved)}><Icon name="send" />{providerReady ? copy(language, 'Send safe version', '发送安全版本') : copy(language, 'Connect provider', '连接 Provider')}</button>
-              )}
+        <div className="composer-zone">
+          {attachments.length > 0 && <div className="attachment-strip-modern">{attachments.map((file) => <div key={file.id} className="attachment-card-mini"><Icon name={file.kind === 'image' ? 'image' : file.kind === 'spreadsheet' ? 'table' : 'file'} /><span><strong>{file.name}</strong><small>{file.processor} · {Math.ceil(file.content.length / 4)} tokens</small></span><button onClick={() => setAttachments((current) => current.filter((item) => item.id !== file.id))}><Icon name="x" size={14} /></button></div>)}</div>}
+          {fileBusy && <div className="file-progress"><span style={{ width: `${Math.max(8, fileProgress * 100)}%` }} /><small>{copy(language, 'Local processor working…', '本地处理模块运行中…')}</small></div>}
+          <div className="composer-modern">
+            <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={mode === 'agent' ? copy(language, 'Describe the outcome. The agent will plan skills and permissions before acting…', '描述你要的结果，Agent 会先规划 Skills 与权限再执行…') : copy(language, 'Message any connected model, or attach a supported file…', '向任意已连接模型发送消息，或添加支持的文件…')} rows={4} />
+            <div className="composer-modern-footer">
+              <input ref={fileInput} type="file" multiple hidden accept=".txt,.md,.json,.csv,.log,.xml,.yaml,.yml,.js,.jsx,.ts,.tsx,.py,.rs,.go,.java,.html,.css,.pdf,.docx,.xlsx,.xls,.png,.jpg,.jpeg,.webp" onChange={(event) => { void addFiles(event.target.files); event.currentTarget.value = ''; }} />
+              <button className="icon-button" onClick={() => fileInput.current?.click()} disabled={fileBusy}><Icon name="paperclip" /></button>
+              <div className="composer-metrics"><span><Icon name="sparkles" size={14} />{optimization.originalTokens} → {optimization.optimizedTokens}</span><span className={`risk-text risk-${scan.riskLevel}`}>{riskLabel(language, scan.riskLevel)}</span><span>{attachments.length} {copy(language, 'files', '文件')}</span></div>
+              {optimization.savedTokens > 0 && <button className="compact-action" onClick={applyOptimization}><Icon name="wand" />-{optimization.savedTokens} tokens</button>}
+              {!isReviewed ? <button className="button primary" onClick={review} disabled={!hasInput || fileBusy}><Icon name="shield" />{copy(language, 'Review', '发送前审查')}</button> : <button className="button primary" onClick={send} disabled={sending || !providerReady || (mustApproveCritical && !criticalApproved)}><Icon name={mode === 'agent' ? 'bot' : 'send'} />{sending ? copy(language, 'Running…', '执行中…') : mode === 'agent' ? copy(language, 'Run agent', '运行 Agent') : copy(language, 'Send safe version', '发送安全版本')}</button>}
             </div>
           </div>
-          <p className="composer-hint">{copy(language, 'Ctrl/⌘ + Enter sends only after a current safety review. Editing invalidates approval.', 'Ctrl/⌘ + Enter 仅在当前内容完成安全审查后发送；任何编辑都会使批准失效。')}</p>
+          <div className="composer-caption"><span>{effectiveProvider.displayName} · {effectiveModel}</span><span>{providerStatus.state === 'connected' ? copy(language, 'Connected', '已连接') : effectiveProvider.providerId === 'local-demo' ? copy(language, 'Offline sandbox', '离线沙箱') : copy(language, 'Connection required', '需要连接')}</span></div>
         </div>
       </section>
 
-      {inspectorOpen && <aside className="safety-inspector">
-        <header>
-          <div><span className="eyebrow">SAFETY INSPECTOR</span><h2>{copy(language, 'Before-send review', '发送前审查')}</h2></div>
-          <button className="icon-button inspector-close" onClick={() => setInspectorOpen(false)}><Icon name="x" /></button>
-        </header>
-        <div className={`risk-summary risk-panel-${inspectorRiskLevel}`}>
-          <div className="risk-score"><strong>{inspectorRiskScore}</strong><span>/100</span></div>
-          <div><span>{copy(language, 'Current risk', '当前风险')}</span><h3>{riskLabel(language, inspectorRiskLevel)}</h3><p>{isReviewed ? copy(language, 'Approved snapshot is current.', '当前批准快照有效。') : copy(language, 'Review required after every edit.', '每次编辑后都必须重新审查。')}</p></div>
-        </div>
-        <div className="inspector-stats"><div><strong>{showLiveScan ? scan.findings.length : '—'}</strong><span>{copy(language, 'Findings', '风险项')}</span></div><div><strong>{scan.estimatedTokens}</strong><span>Tokens</span></div><div><strong>{attachments.length}</strong><span>{copy(language, 'Files', '文件')}</span></div></div>
-
-        <section className="inspector-section">
-          <h3>{copy(language, 'Detected data', '检测到的数据')}</h3>
-          {!showLiveScan ? <div className="safe-state pending"><Icon name="info" />{copy(language, 'Auto scan is off. Click Review before send to run the scanner.', '自动扫描已关闭。点击“发送前审查”运行扫描。')}</div> : !inspectorFindings.length ? <div className="safe-state"><Icon name="check" />{copy(language, 'No supported sensitive pattern detected.', '未检测到已支持的敏感模式。')}</div> : <div className="finding-list">{inspectorFindings.map((finding) => <div className={`finding finding-${finding.severity}`} key={finding.id}><Icon name="alert" size={16}/><div><strong>{finding.label}</strong><span>{finding.replacement}</span></div><small>{finding.severity}</small></div>)}</div>}
-        </section>
-
-        <section className="inspector-section safe-preview">
-          <div className="section-title"><h3>{copy(language, 'Exact safe payload', '准确安全请求')}</h3><span>{isReviewed ? copy(language, 'Reviewed', '已审查') : copy(language, 'Draft', '草稿')}</span></div>
-          <pre>{showLiveScan ? (formatSafePayload(scan) || copy(language, 'Nothing to review yet.', '暂无待审查内容。')) : copy(language, 'Run Review before send to generate the exact redacted payload.', '点击“发送前审查”生成准确的脱敏请求。')}</pre>
-        </section>
-
-        {mustApproveCritical && isReviewed && <label className="critical-approval"><input type="checkbox" checked={criticalApproved} onChange={(event) => setCriticalApproved(event.target.checked)} /><span><strong>{copy(language, 'Approve redacted payload only', '仅批准发送脱敏版本')}</strong><small>{copy(language, 'The detected raw values will not be included.', '检测到的原始敏感值不会被包含。')}</small></span></label>}
-
-        <div className="destination-card">
-          <span>{copy(language, 'Destination', '发送目标')}</span>
-          <div><strong>{provider.demoMode ? copy(language, 'Local demo — no network', '本地演示—无网络请求') : 'DeepSeek'}</strong><small>{provider.demoMode ? 'local-safety-demo' : provider.model}</small></div>
-          <div className={`status-dot status-${provider.demoMode ? 'connected' : providerStatus.state}`} />
-        </div>
-      </aside>}
+      {inspectorOpen && (
+        <aside className="inspector-modern">
+          <header><div><span className="section-kicker">TOKENFENCE GUARD</span><h2>{copy(language, 'Request control', '请求控制')}</h2></div><button className="icon-button" onClick={() => setInspectorOpen(false)}><Icon name="x" /></button></header>
+          <div className={`risk-hero risk-panel-${scan.riskLevel}`}><div><strong>{scan.riskScore}</strong><span>/100</span></div><div><small>{copy(language, 'CURRENT RISK', '当前风险')}</small><h3>{riskLabel(language, scan.riskLevel)}</h3><p>{isReviewed ? copy(language, 'Locked to this exact payload', '已锁定到当前请求') : copy(language, 'Edit requires a new review', '编辑后需要重新审查')}</p></div></div>
+          <div className="inspector-card token-card"><div className="inspector-card-title"><span><Icon name="sparkles" />Token budget</span><strong>{scan.estimatedTokens}</strong></div><div className="token-bar"><span style={{ width: `${Math.min(100, scan.estimatedTokens / 80)}%` }} /></div><div className="token-stats"><span>{copy(language, 'Local saving', '本地节约')}<strong>{optimization.savedTokens}</strong></span><span>{copy(language, 'Context limit', '上下文轮次')}<strong>{settings.conversationContextLimit}</strong></span></div></div>
+          <div className="inspector-card"><div className="inspector-card-title"><span><Icon name="route" />{copy(language, 'Routing', '模型路由')}</span><button onClick={onOpenRouting}>{copy(language, 'Edit', '编辑')}</button></div><div className="route-summary"><span className="provider-avatar tiny" style={{ '--provider-accent': providerDefinition(effectiveProvider.providerId).accent } as React.CSSProperties}>{providerDefinition(effectiveProvider.providerId).shortName}</span><div><strong>{effectiveProvider.displayName}</strong><small>{effectiveModel}</small></div></div><p className="route-reason">{routingDecision?.reason}</p></div>
+          {mode === 'agent' && activeAgent && <div className="inspector-card"><div className="inspector-card-title"><span><Icon name="bot" />Agent</span><button onClick={onOpenAgents}>{copy(language, 'Skills', 'Skills')}</button></div><strong className="agent-name-inspector">{activeAgent.name}</strong><div className="skill-dot-row">{activeAgent.skillIds.slice(0, 5).map((id) => <span key={id}>{id}</span>)}</div><p className="route-reason">{copy(language, `Permission mode: ${activeAgent.permissionMode}`, `权限模式：${activeAgent.permissionMode}`)}</p></div>}
+          <div className="inspector-card findings-card"><div className="inspector-card-title"><span><Icon name="shield" />{copy(language, 'Findings', '检测结果')}</span><strong>{scan.findings.length}</strong></div>{scan.findings.length ? <div className="finding-list-modern">{scan.findings.slice(0, 8).map((finding) => <div key={finding.id} className={`finding-modern finding-${finding.severity}`}><span /><div><strong>{finding.label}</strong><small>{finding.replacement}</small></div><em>{finding.severity}</em></div>)}</div> : <div className="safe-state"><Icon name="check" />{copy(language, 'No supported sensitive pattern detected.', '未检测到已支持的敏感模式。')}</div>}</div>
+          {isReviewed && <div className="inspector-card safe-payload"><div className="inspector-card-title"><span>{copy(language, 'Reviewed payload', '已审查请求')}</span><em>{copy(language, 'LOCKED', '已锁定')}</em></div><pre>{formatSafePayload(scan) || copy(language, 'No text payload.', '没有文本请求。')}</pre></div>}
+          {mustApproveCritical && isReviewed && <label className="critical-approval"><input type="checkbox" checked={criticalApproved} onChange={(event) => setCriticalApproved(event.target.checked)} /><span><strong>{copy(language, 'Send only the redacted version', '仅发送脱敏版本')}</strong><small>{copy(language, 'Critical raw values remain blocked.', '严重风险原文仍会被拦截。')}</small></span></label>}
+        </aside>
+      )}
     </main>
   );
 }

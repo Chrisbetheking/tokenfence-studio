@@ -2,7 +2,7 @@
 
 [简体中文](TROUBLESHOOTING.zh-CN.md) | [Back to README](../../README.md)
 
-This guide covers TokenFence Studio v1.6.1 desktop installation, macOS builds, provider configuration, credential storage, and development failures.
+This guide covers TokenFence Studio v1.7.0 desktop installation, macOS builds, provider configuration, credential storage, and development failures.
 
 ## Start with these checks
 
@@ -458,7 +458,7 @@ GitHub → Actions → TokenFence macOS Builds and Release → Run workflow
 Set:
 
 ```text
-version: v1.6.1
+version: v1.7.0
 create_release: true
 make_latest: true
 ```
@@ -469,8 +469,38 @@ Then confirm that **Create or update GitHub Release** completes successfully. So
 
 The `releases/latest/download/...` URL works only after:
 
-1. the v1.6.1 Release exists;
+1. the v1.7.0 Release exists;
 2. it is marked as Latest;
 3. the exact asset filename is attached to the Release.
 
 Open the Release Assets list and compare the filename character-for-character with the README link.
+
+---
+
+## DeepSeek was saved but Workspace still shows Local Sandbox
+
+v1.7.0 fixes the old silent fallback. Open Providers, select the DeepSeek profile, use Secure Save, Test Connection, and Set Active. The top provider switcher should then show DeepSeek. If upgraded metadata remains inconsistent, export non-secret settings, reset the application, and configure the profile again.
+
+## Provider test returns UNTRUSTED_ENDPOINT
+
+Built-in profiles verify that the endpoint host matches the selected provider. Use Custom Compatible API for another trusted HTTPS service. Plain HTTP is accepted only for local Ollama or LM Studio endpoints on localhost, 127.0.0.1 or ::1.
+
+## OCR is slow or fails on the first run
+
+Tesseract.js may need to load its language resources. Start with a small, clear and correctly oriented image. The first release defaults to the English pack; multilingual packs remain planned. Always review OCR output before sending it to a provider.
+
+## A PDF produces no text
+
+The document may be image-only. v1.7.0 extracts an existing PDF text layer. Rendered-page OCR is planned. Export the required page as an image and process it with Local OCR as a temporary workflow.
+
+## Spreadsheet processing fails
+
+v1.7.0 uses ExcelJS to convert worksheets into CSV context. Prefer XLSX, stay below the configured file-size limit, and note that protected, macro-heavy and some legacy binary files may not be supported.
+
+## GitHub Updates cannot connect
+
+Verify the configured owner/repository, network, proxy and system clock. A workflow artifact is not a GitHub Release asset; download buttons work only after the Release publishing job succeeds.
+
+## Why are most Computer Use capabilities marked Planned?
+
+This is an intentional safety boundary. v1.7.0 includes permission modes, capability reporting and the Computer Use Guard. Screen, pointer, keyboard, project writes and terminal execution remain disabled until per-action approval, scope limits, stop controls and audit receipts are complete.

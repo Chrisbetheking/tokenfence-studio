@@ -1,311 +1,240 @@
-# TokenFence Studio
+# TokenFence Studio v1.7.0
 
-**语言：** [English](README.md) | [简体中文](README.zh-CN.md)  
-**帮助：** [中文故障排查](docs/troubleshooting/TROUBLESHOOTING.zh-CN.md) | [English troubleshooting](docs/troubleshooting/TROUBLESHOOTING.md)
+[English](README.md) · [下载最新版](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest) · [问题排查](docs/troubleshooting/TROUBLESHOOTING.zh-CN.md)
 
-![TokenFence Studio Banner](docs/images/banner.png)
+**TokenFence Studio** 是一个本地优先的安全 AI 工作台。它把多模型接入、发送前安全审查、Token 优化、文件处理、模型路由和可组合 Agent Skills 放进同一个 macOS 桌面应用。
 
-> 位于提示词、文件与 AI Provider 之间的一道本地优先安全防线。
+> v1.7.0 不再把“本地演示”伪装成已配置模型。保存并启用 DeepSeek、OpenAI、Anthropic 等 Provider 后，工作台会继续使用对应真实配置；Local Sandbox 只在用户明确选择时启用。
 
-TokenFence Studio 是一款桌面 AI 安全工作台。它会在请求发送给 AI Provider **之前**，统一审查提示词和支持的文本附件，识别潜在敏感信息，生成脱敏后的待发送内容，明确展示发送目标，并尽可能降低敏感信息被意外提交和落盘的风险。
+## 下载
 
-**安全工作区** · **Prompt Guard** · **附件审查** · **DeepSeek Provider** · **本地历史** · **macOS 钥匙串**
+### macOS Apple Silicon（M1/M2/M3/M4）
 
-## 下载 TokenFence Studio
+- [下载 DMG](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Apple-Silicon.dmg)
+- [下载 APP ZIP](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Apple-Silicon.app.zip)
+- [SHA-256](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/SHA256SUMS-Apple-Silicon.txt)
 
-### macOS v1.6.1
+### macOS Intel
 
-| Mac 类型 | 推荐下载 | 备用下载 |
-|---|---|---|
-| Apple Silicon：M1/M2/M3/M4 及后续芯片 | [下载 Apple Silicon DMG](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Apple-Silicon.dmg) | [下载 APP ZIP](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Apple-Silicon.app.zip) |
-| Intel Mac | [下载 Intel DMG](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Intel.dmg) | [下载 APP ZIP](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Intel.app.zip) |
+- [下载 DMG](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Intel.dmg)
+- [下载 APP ZIP](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Intel.app.zip)
+- [SHA-256](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/SHA256SUMS-Intel.txt)
 
-- [打开最新 GitHub Release](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest)
-- [打开 v1.6.1 Release 页面](https://github.com/Chrisbetheking/tokenfence-studio/releases/tag/v1.6.1)
-- [Apple Silicon SHA-256 校验文件](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/SHA256SUMS-Apple-Silicon.txt)
-- [Intel SHA-256 校验文件](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/SHA256SUMS-Intel.txt)
+> 下载链接只有在 v1.7.0 Release 构建并上传成功后才会生效。社区构建目前未签名，首次打开可能需要在 Finder 中按住 Control 点击应用并选择“打开”，或按故障排查文档清除该应用的隔离属性。不要全局关闭 Gatekeeper。
 
-> 在 **v1.6.1 GitHub Release 创建完成且对应安装包上传完成之前**，直接下载链接会返回 `404`。只上传仓库源码或只在 Actions 中生成 Artifact，不会自动更新 Releases 页面。
+## v1.7.0 核心能力
 
-在 Mac 终端执行以下命令确认芯片架构：
+### 1. 多模型 Provider 工作台
 
-```bash
-uname -m
-```
+内置配置模板：
 
-- `arm64`：Apple Silicon。
-- `x86_64`：Intel。
+- DeepSeek
+- OpenAI
+- Anthropic
+- Google Gemini
+- Qwen
+- Kimi / Moonshot
+- Doubao / Ark
+- Zhipu GLM
+- OpenRouter
+- Ollama
+- LM Studio
+- 自定义 OpenAI-compatible HTTPS API
+- Local Sandbox（显式离线演示）
 
-### 旧版 Windows 下载
+每个 Provider 都拥有独立 Profile、模型字段、接口地址、连接状态和系统凭证项。API Key 不写入浏览器 localStorage，也不会从系统凭证库返回给 WebView；真实请求由 Rust 后端按 Profile 直接读取密钥。macOS 使用 Keychain，Windows 使用 Credential Manager。模型名称可编辑，因为不同账号、区域和服务商的可用模型可能不同。
 
-- [TokenFence Studio v1.5.6 Release](https://github.com/Chrisbetheking/tokenfence-studio/releases/tag/v1.5.6)
+### 2. 发送前安全审查
 
-当前 v1.6.1 发布工作流优先发布新的 macOS 安装包。Windows 和 Android 可以在后续统一多平台发布工作流中补到同一个 Release。
-
-## 当前版本
-
-当前桌面端版本线为 **v1.6.1**。
-
-- 支持 Apple Silicon 与 Intel Mac 的原生 macOS 构建
-- DeepSeek 凭证保存到操作系统凭证库
-- 中英文界面
-- 跟随系统、浅色和深色主题
-- 无需 API Key 的 Demo Mode
-- 仅保存脱敏内容的本地会话与安全回执
-
-> v1.6.1 社区 macOS 构建目前未配置 Apple Developer 签名与公证。第一次启动时，可能需要在 Finder 中按住 Control 点击应用并选择 **打开**。不要全局关闭 Gatekeeper。
-
-## 为什么需要 TokenFence Studio
-
-使用 AI 处理真实工作时，提示词里经常会混入终端日志、源代码、配置文件、账号标识、邮箱、接口地址和 API Key。普通聊天界面在用户点击发送后就会直接提交内容，而 TokenFence Studio 会在用户与 Provider 之间增加一次明确的安全审查：
+发送顺序固定为：
 
 ```text
-提示词 + 支持的文本附件
-             ↓
-        本地安全扫描
-             ↓
-     风险分类与问题类型
-             ↓
-      待确认的脱敏内容
-             ↓
-        用户确认后发送
-             ↓
-       明确的 Provider 请求
+提示词与附件
+→ 本地提取
+→ 本地敏感信息扫描
+→ 风险展示与脱敏
+→ 用户确认
+→ Token 优化
+→ 模型路由
+→ Provider 请求
+→ 安全回执
 ```
 
-项目目标不是承诺绝对不会漏检，而是让意外泄露更难发生、更容易被发现，也更便于用户检查。
+- 首条消息也必须审查；
+- 提示词与附件统一扫描；
+- 编辑提示词、增删附件后旧批准立即失效；
+- 高风险内容默认发送脱敏版本；
+- 本地历史保存前再次扫描；
+- Provider 密钥按 Profile 存入操作系统凭证库。
 
-## 核心功能
+### 3. Token 优化
 
-### 发送前 Prompt Guard
+工作台提供本地 Token 估算和两种压缩模式：
 
-- 在批准发送前扫描当前提示词
-- 识别常见凭证和个人标识
-- 支持自定义敏感词
-- 展示风险等级和问题类型，不暴露完整密钥
-- 提示词修改后自动撤销旧批准
+- **Conservative**：清理重复空白、冗余段落和明显重复内容；
+- **Balanced**：在保留任务约束与关键上下文的前提下进一步压缩。
 
-### 提示词与附件统一审查
+发送前会显示原始 Token、优化后 Token、预计节省数量和具体修改。关闭该功能后不会改写用户内容。
 
-- 提示词和支持的文本附件进入同一套安全流程
-- 增加或删除附件后自动撤销旧批准
-- 开启阻断后，Critical 原始内容不能绕过已审查版本直接发送
-- 支持文本和文件扫描大小限制
+### 4. 文件处理模块
 
-### 原生凭证保护
+文件先在本地提取为可审查文本，再进入安全扫描和模型上下文：
 
-- macOS：凭证保存到 **Keychain 钥匙串**
-- Windows：凭证保存到操作系统凭证库
-- 新写入的 Provider Key 不保存到浏览器 `localStorage`
-- 在条件允许时迁移并删除旧版本遗留的本地明文凭证
+| 文件类型 | 本地模块 | 当前状态 |
+|---|---|---|
+| TXT / Markdown / JSON / CSV / 日志 / 代码 | Text & Code Reader | 已实现 |
+| PDF | PDF.js 文本提取与页码标记 | 已实现 |
+| DOCX | Mammoth 原始文本提取 | 已实现 |
+| XLSX / XLS | ExcelJS 工作表转 CSV 上下文 | 已实现 |
+| PNG / JPG / WEBP 等 | Tesseract.js 本地 OCR | 已实现，首个版本默认英文语言包 |
+| 扫描型 PDF 整页 OCR | PDF 页面渲染 + OCR | 路线图 |
 
-### 安全本地历史
+原文件不直接发给 Provider；只有界面中展示并经过审查的提取文本可以进入请求。
 
-- 开启本地历史后保存脱敏会话
-- 安全回执只保存元数据，不保存完整敏感原文
-- 会话落盘前再次扫描，形成防御性存储边界
-- 支持清除会话、安全回执、凭证或全部应用状态
+### 5. 文件到模型的自动路由
 
-### DeepSeek Provider 工作区
+可以分别给代码、PDF、图片/OCR、表格、Office 文档和通用任务配置：
 
-- 可配置 DeepSeek 模型与官方基础地址
-- 测试连接时显示可理解的错误分类
-- Provider 请求通过 Tauri 桌面后端发出
-- Demo Mode 无需 API Key，也不会发送网络请求
+- Provider Profile；
+- 可选模型覆盖；
+- 启用/停用规则；
+- 最终发送目标显示。
 
-### 桌面体验
+路由发生在本地，未连接或未验证的 Provider 不应被静默调用。
 
-- Workspace、History、Providers、Settings 和 About 页面
-- macOS 原生应用菜单
-- macOS 下使用 `Command + N` 新建安全会话
-- 展示运行平台、CPU 架构、应用版本和安全存储信息
-- 中英文界面
-- 跟随系统、浅色和深色主题
+### 6. Agent Studio 与内置 Skills
 
-## 用户快速上手
+v1.7.0 内置 12 个可组合 Skills：
 
-### macOS 安装
+- Secure Coder
+- Repository Onboarding
+- Release Doctor
+- Token Compressor
+- Privacy Review
+- PDF Research
+- OCR Cleanup
+- Spreadsheet Analyst
+- GitHub Triage
+- Research Brief
+- Computer Use Guard
+- Product Critic
 
-1. 从上面的下载链接选择对应芯片的 `.dmg`。
-2. 打开 DMG，把 **TokenFence Studio** 拖到 **Applications/应用程序**。
-3. 未签名版本第一次启动时，在 Finder 中按住 Control 点击应用并选择 **打开**。
-4. 打开 **Providers**，可以先开启 Demo Mode，或者把 DeepSeek API Key 保存到钥匙串。
-5. 返回 **Workspace**，输入测试内容，检查扫描结果并确认安全版本。
+默认 Agent 包括：
 
-公开演示时不要使用真实密钥，只能使用明显虚构的测试内容。
+- **TokenFence Coder**：代码、仓库、安全和 Release；
+- **Document Analyst**：PDF、OCR、表格和研究总结；
+- **Desktop Operator Beta**：Computer Use 权限与安全确认实验入口。
 
-### Windows 安装
+每个 Skill 声明自身需要的网络、文件、GitHub 或 Computer Use 权限。v1.7.0 已完成 Skill 组合、权限模式和能力检测层；没有开放无限制鼠标、键盘或 Shell 控制。
 
-1. 打开旧版 Windows Release 页面。
-2. 下载 Windows portable ZIP。
-3. 完整解压 ZIP。
-4. 在解压目录中运行 `tokenfence-studio.exe`。
+### 7. GitHub 版本检查
 
-不要直接在 ZIP 预览窗口里运行 EXE。
+Updates 页面直接检查：
 
-## 开发环境
+```text
+Chrisbetheking/tokenfence-studio → Latest GitHub Release
+```
 
-### 环境要求
+应用会展示当前版本、最新版本、发布时间、Release Notes 和安装包列表。外部链接经过桌面后端校验后再交给系统打开。
 
-- Node.js `18`–`22`
-- npm `9` 或更高版本
-- 原生桌面开发需要 Rust stable
-- macOS 构建需要 Xcode Command Line Tools
+### 8. 更现代的 macOS 界面
 
-### 克隆与安装
+- 使用 Overlay 原生标题栏，移除顶部重复的旧式产品标题；
+- 更紧凑的拖拽区、Provider 快速切换和状态入口；
+- Workspace、Agent、文件、路由、Provider 和更新页面采用统一面板体系；
+- 支持浅色、深色和系统主题；
+- 支持中英文界面。
+
+## Computer Use 的真实边界
+
+当前版本提供的是 **Computer Use Beta 基础层**，不是完整的自动控制器：
+
+- 已实现能力状态检测、权限模式、Computer Use Guard Skill 和安全界面；
+- 已实现经过检查的 HTTPS 链接打开；
+- 屏幕捕获、受控点击、键盘输入、项目文件写入和终端执行仍标记为 Planned；
+- 后续操作必须采用逐步授权、作用域限制、可中止执行和审计回执，不能增加一个通用“执行任意命令”后门。
+
+详见 [v1.7 路线图](docs/architecture/ROADMAP_v1.7.md)。
+
+## 开源项目参考
+
+产品架构参考了 OpenHands、Open WebUI、AnythingLLM、LibreChat、MCP Servers 与 LobeChat 等项目的公开设计思想，但没有直接复制它们的业务代码。参考内容包括：Agent 工具分层、多 Provider 管理、文档上下文、Skills/Tools 组合、MCP 扩展和沙箱执行理念。
+
+详见 [开源项目参考与边界](docs/architecture/OPEN_SOURCE_INSPIRATION.md)。
+
+## 本地开发
+
+### 环境
+
+- Node.js 22
+- npm
+- Rust stable
+- Xcode Command Line Tools（macOS）
+
+### 安装与前端预览
 
 ```bash
-git clone https://github.com/Chrisbetheking/tokenfence-studio.git
-cd tokenfence-studio
+cd apps/desktop/ui
 npm ci --legacy-peer-deps
-```
-
-### 运行网页工作区
-
-```bash
 npm run dev
 ```
 
-打开 Vite 输出的本地地址，通常是 `http://localhost:3000`。
-
-### 只运行桌面 UI
-
-```bash
-npm --workspace apps/desktop run ui:dev
-```
-
-这种方式适合修改界面，但 Provider 原生请求和钥匙串能力需要 Tauri 桌面运行环境。
-
-### 运行原生桌面应用
-
-```bash
-npm run desktop:dev
-```
-
-### 构建桌面应用
-
-```bash
-npm run desktop:build
-```
-
-### 在 Mac 本机生成安装包
-
-```bash
-bash scripts/build-macos.sh
-```
-
-构建结果位于：
+浏览器打开：
 
 ```text
-apps/desktop/src-tauri/target/<target>/release/bundle/
+http://localhost:1420
 ```
 
-## 通过 GitHub Actions 发布 v1.6.1
+网页预览可查看 UI 和本地处理逻辑，但系统凭证库、真实 Provider 后端请求、版本检查和原生能力需要 Tauri 桌面运行时。
 
-新版工作流支持在一次手动运行中完成 **构建 + 创建 Release + 上传安装包**。
-
-1. 把本覆盖包上传到仓库根目录，必须包含隐藏的 `.github` 目录。
-2. 打开 **Actions → TokenFence macOS Builds and Release**。
-3. 点击 **Run workflow**。
-4. `version` 填写 `v1.6.1`。
-5. 保持 `create_release` 和 `make_latest` 开启。
-6. 分支选择 `main` 后运行。
-7. Apple Silicon 和 Intel 构建成功后，打开仓库 **Releases** 页面。
-
-Release 任务会创建或更新 `v1.6.1` 标签，在选中时将其标记为 Latest，并上传 `.dmg`、`.app.zip` 和 SHA-256 文件。Universal 是可选构建，即使失败也不会阻止两个必需架构的安装包发布。
-
-## 配置 DeepSeek
-
-1. 打开 **Providers**。
-2. 除非正在进行明确的开发测试，否则保留应用提供的官方基础地址。
-3. 选择界面中支持的模型。
-4. 输入 API Key，并保存到系统凭证库。
-5. 点击 **测试连接**。
-6. Provider 状态显示连接成功后，返回 Workspace 使用。
-
-界面会在本地保存 Provider 的非敏感配置，但原始 API Key 会通过桌面端原生凭证库保存。
-
-## Demo Mode
-
-Demo Mode 适合比赛截图、产品演示、评审体验和离线测试。
-
-- 不需要 Provider API Key。
-- 不会发送网络请求。
-- 保留完整的扫描、脱敏、确认和安全回执流程。
-- 只能使用虚构的邮箱、Token 和密码示例。
-
-Demo Mode 成功不代表真实 Provider 已经连接。真实 DeepSeek 配置必须通过 **测试连接** 验证。
-
-## 隐私与安全设计
-
-TokenFence Studio 遵循以下原则：
-
-1. 提示词和支持的文本附件在发送前先审查。
-2. 始终明确展示当前 Provider 和模型。
-3. 内容发生相关变化后必须重新批准。
-4. Provider 密钥保存到操作系统凭证库。
-5. 本地历史保存脱敏内容，而不是检测到的敏感原文。
-6. 调试输出中不打印完整 Provider 密钥和未脱敏请求。
-
-### 重要限制
-
-- 基于规则和模式的扫描可能漏掉未知或非常规格式的敏感信息。
-- 自动脱敏后的内容仍然需要用户人工检查。
-- 二进制文件、图片、加密压缩包和不支持的格式可能无法被检查。
-- 用户批准发送后，第三方 Provider 如何处理数据不受本应用控制。
-- 当前社区版 macOS 安装包未经过 Apple 签名和公证。
-- TokenFence Studio 不能替代企业 DLP、终端安全、权限控制以及法律或合规审查。
-
-## 验证命令
-
-在仓库根目录执行：
+### 桌面开发
 
 ```bash
 npm ci --legacy-peer-deps
-npm --workspace apps/desktop run typecheck
-npm --workspace apps/desktop run test:core
-npm --workspace apps/desktop run ui:build
-python3 scripts/verify_tokenfence_patch.py
-cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
+npm ci --prefix apps/desktop/ui --legacy-peer-deps
+npm --workspace apps/desktop run dev
 ```
 
-## 项目结构
+### 验证
+
+```bash
+npm --prefix apps/desktop/ui run typecheck
+npm --prefix apps/desktop/ui run test:core
+npm --prefix apps/desktop/ui run build
+npm --prefix apps/desktop/ui audit --audit-level=moderate
+cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
+python scripts/verify_tokenfence_patch.py
+```
+
+## 云端构建 macOS Release
+
+进入 GitHub：
 
 ```text
-apps/
-├── web/
-├── desktop/
-│   ├── ui/
-│   └── src-tauri/
-└── android/
-packages/
-└── shared/
-scripts/
-├── build-macos.sh
-└── verify_tokenfence_patch.py
-docs/
-├── release/
-└── troubleshooting/
-.github/workflows/
-├── tokenfence-macos.yml
-└── tokenfence-v1.6-verify.yml
+Actions
+→ TokenFence macOS Builds and Release
+→ Run workflow
 ```
 
-## 遇到问题
+填写：
 
-- [中文故障排查](docs/troubleshooting/TROUBLESHOOTING.zh-CN.md)
-- [English troubleshooting](docs/troubleshooting/TROUBLESHOOTING.md)
+```text
+version: v1.7.0
+create_release: true
+make_latest: true
+```
 
-## 后续规划
+工作流会依次执行 TypeScript 检查、隐私测试、前端构建、Rust `cargo check`、Apple Silicon/Intel Tauri 构建、DMG/APP ZIP 打包和 GitHub Release 更新。
 
-- Apple Developer 签名与公证
-- 将 Windows v1.6.x 安装包加入统一 Release 工作流
-- 更多 Provider 接入
-- 自定义安全规则和团队策略
-- 文档级风险位置定位
-- Token 与成本对比
-- Agent 工具调用审查
+## 隐私与安全说明
 
-## 开源协议
+- TokenFence 只能降低意外泄露风险，不能保证识别全部敏感内容；
+- 自定义兼容 API 只允许 HTTPS，HTTP 仅允许 localhost；
+- 内置 Provider 会检查接口域名是否与所选服务匹配；
+- OCR、PDF 和 Office 解析依赖第三方开源库，应持续跟踪依赖安全；
+- 不要在测试或 Issue 中粘贴真实密钥；
+- 未签名社区构建需要用户手动确认，正式公开分发仍应配置 Apple Developer ID 签名和 notarization。
 
-MIT License。
+## License
+
+MIT

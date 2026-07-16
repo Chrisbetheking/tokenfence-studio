@@ -1,25 +1,17 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   plugins: [react()],
-  root: __dirname,
-  base: './',
-  build: {
-    outDir: 'dist',
-    emptyOutDir: true,
-  },
-  resolve: {
-    alias: {
-      '@shared': path.resolve(__dirname, '../../../packages/shared/src'),
-    },
-  },
+  clearScreen: false,
   server: {
     port: 1420,
     strictPort: true,
+  },
+  envPrefix: ['VITE_', 'TAURI_'],
+  build: {
+    target: process.env.TAURI_PLATFORM === 'windows' ? 'chrome105' : 'safari13',
+    minify: process.env.TAURI_DEBUG ? false : 'esbuild',
+    sourcemap: Boolean(process.env.TAURI_DEBUG),
   },
 });

@@ -1,160 +1,33 @@
-﻿import { useState, useCallback } from "react";
-import {
-  getRouterRules,
-  setRouterRules,
-  routeTask,
-  markProviderHealthy,
-  markProviderUnhealthy,
-  loadRouterRules,
-} from "@tokenfence/shared/src/plugins/model-router";
-import type { RouterRule, TaskCategory, RoutingDecision } from "@tokenfence/shared/src/plugins/model-router";
-import { tk } from "@tokenfence/shared/src/i18n";
+import { useMemo, useState } from 'react';
+import type { FileKind, Language, RoutingRule } from '../app/types';
+import { loadProviderProfiles, loadRoutingRules, saveRoutingRules } from '../app/store';
+import { providerDefinition } from '../app/providerRegistry';
+import { Icon } from '../components/Icon';
+import { useToast } from '../components/Toast';
 
-const categories: TaskCategory[] = ["general", "code", "document", "creative", "analysis", "safety", "agent"];
+const copy = (language: Language, en: string, zh: string) => language === 'zh-CN' ? zh : en;
+const kinds: Array<{ kind: FileKind | 'default'; icon: 'route' | 'code' | 'fileText' | 'image' | 'table' | 'file'; en: string; zh: string }> = [
+  { kind: 'code', icon: 'code', en: 'Code and repositories', zh: '代码与仓库' },
+  { kind: 'pdf', icon: 'fileText', en: 'PDF documents', zh: 'PDF 文档' },
+  { kind: 'image', icon: 'image', en: 'Images and OCR', zh: '图片与 OCR' },
+  { kind: 'spreadsheet', icon: 'table', en: 'Spreadsheets', zh: '电子表格' },
+  { kind: 'document', icon: 'file', en: 'Office documents', zh: '办公文档' },
+  { kind: 'default', icon: 'route', en: 'General fallback', zh: '通用回退' },
+];
 
-interface EditRuleState {
-  rule: RouterRule;
-  primaryModel: string;
-  fallbackModel: string;
-  askBeforeSwitch: boolean;
-}
-
-export function RoutingScreen() {
-  const [rules, setRules] = useState<RouterRule[]>(getRouterRules());
-  const [decisions, setDecisions] = useState<{ category: TaskCategory; decision: RoutingDecision }[]>([]);
-  const [editingRule, setEditingRule] = useState<EditRuleState | null>(null);
-
-  const runAllRoutes = useCallback(() => {
-    const results = categories.map((cat) => ({
-      category: cat,
-      decision: routeTask(cat),
-    }));
-    setDecisions(results);
-  }, []);
-
-  const resetHealth = (provider: string) => {
-    markProviderHealthy(provider);
-    runAllRoutes();
+export function RoutingScreen({ language }: { language: Language }) {
+  const profiles = useMemo(() => loadProviderProfiles().filter((profile) => profile.enabled), []);
+  const [rules, setRules] = useState<RoutingRule[]>(() => loadRoutingRules());
+  const toast = useToast();
+  const update = (kind: FileKind | 'default', patch: Partial<RoutingRule>) => {
+    const current = rules.find((rule) => rule.kind === kind);
+    const next = current ? rules.map((rule) => rule.kind === kind ? { ...rule, ...patch } : rule) : [...rules, { id: `route-${kind}`, kind, providerProfileId: profiles[0]?.id ?? '', enabled: true, reasonEn: 'Custom route', reasonZh: '自定义路由', ...patch }];
+    setRules(next);
+    saveRoutingRules(next);
   };
-
-  const markUnhealthy = (provider: string) => {
-    markProviderUnhealthy(provider);
-    runAllRoutes();
-  };
-
-  const openEdit = (rule: RouterRule) => {
-    const fallback = rule.fallbackChain.length > 0 ? rule.fallbackChain[0] : "";
-    setEditingRule({
-      rule,
-      primaryModel: rule.primaryModel,
-      fallbackModel: fallback,
-      askBeforeSwitch: rule.localPreferred,
-    });
-  };
-
-  const saveEdit = () => {
-    if (!editingRule) return;
-    const updated = rules.map((r) => {
-      if (r.taskCategory === editingRule.rule.taskCategory) {
-        const newChain = editingRule.fallbackModel
-          ? [editingRule.fallbackModel, ...r.fallbackChain.slice(1)]
-          : r.fallbackChain;
-        return {
-          ...r,
-          primaryModel: editingRule.primaryModel,
-          fallbackChain: newChain,
-          localPreferred: editingRule.askBeforeSwitch,
-        };
-      }
-      return r;
-    });
-    setRouterRules(updated);
-    setRules(updated);
-    setEditingRule(null);
-  };
-
-  return (
-    <div>
-      <h1 className="page-title">{tk("nav.routing")}</h1>
-      <p className="page-subtitle">{tk("router.subtitle")}</p>
-
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        <button className="btn btn-primary" onClick={runAllRoutes}>{tk("router.runAllRoutes")}</button>
-        <button className="btn btn-secondary" onClick={() => { loadRouterRules(); setRules(getRouterRules()); }}>{tk("actions.reload")}</button>
-      </div>
-
-      {decisions.length > 0 && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div className="card-header"><div className="card-title">{tk("router.currentDecisions")}</div></div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 8 }}>
-            {decisions.map((d) => (
-              <div key={d.category} className="card" style={{ padding: 10, borderLeft: `4px solid ${d.decision.isFallback ? "var(--amber)" : "var(--green)"}` }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <strong>{d.category}</strong>
-                  <span className={`badge ${d.decision.isFallback ? "badge-amber" : "badge-green"}`}>{d.decision.isFallback ? `Fallback #${d.decision.fallbackIndex}` : "Primary"}</span>
-                </div>
-                <div style={{ fontSize: "0.85rem" }}>
-                  {d.decision.provider} / {d.decision.model}
-                </div>
-                <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>{d.decision.reason}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="card">
-        <div className="card-header"><div className="card-title">{tk("router.rules")}</div></div>
-        {rules.map((rule) => (
-          <div key={rule.taskCategory} className="card" style={{ padding: 12, marginBottom: 8 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-              <strong>{rule.taskCategory.toUpperCase()}</strong>
-              <span className={`badge ${rule.localPreferred ? "badge-green" : "badge-blue"}`}>{rule.localPreferred ? "Local Preferred" : "Cloud"}</span>
-            </div>
-            <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>
-              Primary: {rule.primaryProvider} / {rule.primaryModel}
-            </div>
-            <div style={{ fontSize: "0.78rem", color: "var(--text-tertiary)", marginTop: 2 }}>
-              Fallback chain: {rule.fallbackChain.join(" → ")}
-            </div>
-            <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
-              <button className="btn btn-secondary" style={{ fontSize: "0.7rem", padding: "2px 8px" }} onClick={() => markUnhealthy(rule.primaryProvider)}>Mark {rule.primaryProvider} Unhealthy</button>
-              <button className="btn btn-secondary" style={{ fontSize: "0.7rem", padding: "2px 8px" }} onClick={() => resetHealth(rule.primaryProvider)}>Reset {rule.primaryProvider}</button>
-              <button className="btn btn-primary" style={{ fontSize: "0.7rem", padding: "2px 8px", marginLeft: "auto" }} onClick={() => openEdit(rule)}>{tk("routing.edit")}</button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {editingRule && (
-        <div className="modal-overlay" style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => setEditingRule(null)}>
-          <div className="card" style={{ width: 420, maxWidth: "90vw", padding: 20, backgroundColor: "var(--bg-primary)" }} onClick={(e) => e.stopPropagation()}>
-            <div className="card-title" style={{ marginBottom: 16 }}>{tk("routing.editRule")}</div>
-            <div style={{ marginBottom: 12 }}>
-              <div className="section-item-title" style={{ marginBottom: 4 }}>{tk("routing.fileType")}</div>
-              <div style={{ padding: "8px 12px", backgroundColor: "var(--bg-secondary)", borderRadius: 6, fontSize: "0.9rem" }}>{editingRule.rule.taskCategory.toUpperCase()}</div>
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <label className="section-item-title" style={{ marginBottom: 4, display: "block" }}>{tk("routing.primaryModel")}</label>
-              <input className="input" value={editingRule.primaryModel} onChange={(e) => setEditingRule({ ...editingRule, primaryModel: e.target.value })} style={{ width: "100%", boxSizing: "border-box" }} />
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <label className="section-item-title" style={{ marginBottom: 4, display: "block" }}>{tk("routing.fallbackModel")}</label>
-              <input className="input" value={editingRule.fallbackModel} onChange={(e) => setEditingRule({ ...editingRule, fallbackModel: e.target.value })} style={{ width: "100%", boxSizing: "border-box" }} />
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                <input type="checkbox" checked={editingRule.askBeforeSwitch} onChange={(e) => setEditingRule({ ...editingRule, askBeforeSwitch: e.target.checked })} />
-                <span>{tk("routing.askBeforeSwitch")}</span>
-              </label>
-            </div>
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button className="btn btn-secondary" onClick={() => setEditingRule(null)}>{tk("actions.cancel")}</button>
-              <button className="btn btn-primary" onClick={saveEdit}>{tk("actions.save")}</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+  return <main className="modern-page routing-page">
+    <header className="compact-page-header"><div><span className="section-kicker">MODEL ROUTER</span><h1>{copy(language, 'Route every file to the right model', '让不同文件自动选择合适模型')}</h1><p>{copy(language, 'Rules are evaluated locally. A routed provider is never used until its connection has been verified.', '路由规则在本地执行；未通过连接验证的 Provider 不会被自动调用。')}</p></div><div className="header-actions"><button className="button secondary" onClick={() => toast.show(copy(language, 'Routing rules saved locally.', '路由规则已保存到本地。'), 'success')}><Icon name="check" />{copy(language, 'Rules saved', '规则已保存')}</button></div></header>
+    <div className="routing-grid">{kinds.map((item) => { const rule = rules.find((entry) => entry.kind === item.kind); const profile = profiles.find((entry) => entry.id === rule?.providerProfileId) ?? profiles[0]; const def = profile ? providerDefinition(profile.providerId) : null; return <article key={item.kind} className={!rule?.enabled ? 'disabled' : ''}><header><span className="routing-icon"><Icon name={item.icon} /></span><div><strong>{copy(language, item.en, item.zh)}</strong><small>{rule?.reasonEn ?? 'Routing rule'}</small></div><label className="switch"><input type="checkbox" checked={rule?.enabled ?? true} onChange={(event) => update(item.kind, { enabled: event.target.checked })} /><span /></label></header><div className="route-flow"><span>{item.kind}</span><Icon name="chevron" /><div>{def && <span className="provider-avatar tiny" style={{ '--provider-accent': def.accent } as React.CSSProperties}>{def.shortName}</span>}<select value={profile?.id ?? ''} onChange={(event) => update(item.kind, { providerProfileId: event.target.value })}>{profiles.map((entry) => <option key={entry.id} value={entry.id}>{entry.displayName} · {entry.model}</option>)}</select></div></div><label><span>{copy(language, 'Optional model override', '可选模型覆盖')}</span><input value={rule?.modelOverride ?? ''} onChange={(event) => update(item.kind, { modelOverride: event.target.value })} placeholder={profile?.model ?? ''} /></label></article>; })}</div>
+    <section className="routing-principles"><article><Icon name="shield" /><div><strong>{copy(language, 'Safety before routing', '先安全，后路由')}</strong><p>{copy(language, 'Prompt and extracted file text are scanned before the route is executed.', '提示词与提取后的文件文本会在路由执行前完成扫描。')}</p></div></article><article><Icon name="sparkles" /><div><strong>{copy(language, 'Token-aware context', 'Token 感知上下文')}</strong><p>{copy(language, 'Local compaction and file classification happen before provider billing starts.', '本地压缩与文件分类发生在 Provider 计费之前。')}</p></div></article><article><Icon name="lock" /><div><strong>{copy(language, 'Explicit destinations', '明确发送目标')}</strong><p>{copy(language, 'The workspace inspector always shows the final provider and model.', '工作台检查器始终显示最终 Provider 与模型。')}</p></div></article></section>
+  </main>;
 }

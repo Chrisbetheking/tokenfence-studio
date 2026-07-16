@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/tauri';
-import type { ChatMessage, ProviderConfig } from '../../app/types';
-import { loadProviderSecret } from '../platform/desktopClient';
+import type { ChatMessage, ProviderProfile } from '../../app/types';
+import { providerDefinition } from '../../app/providerRegistry';
 
 export interface ProviderReply {
   ok: boolean;
@@ -13,19 +13,28 @@ export interface ProviderReply {
 }
 
 interface ProviderRuntimeConfig {
+  profileId: string;
+  providerId: string;
+  apiStyle: string;
   apiKey: string;
   model: string;
   baseUrl: string;
   timeoutMs: number;
+  requiresCredential: boolean;
 }
 
-async function runtimeConfig(config: ProviderConfig, timeoutMs: number): Promise<ProviderRuntimeConfig> {
-  const apiKey = config.apiKey.trim() || await loadProviderSecret();
+async function runtimeConfig(profile: ProviderProfile, timeoutMs: number): Promise<ProviderRuntimeConfig> {
+  const definition = providerDefinition(profile.providerId);
+  const apiKey = profile.apiKey.trim();
   return {
+    profileId: profile.id,
+    providerId: profile.providerId,
+    apiStyle: profile.apiStyle,
     apiKey,
-    model: config.model.trim(),
-    baseUrl: config.baseUrl.trim(),
+    model: profile.model.trim(),
+    baseUrl: profile.baseUrl.trim(),
     timeoutMs,
+    requiresCredential: definition.requiresCredential,
   };
 }
 
@@ -43,43 +52,47 @@ function safeFailure(error: unknown): ProviderReply {
   };
 }
 
-function missingCredential(): ProviderReply {
+function missingCredential(profile: ProviderProfile): ProviderReply {
   return {
     ok: false,
     status: 0,
     errorCode: 'INVALID_CREDENTIAL',
-    errorMessage: 'No DeepSeek API key is stored in the operating-system credential store.',
+    errorMessage: `No ${profile.displayName} API key is stored in the operating-system credential store.`,
     latencyMs: 0,
   };
 }
 
-export async function testDeepSeekConnection(
-  config: ProviderConfig,
-  timeoutMs: number,
-): Promise<ProviderReply> {
+export async function testProviderConnection(profile: ProviderProfile, timeoutMs: number): Promise<ProviderReply> {
+  if (profile.providerId === 'local-demo') {
+    return { ok: true, status: 200, content: 'Local sandbox ready', model: profile.model, latencyMs: 0 };
+  }
   try {
-    const resolved = await runtimeConfig(config, timeoutMs);
-    if (!resolved.apiKey) return missingCredential();
+    const resolved = await runtimeConfig(profile, timeoutMs);
+    if (resolved.requiresCredential && !resolved.apiKey) return missingCredential(profile);
     return await invoke<ProviderReply>('provider_connection_test', { config: resolved });
   } catch (error) {
     return safeFailure(error);
   }
 }
 
-export async function sendDeepSeekChat(
-  config: ProviderConfig,
-  messages: ChatMessage[],
+export async function sendProviderChat(
+  profile: ProviderProfile,
+  messages: Pick<ChatMessage, 'role' | 'content'>[],
   timeoutMs: number,
+  modelOverride?: string,
 ): Promise<ProviderReply> {
+  if (profile.providerId === 'local-demo') {
+    return { ok: true, status: 200, content: 'Local sandbox response', model: profile.model, latencyMs: 0 };
+  }
   try {
-    const resolved = await runtimeConfig(config, timeoutMs);
-    if (!resolved.apiKey) return missingCredential();
+    const resolved = await runtimeConfig({ ...profile, model: modelOverride || profile.model }, timeoutMs);
+    if (resolved.requiresCredential && !resolved.apiKey) return missingCredential(profile);
     return await invoke<ProviderReply>('provider_chat', {
       request: {
         config: resolved,
         messages: messages.map(({ role, content }) => ({ role, content })),
-        maxTokens: 2048,
-        temperature: 0.3,
+        maxTokens: 3072,
+        temperature: 0.25,
       },
     });
   } catch (error) {

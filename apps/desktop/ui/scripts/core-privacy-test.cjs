@@ -16,6 +16,7 @@ global.CustomEvent = class CustomEvent { constructor(type) { this.type = type; }
 try {
   const scanner = require(path.join(buildRoot, 'features/safety/scanner.js'));
   const store = require(path.join(buildRoot, 'app/store.js'));
+  const optimizer = require(path.join(buildRoot, 'features/tokens/optimizer.js'));
 
   const prompt = scanner.scanText('api_key=DEMO_SECRET_1234567890abcdef and alice@example.com');
   if (prompt.riskLevel !== 'critical') throw new Error(`Expected critical risk, got ${prompt.riskLevel}`);
@@ -33,7 +34,22 @@ try {
     throw new Error('Attachment redaction leaked a detected value');
   }
 
+  const optimized = optimizer.optimizeText('Please please review this.\nRepeated context\nRepeated context\n\n\n\nDone', 'balanced');
+  if (optimized.optimizedTokens >= optimized.originalTokens || optimized.savedTokens <= 0) {
+    throw new Error('Token optimizer did not reduce obvious duplicate context');
+  }
+
   const now = new Date().toISOString();
+  store.saveProviderProfile({
+    id: 'deepseek-primary', providerId: 'deepseek', displayName: 'DeepSeek', apiStyle: 'openai-compatible',
+    baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat', enabled: true, credentialStored: true,
+    apiKey: 'DEMO_ONLY_NOT_A_REAL_KEY', createdAt: now, updatedAt: now,
+  });
+  store.saveActiveProviderId('deepseek-primary');
+  if (store.loadActiveProvider().id !== 'deepseek-primary') throw new Error('Configured provider silently fell back to Local Sandbox');
+  const providerStorage = global.window.localStorage.getItem('tokenfence.providers.v170') || '';
+  if (providerStorage.includes('DEMO_ONLY_NOT_A_REAL_KEY')) throw new Error('Provider API key was persisted to localStorage');
+
   store.saveConversation({
     id: 'conversation-1',
     title: 'alice@example.com',

@@ -1,311 +1,141 @@
-# TokenFence Studio
+# TokenFence Studio v1.7.0
 
-**Languages:** [English](README.md) | [简体中文](README.zh-CN.md)  
-**Help:** [Troubleshooting](docs/troubleshooting/TROUBLESHOOTING.md) | [中文故障排查](docs/troubleshooting/TROUBLESHOOTING.zh-CN.md)
+[中文](README.zh-CN.md) · [Latest Release](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest) · [Troubleshooting](docs/troubleshooting/TROUBLESHOOTING.md)
 
-![TokenFence Studio Banner](docs/images/banner.png)
+**TokenFence Studio** is a local-first Safe AI Workspace that combines multi-provider access, pre-send privacy review, token optimization, local file processing, model routing, and composable Agent Skills in one macOS desktop application.
 
-> A local-first safety layer between your prompts, files, and AI providers.
+> v1.7.0 no longer falls back to Local Sandbox after a real provider is saved. DeepSeek, OpenAI, Anthropic and other profiles remain active when selected; Local Sandbox is used only through an explicit user choice.
 
-TokenFence Studio is a desktop AI workspace that reviews prompts and supported text attachments **before** a provider request is sent. It helps detect sensitive information, prepare a redacted payload, make the destination explicit, and keep local history safer.
+## Download
 
-**Safe Workspace** · **Prompt Guard** · **Attachment Review** · **DeepSeek Provider** · **Local History** · **macOS Keychain**
+### macOS Apple Silicon (M1/M2/M3/M4)
 
-## Download TokenFence Studio
+- [DMG](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Apple-Silicon.dmg)
+- [APP ZIP](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Apple-Silicon.app.zip)
+- [SHA-256](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/SHA256SUMS-Apple-Silicon.txt)
 
-### macOS v1.6.1
+### macOS Intel
 
-| Mac | Recommended download | Alternative |
-|---|---|---|
-| Apple Silicon — M1/M2/M3/M4 and newer | [Download Apple Silicon DMG](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Apple-Silicon.dmg) | [Download APP ZIP](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Apple-Silicon.app.zip) |
-| Intel Mac | [Download Intel DMG](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Intel.dmg) | [Download APP ZIP](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Intel.app.zip) |
+- [DMG](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Intel.dmg)
+- [APP ZIP](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/TokenFence-Studio-macOS-Intel.app.zip)
+- [SHA-256](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/SHA256SUMS-Intel.txt)
 
-- [Open the latest GitHub Release](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest)
-- [Open the v1.6.1 Release page](https://github.com/Chrisbetheking/tokenfence-studio/releases/tag/v1.6.1)
-- [Apple Silicon checksum](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/SHA256SUMS-Apple-Silicon.txt)
-- [Intel checksum](https://github.com/Chrisbetheking/tokenfence-studio/releases/latest/download/SHA256SUMS-Intel.txt)
+> Direct asset links work only after the v1.7.0 Release has been built and uploaded. Community packages are currently unsigned. On first launch, macOS may require Control-click → Open or the app-specific quarantine fix in the troubleshooting guide. Do not disable Gatekeeper globally.
 
-> A direct link returns `404` until the **v1.6.1 GitHub Release has been created and the matching asset has finished uploading**. Repository source files and Actions artifacts do not update the Releases page by themselves.
+## What v1.7.0 adds
 
-To identify the Mac architecture:
+### Multi-provider workspace
 
-```bash
-uname -m
-```
+Built-in templates are included for DeepSeek, OpenAI, Anthropic, Gemini, Qwen, Kimi, Doubao/Ark, Zhipu GLM, OpenRouter, Ollama, LM Studio, custom OpenAI-compatible HTTPS endpoints, and an explicit offline Local Sandbox.
 
-- `arm64` means Apple Silicon.
-- `x86_64` means Intel.
+Each provider uses an independent profile, model, endpoint, connection state and operating-system credential entry. Keys are not written to browser localStorage. Model fields remain editable because availability can differ by account, region and provider.
 
-### Previous Windows build
-
-- [TokenFence Studio v1.5.6 release](https://github.com/Chrisbetheking/tokenfence-studio/releases/tag/v1.5.6)
-
-The v1.6.1 release workflow currently publishes the new macOS packages. Windows and Android packages can be added to the same release in a later multi-platform workflow.
-
-## Current release
-
-The current desktop line is **v1.6.1**.
-
-- Native macOS builds for Apple Silicon and Intel Macs
-- DeepSeek credentials stored in the operating-system credential store
-- English and Simplified Chinese interface
-- Light, dark, and system themes
-- Demo Mode for offline product demonstrations
-- Local redacted conversation history and safety receipts
-
-> The v1.6.1 community macOS builds are currently unsigned. macOS may require **Control-click → Open** on first launch. Do not disable Gatekeeper globally.
-
-## Why TokenFence Studio
-
-AI workflows often include logs, source code, configuration files, account identifiers, emails, and API credentials. A normal chat interface sends content as soon as the user presses Send. TokenFence Studio adds a review step between the user and the provider:
+### Safety before every send
 
 ```text
-Prompt + supported text attachments
-                  ↓
-          Local safety scan
-                  ↓
-     Findings and risk classification
-                  ↓
-        Reviewed redacted payload
-                  ↓
-          User approval to send
-                  ↓
-        Explicit provider request
+Prompt and attachments
+→ local extraction
+→ local sensitive-data scan
+→ risk and redaction review
+→ user approval
+→ token optimization
+→ model routing
+→ provider request
+→ safety receipt
 ```
 
-The goal is not to promise perfect data-loss prevention. The goal is to make accidental disclosure harder, visible, and reviewable.
+The first message is reviewed, attachments participate in the same scan, edits invalidate prior approval, high-risk data defaults to a redacted payload, and local history is scanned again before persistence.
 
-## Core features
+### Token optimization
 
-### Pre-send Prompt Guard
+Conservative and Balanced local compaction modes estimate original and optimized token use, show the expected saving, and list the applied changes. Optimization can be disabled and is performed before provider billing begins.
 
-- Scans the current prompt before approval
-- Detects common credentials and personal identifiers
-- Supports custom sensitive terms
-- Shows risk level and finding categories without exposing full secret values
-- Invalidates approval when the prompt changes
+### Local file pipeline
 
-### Prompt and attachment review
+| Input | Processor | Status |
+|---|---|---|
+| Text, Markdown, JSON, CSV, logs and code | Text & Code Reader | Implemented |
+| PDF | PDF.js text extraction with page markers | Implemented |
+| DOCX | Mammoth raw-text extraction | Implemented |
+| XLSX / XLS | ExcelJS worksheet-to-CSV context | Implemented |
+| PNG / JPG / WEBP and more | Tesseract.js local OCR | Implemented; English pack by default |
+| Full-page OCR for scanned PDFs | PDF rendering + OCR | Roadmap |
 
-- Reviews the prompt and supported text attachments in one safety flow
-- Invalidates approval when attachments are added or removed
-- Prevents Critical raw payloads from bypassing the reviewed version when blocking is enabled
-- Enforces configurable text and file scan-size limits
+The original file is not sent directly. Only extracted text that is visible and reviewed in TokenFence can enter provider context.
 
-### Native credential protection
+### File-to-model routing
 
-- macOS: stores provider credentials in **Keychain**
-- Windows: stores provider credentials in the operating-system credential store
-- New writes do not store raw provider keys in browser `localStorage`
-- Legacy local credentials are migrated and removed from local storage when possible
+Separate local rules can route code, PDF, images/OCR, spreadsheets, office documents and general tasks to a provider profile and optional model override. The final destination remains visible in the inspector.
 
-### Safe local history
+### Agent Studio and built-in Skills
 
-- Stores redacted conversation content when local history is enabled
-- Keeps safety receipts as metadata rather than raw secret findings
-- Re-scans conversation content before persistence as a defensive storage boundary
-- Allows users to clear conversations, receipts, credentials, or the entire application state
+Twelve built-in Skills cover secure coding, repository onboarding, release diagnosis, prompt compression, privacy review, PDF research, OCR cleanup, spreadsheet analysis, GitHub triage, research briefs, Computer Use guarding and product critique.
 
-### DeepSeek provider workspace
+Default Agent profiles include TokenFence Coder, Document Analyst and Desktop Operator Beta. Skills declare network, file, GitHub and computer permissions.
 
-- Configurable DeepSeek model and official base endpoint
-- Connection test with user-facing error categories
-- Provider requests run through the Tauri desktop backend
-- Demo Mode works without an API key or network request
+### GitHub update visibility
 
-### Desktop experience
+The Updates screen checks the latest GitHub Release, shows version metadata and assets, and opens reviewed external links through the native backend.
 
-- Workspace, History, Providers, Settings, and About screens
-- Native macOS application menu
-- `Command + N` creates a new safe session on macOS
-- Runtime platform, CPU architecture, app version, and secure-store information
-- English / Simplified Chinese UI
-- System / light / dark themes
+### Modern macOS shell
 
-## Quick start for users
+The native title bar uses an overlay style with no duplicated legacy product title. The compact drag region contains a quick-command entry, provider switcher and connection status, while all product sections share a consistent modern panel system.
 
-### macOS installation
+## Honest Computer Use scope
 
-1. Download the correct `.dmg` from the links above.
-2. Open the DMG and drag **TokenFence Studio** to **Applications**.
-3. On the first launch of an unsigned build, Control-click the app and choose **Open**.
-4. Open **Providers**, enable Demo Mode for an offline demonstration, or save a DeepSeek API key to Keychain.
-5. Return to **Workspace**, enter a test prompt, review the scan, and approve the safe payload.
+v1.7.0 delivers the permission model, capability reporting, UI and Computer Use Guard Skill. It does **not** enable unrestricted mouse, keyboard or shell control. Screen capture, controlled actions, scoped project writes and terminal tasks remain planned until per-action approval, stop controls, restricted scopes and audit receipts are implemented.
 
-Never use real secrets for a public demo. Use clearly fake test values.
+See [the v1.7 roadmap](docs/architecture/ROADMAP_v1.7.md).
 
-### Windows installation
+## Open-source inspiration
 
-1. Open the previous Windows release page.
-2. Download the Windows portable ZIP.
-3. Extract the ZIP completely.
-4. Run `tokenfence-studio.exe` from the extracted folder.
+TokenFence studies public product and architecture patterns from OpenHands, Open WebUI, AnythingLLM, LibreChat, MCP Servers and LobeChat. The project does not copy their application code. See [Open-source inspiration and boundaries](docs/architecture/OPEN_SOURCE_INSPIRATION.md).
 
-Do not run the executable from inside the ZIP preview.
+## Development
 
-## Development setup
-
-### Requirements
-
-- Node.js `18`–`22`
-- npm `9` or newer
-- Rust stable toolchain for native desktop development
-- macOS desktop builds: Xcode Command Line Tools
-
-### Clone and install
+Requirements: Node.js 22, npm, stable Rust, and Xcode Command Line Tools on macOS.
 
 ```bash
-git clone https://github.com/Chrisbetheking/tokenfence-studio.git
-cd tokenfence-studio
+cd apps/desktop/ui
 npm ci --legacy-peer-deps
-```
-
-### Run the web workspace
-
-```bash
 npm run dev
 ```
 
-Open the local address printed by Vite, normally `http://localhost:3000`.
-
-### Run the desktop UI only
-
-```bash
-npm --workspace apps/desktop run ui:dev
-```
-
-This is useful for visual work, but native provider requests and Keychain access require the Tauri desktop runtime.
-
-### Run the native desktop app
-
-```bash
-npm run desktop:dev
-```
-
-### Build the desktop app
-
-```bash
-npm run desktop:build
-```
-
-### Build macOS bundles locally
-
-```bash
-bash scripts/build-macos.sh
-```
-
-Generated bundles are placed under:
-
-```text
-apps/desktop/src-tauri/target/<target>/release/bundle/
-```
-
-## Publish v1.6.1 through GitHub Actions
-
-The workflow now supports building **and creating the Release in one manual run**.
-
-1. Upload this patch to the repository root, including the hidden `.github` directory.
-2. Open **Actions → TokenFence macOS Builds and Release**.
-3. Click **Run workflow**.
-4. Set `version` to `v1.6.1`.
-5. Keep `create_release` and `make_latest` enabled.
-6. Run the workflow from the `main` branch.
-7. After Apple Silicon and Intel builds succeed, open the repository **Releases** page.
-
-The Release job creates or updates tag `v1.6.1`, marks it as Latest when selected, and attaches `.dmg`, `.app.zip`, and SHA-256 files. The optional Universal job may fail without blocking the two required architecture builds.
-
-## Configure DeepSeek
-
-1. Open **Providers**.
-2. Keep the official base endpoint unless development testing specifically requires another supported configuration.
-3. Select a supported model shown by the app.
-4. Paste the API key and save it to the system credential store.
-5. Run **Test connection**.
-6. Return to Workspace after the provider status becomes connected.
-
-The UI stores provider metadata locally, but the raw key is saved through the native credential-store integration.
-
-## Demo Mode
-
-Demo Mode is intended for screenshots, product walkthroughs, judging, and offline testing.
-
-- No provider key is required.
-- No network request is sent.
-- The full safety-review flow remains visible.
-- Use fake sample emails, tokens, and passwords only.
-
-Demo Mode is not evidence that a real provider connection is working. Use **Test connection** to verify a real DeepSeek configuration.
-
-## Privacy and security model
-
-TokenFence Studio follows these design rules:
-
-1. Review prompts and supported text attachments before provider submission.
-2. Keep the selected provider and model visible.
-3. Require a new approval after relevant input changes.
-4. Store provider secrets in the operating-system credential store.
-5. Save redacted local history instead of raw detected secrets.
-6. Avoid printing provider credentials or unredacted payloads in debug output.
-
-### Important security limitations
-
-- Pattern-based scanning can miss unknown or unusual secrets.
-- A redacted payload still requires user review.
-- Binary files, images, encrypted archives, and unsupported formats may not be inspected.
-- The application cannot control how a third-party provider handles data after an approved request is sent.
-- Unsigned community builds are not notarized by Apple.
-- TokenFence Studio is not a replacement for enterprise DLP, endpoint security, access control, or legal/compliance review.
-
-## Verification commands
-
-Run from the repository root:
+Open `http://localhost:1420` for UI preview. Native credentials, provider requests, updates and desktop capabilities require Tauri:
 
 ```bash
 npm ci --legacy-peer-deps
-npm --workspace apps/desktop run typecheck
-npm --workspace apps/desktop run test:core
-npm --workspace apps/desktop run ui:build
-python3 scripts/verify_tokenfence_patch.py
-cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
+npm ci --prefix apps/desktop/ui --legacy-peer-deps
+npm --workspace apps/desktop run dev
 ```
 
-## Project structure
+Validation:
+
+```bash
+npm --prefix apps/desktop/ui run typecheck
+npm --prefix apps/desktop/ui run test:core
+npm --prefix apps/desktop/ui run build
+npm --prefix apps/desktop/ui audit --audit-level=moderate
+cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
+python scripts/verify_tokenfence_patch.py
+```
+
+## Publish macOS v1.7.0
+
+Open GitHub Actions → **TokenFence macOS Builds and Release** → **Run workflow**, then use:
 
 ```text
-apps/
-├── web/
-├── desktop/
-│   ├── ui/
-│   └── src-tauri/
-└── android/
-packages/
-└── shared/
-scripts/
-├── build-macos.sh
-└── verify_tokenfence_patch.py
-docs/
-├── release/
-└── troubleshooting/
-.github/workflows/
-├── tokenfence-macos.yml
-└── tokenfence-v1.6-verify.yml
+version: v1.7.0
+create_release: true
+make_latest: true
 ```
 
-## Troubleshooting
+The workflow verifies TypeScript, privacy tests, the UI build, Rust, Apple Silicon and Intel Tauri packages, checksums and the GitHub Release.
 
-- [English troubleshooting guide](docs/troubleshooting/TROUBLESHOOTING.md)
-- [中文故障排查](docs/troubleshooting/TROUBLESHOOTING.zh-CN.md)
+## Security notes
 
-## Roadmap
-
-- Apple Developer signing and notarization
-- Windows v1.6.x package in the unified release workflow
-- More provider integrations
-- Custom safety rules and team policies
-- Document-level finding locations
-- Token and cost comparisons
-- Agent tool-call review
+TokenFence reduces accidental disclosure risk but cannot detect every secret. Built-in providers are restricted to matching hosts; custom remote APIs require HTTPS, while plain HTTP is allowed only for localhost. Third-party parsing dependencies must be continuously audited. Never paste real credentials into Issues or test fixtures. Public friction-free distribution still requires Apple Developer ID signing and notarization.
 
 ## License
 
-MIT License.
+MIT

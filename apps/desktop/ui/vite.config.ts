@@ -13,5 +13,7 @@ export default defineConfig({
     target: process.env.TAURI_PLATFORM === 'windows' ? 'chrome105' : 'safari13',
     minify: process.env.TAURI_DEBUG ? false : 'esbuild',
     sourcemap: Boolean(process.env.TAURI_DEBUG),
+    // Excel/PDF/OCR processors are lazy-loaded and intentionally ship as isolated chunks.
+    chunkSizeWarningLimit: 1300,
   },
 });

@@ -1899,6 +1899,7 @@ fn computer_press_key(key: String, confirmed: bool) -> ComputerActionResult {
         "delete" => "tell application \"System Events\" to key code 51",
         "cmd+s" => "tell application \"System Events\" to keystroke \"s\" using command down",
         "cmd+l" => "tell application \"System Events\" to keystroke \"l\" using command down",
+        "cmd+n" => "tell application \"System Events\" to keystroke \"n\" using command down",
         _ => return computer_result(false, "keyboard-key", "This key is not in the Chris Studio allowlist.".to_string(), None),
     };
     #[cfg(target_os = "macos")]
@@ -1911,6 +1912,40 @@ fn computer_press_key(key: String, confirmed: bool) -> ComputerActionResult {
     }
     #[cfg(not(target_os = "macos"))]
     computer_result(false, "keyboard-key", "Keyboard control is currently implemented for macOS builds.".to_string(), None)
+}
+
+#[tauri::command]
+fn computer_open_application(app: String, confirmed: bool) -> ComputerActionResult {
+    if !confirmed {
+        return computer_result(false, "open-application", "Explicit application-launch approval is required.".to_string(), None);
+    }
+    let normalized = app.trim().to_lowercase();
+    let target = match normalized.as_str() {
+        "textedit" | "text edit" | "文本编辑" | "文本编辑器" | "文档" => "TextEdit",
+        "notes" | "note" | "备忘录" => "Notes",
+        "safari" | "browser" | "浏览器" => "Safari",
+        "finder" | "访达" => "Finder",
+        "terminal" | "终端" => "Terminal",
+        "system settings" | "settings" | "系统设置" => "System Settings",
+        _ => {
+            return computer_result(
+                false,
+                "open-application",
+                "This application is not in the Chris Studio allowlist. Allowed: TextEdit, Notes, Safari, Finder, Terminal and System Settings.".to_string(),
+                None,
+            )
+        }
+    };
+    #[cfg(target_os = "macos")]
+    {
+        match Command::new("/usr/bin/open").args(["-a", target]).output() {
+            Ok(output) if output.status.success() => computer_result(true, "open-application", format!("Opened the approved application: {target}."), None),
+            Ok(output) => computer_result(false, "open-application", format!("macOS could not open {target}: {}", truncate_output(&output.stderr)), None),
+            Err(_) => computer_result(false, "open-application", "The macOS open command could not be started.".to_string(), None),
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    computer_result(false, "open-application", "Application launching is currently implemented for macOS builds.".to_string(), None)
 }
 
 #[tauri::command]
@@ -2056,6 +2091,7 @@ fn main() {
             computer_click,
             computer_type_text,
             computer_press_key,
+            computer_open_application,
             computer_request_permissions,
             computer_open_privacy_settings
         ])

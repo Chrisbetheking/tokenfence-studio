@@ -1,3 +1,5 @@
+const fs = require('node:fs');
+const path = require('node:path');
 const assert = require('node:assert/strict');
 const {
   synchronizeAppText,
@@ -42,5 +44,17 @@ export function ComputerScreen() { return null; }
 const computerAdapted = synchronizeComputerScreenRuntimeAdapter(computerScreenFixture);
 assert.ok(computerAdapted.includes('../features/computer/computerClientReliable'));
 assert.equal(synchronizeComputerScreenRuntimeAdapter(computerAdapted), computerAdapted);
+
+
+const reliableComputerClient = fs.readFileSync(
+  path.join(__dirname, '../src/features/computer/computerClientReliable.ts'),
+  'utf8',
+);
+assert.match(
+  reliableComputerClient,
+  /export \* from ["']\.\/computerClient["'];/,
+  'The reliable adapter must forward untouched computerClient exports such as openApplication.',
+);
+assert.match(reliableComputerClient, /action,\s*timestamp: Date\.now\(\)/s);
 
 console.log('v2.2 workspace reliability integration tests passed');

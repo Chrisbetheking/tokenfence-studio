@@ -18,6 +18,7 @@ const sourceFiles = [
   "src/features/agent-runtime/rollbackPlan.ts",
   "src/features/providers/providerTelemetry.ts",
   "src/features/computer-use/sessionGuard.ts",
+  "src/features/computer/computerClientReliable.ts",
 ];
 
 const compiledModuleTests = [
@@ -96,6 +97,7 @@ function compileCoreModules() {
     "features/agent-runtime/rollbackPlan.js",
     "features/providers/providerTelemetry.js",
     "features/computer-use/sessionGuard.js",
+    "features/computer/computerClientReliable.js",
   ];
   const missing = requiredOutputs.filter((relativePath) => !fs.existsSync(path.join(buildRoot, relativePath)));
   if (missing.length > 0) {

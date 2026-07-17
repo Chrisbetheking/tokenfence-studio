@@ -1,12 +1,3 @@
 apps/desktop/ui/scripts/run-core-tests.cjs
-apps/desktop/ui/scripts/sync-product-metadata.cjs
-apps/desktop/ui/scripts/v2-2-runtime-store-test.cjs
 apps/desktop/ui/scripts/v2-2-workspace-integration-test.cjs
-apps/desktop/ui/src/components/ReliabilityDock.tsx
-apps/desktop/ui/src/features/agent-runtime/runtimeStore.ts
 apps/desktop/ui/src/features/computer/computerClientReliable.ts
-apps/desktop/ui/src/features/providers/providerClientReliable.ts
-apps/desktop/ui/src/styles/reliability-dock.css
-UPLOAD_V2.2.0_RUNTIME_UI.md
-V2.2.0_RUNTIME_UI_CHANGE_SUMMARY.zh-CN.md
-VALIDATION_REPORT_v2.2.0_RUNTIME_UI.md

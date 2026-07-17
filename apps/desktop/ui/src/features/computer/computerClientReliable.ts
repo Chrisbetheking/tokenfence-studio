@@ -1,3 +1,5 @@
+export * from "./computerClient";
+
 import {
   captureScreen as captureScreenBase,
   clickPointer as clickPointerBase,
@@ -29,6 +31,16 @@ function isOk(result: unknown): boolean {
 function resultMessage(result: unknown): string {
   const value = result as UnknownResult;
   return value?.message || value?.errorMessage || (isOk(result) ? "Completed." : "Computer action failed.");
+}
+
+function createComputerFailureResult<T>(action: string, message: string): T {
+  return {
+    ok: false,
+    action,
+    timestamp: Date.now(),
+    message,
+    errorMessage: message,
+  } as unknown as T;
 }
 
 class ComputerGuardStoppedError extends Error {
@@ -114,7 +126,7 @@ async function runComputerAction<T>(
         ? "timed-out"
         : "failed";
     finishRuntimeRun(runtime.id, status, message);
-    return { ok: false, message, errorMessage: message } as T;
+    return createComputerFailureResult<T>(action, message);
   }
 }
 
@@ -135,7 +147,7 @@ export const requestComputerPermissions: typeof requestComputerPermissionsBase =
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     finishRuntimeRun(runtime.id, error instanceof RuntimeStopError ? "cancelled" : "failed", message);
-    return { ok: false, message, errorMessage: message } as Awaited<ReturnType<typeof requestComputerPermissionsBase>>;
+    return createComputerFailureResult<Awaited<ReturnType<typeof requestComputerPermissionsBase>>>("permissions", message);
   }
 }) as typeof requestComputerPermissionsBase;
 

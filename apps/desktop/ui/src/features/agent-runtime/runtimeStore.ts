@@ -5,8 +5,9 @@ export type RuntimeRunKind = "provider" | "computer" | "project" | "agent";
 export type RuntimeRunStatus = ReliableRunStatus | "stopping";
 
 export interface RuntimeRunRecord {
-  schemaVersion: 1;
+  schemaVersion: 2;
   id: string;
+  parentId?: string;
   kind: RuntimeRunKind;
   task: string;
   status: RuntimeRunStatus;
@@ -23,10 +24,13 @@ export interface RuntimeRunRecord {
   reliableReceipt?: ReliableRunReceipt;
   computerReceipt?: ComputerSessionReceipt;
   coordinateOverlay?: CoordinateOverlay;
+  acknowledgedAt?: number;
+  archivedAt?: number;
 }
 
 export interface BeginRuntimeRunInput {
   id?: string;
+  parentId?: string;
   kind: RuntimeRunKind;
   task: string;
   provider?: string;
@@ -36,7 +40,7 @@ export interface BeginRuntimeRunInput {
 }
 
 const STORAGE_KEY = "chris-studio.runtime-runs.v2";
-const MAX_PERSISTED_RUNS = 40;
+const MAX_PERSISTED_RUNS = 80;
 const listeners = new Set<(runs: RuntimeRunRecord[]) => void>();
 const controllers = new Map<string, AbortController>();
 const ACTIVE_STATUSES = new Set<RuntimeRunStatus>([
@@ -82,15 +86,26 @@ function hydrate(): void {
       const hydratedAt = now();
       memoryRuns = parsed
         .filter((entry): entry is RuntimeRunRecord => Boolean(entry && typeof entry.id === "string"))
-        .map((entry) => ACTIVE_STATUSES.has(entry.status)
-          ? {
-              ...entry,
-              status: "cancelled" as const,
-              updatedAt: hydratedAt,
-              finishedAt: hydratedAt,
-              message: "Interrupted by app restart; the last checkpoint receipt was preserved.",
-            }
-          : entry)
+        .map((entry) => {
+          const migrated = {
+            ...entry,
+            schemaVersion: 2 as const,
+            // v2.2.0 previously counted every historical failure forever. Preserve
+            // those receipts, but acknowledge pre-closeout failures during migration.
+            acknowledgedAt: entry.schemaVersion === 2
+              ? entry.acknowledgedAt
+              : (entry.status === "failed" || entry.status === "timed-out" ? hydratedAt : undefined),
+          };
+          return ACTIVE_STATUSES.has(migrated.status)
+            ? {
+                ...migrated,
+                status: "cancelled" as const,
+                updatedAt: hydratedAt,
+                finishedAt: hydratedAt,
+                message: "Interrupted by app restart; the last checkpoint receipt was preserved.",
+              }
+            : migrated;
+        })
         .slice(0, MAX_PERSISTED_RUNS);
       persist();
     }
@@ -134,8 +149,9 @@ export function beginRuntimeRun(input: BeginRuntimeRunInput): RuntimeRunRecord {
   hydrate();
   const timestamp = now();
   const record: RuntimeRunRecord = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: input.id?.trim() || makeRunId(input.kind),
+    parentId: input.parentId?.trim() || undefined,
     kind: input.kind,
     task: input.task.trim() || input.action?.trim() || input.kind,
     status: "planning",
@@ -165,7 +181,7 @@ export function updateRuntimeRun(
       ...entry,
       ...patch,
       id: entry.id,
-      schemaVersion: 1,
+      schemaVersion: 2,
       createdAt: entry.createdAt,
       updatedAt: timestamp,
     };
@@ -292,6 +308,69 @@ export function subscribeRuntimeRuns(listener: (runs: RuntimeRunRecord[]) => voi
   return () => {
     listeners.delete(listener);
   };
+}
+
+function descendantIds(rootId: string): Set<string> {
+  const result = new Set<string>([rootId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const entry of memoryRuns) {
+      if (entry.parentId && result.has(entry.parentId) && !result.has(entry.id)) {
+        result.add(entry.id);
+        changed = true;
+      }
+    }
+  }
+  return result;
+}
+
+export function acknowledgeRuntimeRun(id: string): RuntimeRunRecord[] {
+  hydrate();
+  const timestamp = now();
+  const ids = descendantIds(id);
+  return commit(memoryRuns.map((entry) => ids.has(entry.id)
+    ? { ...entry, acknowledgedAt: timestamp }
+    : entry));
+}
+
+export function acknowledgeAllRuntimeFailures(): RuntimeRunRecord[] {
+  hydrate();
+  const timestamp = now();
+  return commit(memoryRuns.map((entry) =>
+    (entry.status === "failed" || entry.status === "timed-out") && !entry.archivedAt
+      ? { ...entry, acknowledgedAt: timestamp }
+      : entry));
+}
+
+export function archiveRuntimeRun(id: string): RuntimeRunRecord[] {
+  hydrate();
+  const timestamp = now();
+  const ids = descendantIds(id);
+  return commit(memoryRuns.map((entry) => ids.has(entry.id) && !ACTIVE_STATUSES.has(entry.status)
+    ? { ...entry, acknowledgedAt: entry.acknowledgedAt ?? timestamp, archivedAt: timestamp }
+    : entry));
+}
+
+export function archiveFinishedRuntimeRuns(): RuntimeRunRecord[] {
+  hydrate();
+  const timestamp = now();
+  const byId = new Map(memoryRuns.map((entry) => [entry.id, entry]));
+  const finishedRootIds = memoryRuns
+    .filter((entry) => (!entry.parentId || !byId.has(entry.parentId)) && !ACTIVE_STATUSES.has(entry.status))
+    .map((entry) => entry.id);
+  const ids = new Set<string>();
+  for (const rootId of finishedRootIds) {
+    for (const id of descendantIds(rootId)) ids.add(id);
+  }
+  return commit(memoryRuns.map((entry) => ids.has(entry.id) && !ACTIVE_STATUSES.has(entry.status)
+    ? { ...entry, acknowledgedAt: entry.acknowledgedAt ?? timestamp, archivedAt: timestamp }
+    : entry));
+}
+
+export function clearArchivedRuntimeRuns(): RuntimeRunRecord[] {
+  hydrate();
+  return commit(memoryRuns.filter((entry) => !entry.archivedAt));
 }
 
 export function clearFinishedRuntimeRuns(): RuntimeRunRecord[] {

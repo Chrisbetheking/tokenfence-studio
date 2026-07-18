@@ -25,6 +25,25 @@ import {
 
 type UnknownResult = { ok?: boolean; message?: string; errorMessage?: string };
 
+let activeRuntimeParentId: string | undefined;
+
+/**
+ * Groups approved desktop actions under the visible model-driven Computer Use
+ * parent task. Manual actions remain standalone receipts.
+ */
+export async function withComputerRuntimeParent<T>(
+  parentId: string | undefined,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const previous = activeRuntimeParentId;
+  activeRuntimeParentId = parentId?.trim() || undefined;
+  try {
+    return await operation();
+  } finally {
+    activeRuntimeParentId = previous;
+  }
+}
+
 function isOk(result: unknown): boolean {
   return Boolean((result as UnknownResult)?.ok);
 }
@@ -92,7 +111,13 @@ async function runComputerAction<T>(
   invoke: () => Promise<T>,
   overlay?: CoordinateOverlay,
 ): Promise<T> {
-  const runtime = beginRuntimeRun({ kind: "computer", task, action, maxAttempts: 1 });
+  const runtime = beginRuntimeRun({
+    kind: "computer",
+    parentId: activeRuntimeParentId,
+    task,
+    action,
+    maxAttempts: 1,
+  });
   const guard = new ComputerUseSessionGuard({ sessionId: runtime.id });
   publishComputerReceipt(runtime.id, guard.start(), overlay);
   const ticket = guard.issueApproval(action, task);

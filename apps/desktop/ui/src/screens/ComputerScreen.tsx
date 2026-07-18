@@ -20,6 +20,7 @@ import {
   pressKey,
   requestComputerPermissions,
   typeText,
+  withComputerRuntimeParent,
 } from '../features/computer/computerClientReliable';
 import {
   planNextComputerAction,
@@ -199,11 +200,12 @@ export function ComputerScreen({ language }: { language: Language }) {
   };
 
   const performAction = async (action: DesktopAction, input?: { app?: string; x?: number; y?: number; text?: string; key?: string }) => {
-    const result = action === 'capture' ? await captureScreen(true)
-      : action === 'open' ? await openApplication(input?.app ?? application, true)
-      : action === 'click' ? await clickPointer(input?.x ?? x, input?.y ?? y, true)
-      : action === 'type' ? await typeText(input?.text ?? text, true, input?.app)
-      : await pressKey(input?.key ?? key, true, input?.app);
+    const invoke = () => action === 'capture' ? captureScreen(true)
+      : action === 'open' ? openApplication(input?.app ?? application, true)
+      : action === 'click' ? clickPointer(input?.x ?? x, input?.y ?? y, true)
+      : action === 'type' ? typeText(input?.text ?? text, true, input?.app)
+      : pressKey(input?.key ?? key, true, input?.app);
+    const result = await withComputerRuntimeParent(agentSessionRunIdRef.current ?? undefined, invoke);
     if (result.screenshotDataUrl) setScreenshot(result.screenshotDataUrl);
     record(result.action, result.message, result.ok);
     if (action === 'capture') setCapabilities(await getComputerCapabilities());

@@ -48,17 +48,11 @@ jobs:
           cache: npm
           cache-dependency-path: apps/desktop/ui/package-lock.json
 
-      - name: Reject private package registry URLs
-        shell: bash
-        run: |
-          set -euo pipefail
-          if grep -Eiq 'applied-caas-gateway|internal\.api\.openai\.org|registry\.npmmirror\.com' apps/desktop/ui/package-lock.json; then
-            echo 'Desktop lockfile contains a private or regional package registry URL.'
-            exit 1
-          fi
+      - name: Verify public npm lockfile registries
+        run: node scripts/verify-public-npm-locks.cjs
 
       - name: Install desktop UI dependencies
-        run: npm install --prefix apps/desktop/ui --legacy-peer-deps --no-audit --no-fund
+        run: npm ci --prefix apps/desktop/ui --legacy-peer-deps --no-audit --no-fund
 
       - name: Verify desktop dependency resolution
         shell: bash
@@ -127,17 +121,11 @@ jobs:
         with:
           workspaces: apps/desktop/src-tauri -> target
 
-      - name: Reject private package registry URLs
-        shell: bash
-        run: |
-          set -euo pipefail
-          if grep -Eiq 'applied-caas-gateway|internal\.api\.openai\.org|registry\.npmmirror\.com' apps/desktop/ui/package-lock.json; then
-            echo 'Desktop lockfile contains a private or regional package registry URL.'
-            exit 1
-          fi
+      - name: Verify public npm lockfile registries
+        run: node scripts/verify-public-npm-locks.cjs
 
       - name: Install desktop UI dependencies
-        run: npm install --prefix apps/desktop/ui --legacy-peer-deps --no-audit --no-fund
+        run: npm ci --prefix apps/desktop/ui --legacy-peer-deps --no-audit --no-fund
 
       - name: Verify desktop dependency resolution
         shell: bash

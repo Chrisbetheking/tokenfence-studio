@@ -41,6 +41,9 @@ Module._load = function patchedLoad(request, parent, isMain) {
           setTimeout(() => streamListener?.({ payload: { streamId: id, kind: 'delta', text: 'Hel', model: 'test-model' } }), 10);
           setTimeout(() => streamListener?.({ payload: { streamId: id, kind: 'delta', text: 'lo', model: 'test-model' } }), 24);
           setTimeout(() => streamListener?.({ payload: { streamId: id, kind: 'done', model: 'test-model' } }), 40);
+        } else if (mode === 'late-read-error') {
+          setTimeout(() => streamListener?.({ payload: { streamId: id, kind: 'delta', text: 'Complete visible answer.', model: 'test-model' } }), 8);
+          setTimeout(() => streamListener?.({ payload: { streamId: id, kind: 'error', errorCode: 'STREAM_READ_ERROR', errorMessage: 'late EOF', model: 'test-model' } }), 18);
         }
         return true;
       },
@@ -91,6 +94,21 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   assert.equal(response.content, 'Hello');
   assert.equal(response.model, 'test-model');
   assert.deepEqual(deltas, ['Hel', 'lo']);
+
+  mode = 'late-read-error';
+  const lateDeltas = [];
+  const salvaged = await sendProviderChatStream(
+    profile,
+    [{ role: 'user', content: 'salvage me' }],
+    5_000,
+    undefined,
+    [],
+    false,
+    { onDelta: (delta) => lateDeltas.push(delta) },
+  );
+  assert.equal(salvaged.ok, true, 'A late SSE read error must not replace visible assistant text with a red failure.');
+  assert.equal(salvaged.content, 'Complete visible answer.');
+  assert.deepEqual(lateDeltas, ['Complete visible answer.']);
 
   mode = 'cancel';
   const controller = new AbortController();

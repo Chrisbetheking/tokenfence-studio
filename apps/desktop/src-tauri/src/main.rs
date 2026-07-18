@@ -13,7 +13,22 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{CustomMenuItem, Menu, MenuItem, State, Submenu};
 use url::Url;
 
+#[cfg(target_os = "macos")]
+#[link(name = "CoreGraphics", kind = "framework")]
+extern "C" {
+    fn CGPreflightScreenCaptureAccess() -> bool;
+    fn CGRequestScreenCaptureAccess() -> bool;
+}
 
+#[cfg(target_os = "macos")]
+fn macos_screen_capture_authorized() -> bool {
+    unsafe { CGPreflightScreenCaptureAccess() }
+}
+
+#[cfg(target_os = "macos")]
+fn request_macos_screen_capture_access() -> bool {
+    unsafe { CGRequestScreenCaptureAccess() }
+}
 
 #[derive(Default, Clone)]
 struct AppState {
@@ -663,8 +678,16 @@ fn send_openai_compatible_stream(
                 }
                 let line = match line {
                     Ok(value) => value,
+                    Err(_) if !output.trim().is_empty() => {
+                        // Some OpenAI-compatible providers close a chunked SSE body without
+                        // writing the final zero-length HTTP chunk. `ureq` reports that as an
+                        // unexpected EOF even though all assistant text has already arrived.
+                        // Preserve the visible answer and finish successfully instead of
+                        // replacing a complete response with a false stream-read failure.
+                        break;
+                    }
                     Err(_) => {
-                        let message = "The provider stream ended before the response could be read.";
+                        let message = "The provider stream ended before any assistant content could be read.";
                         emit_provider_stream(window, stream_id, "error", None, resolved_model.clone(), Some("STREAM_READ_ERROR".to_string()), Some(message.to_string()));
                         return ProviderReply::failure(status, "STREAM_READ_ERROR", message, started.elapsed().as_millis());
                     }
@@ -1218,13 +1241,22 @@ fn platform_info() -> PlatformInfo {
 #[tauri::command]
 fn computer_capabilities() -> Vec<ComputerCapability> {
     let native_ready = cfg!(target_os = "macos");
+    #[cfg(target_os = "macos")]
+    let screen_ok = macos_screen_capture_authorized();
+    #[cfg(not(target_os = "macos"))]
+    let screen_ok = false;
+    #[cfg(target_os = "macos")]
+    let accessibility_ok = macos_accessibility_authorized();
+    #[cfg(not(target_os = "macos"))]
+    let accessibility_ok = false;
+
     vec![
         ComputerCapability {
             id: "screen-capture",
             available: native_ready,
             permission_required: true,
-            status: if native_ready { "permission-needed" } else { "planned" },
-            message: if native_ready { "Available after macOS Screen Recording permission is granted." } else { "Currently implemented for macOS builds." },
+            status: if screen_ok { "ready" } else if native_ready { "permission-needed" } else { "planned" },
+            message: if screen_ok { "Screen Recording permission is active for this process." } else if native_ready { "Enable Chris Studio under Privacy & Security > Screen & System Audio Recording, then fully quit and reopen it." } else { "Currently implemented for macOS builds." },
         },
         ComputerCapability {
             id: "open-url",
@@ -1237,15 +1269,15 @@ fn computer_capabilities() -> Vec<ComputerCapability> {
             id: "keyboard",
             available: native_ready,
             permission_required: true,
-            status: if native_ready { "permission-needed" } else { "planned" },
-            message: if native_ready { "Approved typing and allowlisted keys require Accessibility permission." } else { "Currently implemented for macOS builds." },
+            status: if accessibility_ok { "ready" } else if native_ready { "permission-needed" } else { "planned" },
+            message: if accessibility_ok { "Accessibility permission is active for approved typing and keys." } else if native_ready { "Enable Chris Studio under Privacy & Security > Accessibility, then fully quit and reopen it." } else { "Currently implemented for macOS builds." },
         },
         ComputerCapability {
             id: "pointer",
             available: native_ready,
             permission_required: true,
-            status: if native_ready { "permission-needed" } else { "planned" },
-            message: if native_ready { "Approved coordinate clicks require Accessibility permission." } else { "Currently implemented for macOS builds." },
+            status: if accessibility_ok { "ready" } else if native_ready { "permission-needed" } else { "planned" },
+            message: if accessibility_ok { "Accessibility permission is active for approved pointer control." } else if native_ready { "Enable Chris Studio under Privacy & Security > Accessibility, then fully quit and reopen it." } else { "Currently implemented for macOS builds." },
         },
         ComputerCapability {
             id: "project-files",
@@ -2155,6 +2187,45 @@ fn computer_result(ok: bool, action: &str, message: String, screenshot_data_url:
     ComputerActionResult { ok, action: action.to_string(), message, screenshot_data_url, timestamp: unix_timestamp() }
 }
 
+fn approved_application_name(value: &str) -> Option<&'static str> {
+    match value.trim().to_lowercase().as_str() {
+        "textedit" | "text edit" | "文本编辑" | "文本编辑器" | "文档" => Some("TextEdit"),
+        "notes" | "note" | "备忘录" => Some("Notes"),
+        "safari" | "browser" | "浏览器" => Some("Safari"),
+        "finder" | "访达" => Some("Finder"),
+        "terminal" | "终端" => Some("Terminal"),
+        "system settings" | "settings" | "系统设置" => Some("System Settings"),
+        _ => None,
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn macos_accessibility_authorized() -> bool {
+    Command::new("/usr/bin/osascript")
+        .args(["-e", r#"tell application "System Events" to count processes"#])
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+}
+
+#[cfg(target_os = "macos")]
+fn activate_approved_application(app: Option<&str>) -> Result<Option<&'static str>, String> {
+    let Some(value) = app.filter(|value| !value.trim().is_empty()) else {
+        return Ok(None);
+    };
+    let target = approved_application_name(value).ok_or_else(|| "The requested focus application is outside the Chris Studio allowlist.".to_string())?;
+    let script = format!("tell application \"System Events\" to set frontmost of process \"{target}\" to true");
+    let output = Command::new("/usr/bin/osascript")
+        .args(["-e", &script])
+        .output()
+        .map_err(|error| format!("AppleScript could not focus {target}: {error}."))?;
+    if !output.status.success() {
+        return Err(format!("macOS could not focus {target}: {}", truncate_output(&output.stderr)));
+    }
+    std::thread::sleep(Duration::from_millis(180));
+    Ok(Some(target))
+}
+
 #[tauri::command]
 fn computer_capture_screen(confirmed: bool) -> ComputerActionResult {
     if !confirmed {
@@ -2162,18 +2233,37 @@ fn computer_capture_screen(confirmed: bool) -> ComputerActionResult {
     }
     #[cfg(target_os = "macos")]
     {
+        if !macos_screen_capture_authorized() {
+            return computer_result(
+                false,
+                "screen-capture",
+                "Screen Recording permission is not active for this Chris Studio process. Enable it in Privacy & Security, then fully quit and reopen Chris Studio.".to_string(),
+                None,
+            );
+        }
         let path = std::env::temp_dir().join(format!("chris-studio-capture-{}.png", unix_timestamp()));
-        let status = Command::new("/usr/sbin/screencapture").arg("-x").arg(&path).status();
-        match status {
-            Ok(status) if status.success() => match fs::read(&path) {
-                Ok(bytes) => {
+        let output = Command::new("/usr/sbin/screencapture")
+            .args(["-x", "-t", "png"])
+            .arg(&path)
+            .output();
+        match output {
+            Ok(output) if output.status.success() => match fs::read(&path) {
+                Ok(bytes) if !bytes.is_empty() => {
                     let _ = fs::remove_file(&path);
                     let data = format!("data:image/png;base64,{}", BASE64_STANDARD.encode(bytes));
                     computer_result(true, "screen-capture", "Screen captured locally. Review the preview before any control action.".to_string(), Some(data))
                 }
-                Err(_) => computer_result(false, "screen-capture", "The captured screen image could not be read.".to_string(), None),
+                Ok(_) => {
+                    let _ = fs::remove_file(&path);
+                    computer_result(false, "screen-capture", "macOS returned an empty screen capture. Fully quit and reopen Chris Studio after changing Screen Recording permission.".to_string(), None)
+                }
+                Err(error) => computer_result(false, "screen-capture", format!("The captured screen image could not be read: {error}."), None),
             },
-            _ => computer_result(false, "screen-capture", "macOS denied screen capture. Enable Screen Recording permission for Chris Studio.".to_string(), None),
+            Ok(output) => {
+                let _ = fs::remove_file(&path);
+                computer_result(false, "screen-capture", format!("Screen capture helper failed even though macOS reports permission is enabled: {}", truncate_output(&output.stderr)), None)
+            }
+            Err(error) => computer_result(false, "screen-capture", format!("The macOS screen capture helper could not start: {error}."), None),
         }
     }
     #[cfg(not(target_os = "macos"))]
@@ -2202,7 +2292,7 @@ fn computer_click(x: i32, y: i32, confirmed: bool) -> ComputerActionResult {
 }
 
 #[tauri::command]
-fn computer_type_text(text: String, confirmed: bool) -> ComputerActionResult {
+fn computer_type_text(text: String, confirmed: bool, app: Option<String>) -> ComputerActionResult {
     if !confirmed {
         return computer_result(false, "keyboard-type", "Explicit keyboard approval is required.".to_string(), None);
     }
@@ -2211,11 +2301,18 @@ fn computer_type_text(text: String, confirmed: bool) -> ComputerActionResult {
     }
     #[cfg(target_os = "macos")]
     {
+        let focused = match activate_approved_application(app.as_deref()) {
+            Ok(value) => value,
+            Err(message) => return computer_result(false, "keyboard-type", message, None),
+        };
         let output = Command::new("/usr/bin/osascript")
             .args(["-e", "on run argv", "-e", "tell application \"System Events\" to keystroke (item 1 of argv)", "-e", "end run", "--", &text])
             .output();
         match output {
-            Ok(output) if output.status.success() => computer_result(true, "keyboard-type", format!("Typed {} approved characters.", text.chars().count()), None),
+            Ok(output) if output.status.success() => {
+                let target = focused.map(|value| format!(" into {value}")).unwrap_or_default();
+                computer_result(true, "keyboard-type", format!("Typed {} approved characters{target}.", text.chars().count()), None)
+            }
             Ok(output) => computer_result(false, "keyboard-type", format!("macOS rejected keyboard control: {}", truncate_output(&output.stderr)), None),
             Err(_) => computer_result(false, "keyboard-type", "AppleScript could not be started.".to_string(), None),
         }
@@ -2225,7 +2322,7 @@ fn computer_type_text(text: String, confirmed: bool) -> ComputerActionResult {
 }
 
 #[tauri::command]
-fn computer_press_key(key: String, confirmed: bool) -> ComputerActionResult {
+fn computer_press_key(key: String, confirmed: bool, app: Option<String>) -> ComputerActionResult {
     if !confirmed {
         return computer_result(false, "keyboard-key", "Explicit key approval is required.".to_string(), None);
     }
@@ -2238,10 +2335,14 @@ fn computer_press_key(key: String, confirmed: bool) -> ComputerActionResult {
         "cmd+s" => "tell application \"System Events\" to keystroke \"s\" using command down",
         "cmd+l" => "tell application \"System Events\" to keystroke \"l\" using command down",
         "cmd+n" => "tell application \"System Events\" to keystroke \"n\" using command down",
+        "cmd+w" => "tell application \"System Events\" to keystroke \"w\" using command down",
         _ => return computer_result(false, "keyboard-key", "This key is not in the Chris Studio allowlist.".to_string(), None),
     };
     #[cfg(target_os = "macos")]
     {
+        if let Err(message) = activate_approved_application(app.as_deref()) {
+            return computer_result(false, "keyboard-key", message, None);
+        }
         match Command::new("/usr/bin/osascript").args(["-e", script]).output() {
             Ok(output) if output.status.success() => computer_result(true, "keyboard-key", format!("Pressed the approved key: {key}."), None),
             Ok(output) => computer_result(false, "keyboard-key", format!("macOS rejected the key action: {}", truncate_output(&output.stderr)), None),
@@ -2257,15 +2358,9 @@ fn computer_open_application(app: String, confirmed: bool) -> ComputerActionResu
     if !confirmed {
         return computer_result(false, "open-application", "Explicit application-launch approval is required.".to_string(), None);
     }
-    let normalized = app.trim().to_lowercase();
-    let target = match normalized.as_str() {
-        "textedit" | "text edit" | "文本编辑" | "文本编辑器" | "文档" => "TextEdit",
-        "notes" | "note" | "备忘录" => "Notes",
-        "safari" | "browser" | "浏览器" => "Safari",
-        "finder" | "访达" => "Finder",
-        "terminal" | "终端" => "Terminal",
-        "system settings" | "settings" | "系统设置" => "System Settings",
-        _ => {
+    let target = match approved_application_name(&app) {
+        Some(value) => value,
+        None => {
             return computer_result(
                 false,
                 "open-application",
@@ -2276,10 +2371,36 @@ fn computer_open_application(app: String, confirmed: bool) -> ComputerActionResu
     };
     #[cfg(target_os = "macos")]
     {
+        if target == "TextEdit" {
+            let opened = Command::new("/usr/bin/open").args(["-a", "TextEdit"]).output();
+            match opened {
+                Ok(output) if output.status.success() => {}
+                Ok(output) => return computer_result(false, "open-application", format!("macOS could not open TextEdit: {}", truncate_output(&output.stderr)), None),
+                Err(error) => return computer_result(false, "open-application", format!("The macOS open command could not start TextEdit: {error}."), None),
+            }
+            let script = r#"tell application "System Events"
+repeat 30 times
+    if exists process "TextEdit" then
+        set frontmost of process "TextEdit" to true
+        delay 0.2
+        keystroke "n" using command down
+        return
+    end if
+    delay 0.1
+end repeat
+error "TextEdit process did not appear"
+end tell"#;
+            let output = Command::new("/usr/bin/osascript").args(["-e", script]).output();
+            return match output {
+                Ok(output) if output.status.success() => computer_result(true, "open-application", "Opened TextEdit with a new blank document ready for approved typing.".to_string(), None),
+                Ok(output) => computer_result(false, "open-application", format!("TextEdit opened, but macOS could not create a blank document. Check Accessibility permission: {}", truncate_output(&output.stderr)), None),
+                Err(error) => computer_result(false, "open-application", format!("AppleScript could not prepare TextEdit: {error}."), None),
+            };
+        }
         match Command::new("/usr/bin/open").args(["-a", target]).output() {
             Ok(output) if output.status.success() => computer_result(true, "open-application", format!("Opened the approved application: {target}."), None),
             Ok(output) => computer_result(false, "open-application", format!("macOS could not open {target}: {}", truncate_output(&output.stderr)), None),
-            Err(_) => computer_result(false, "open-application", "The macOS open command could not be started.".to_string(), None),
+            Err(error) => computer_result(false, "open-application", format!("The macOS open command could not be started: {error}."), None),
         }
     }
     #[cfg(not(target_os = "macos"))]
@@ -2290,27 +2411,27 @@ fn computer_open_application(app: String, confirmed: bool) -> ComputerActionResu
 fn computer_request_permissions() -> ComputerActionResult {
     #[cfg(target_os = "macos")]
     {
-        let accessibility_probe = Command::new("/usr/bin/osascript")
-            .args(["-e", r#"tell application "System Events" to count processes"#])
-            .output();
-        let capture_path = std::env::temp_dir().join(format!("chris-studio-permission-probe-{}.png", unix_timestamp()));
-        let screen_probe = Command::new("/usr/sbin/screencapture").arg("-x").arg(&capture_path).status();
-        let _ = fs::remove_file(&capture_path);
-        let _ = Command::new("/usr/bin/open")
-            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
-            .spawn();
-        let accessibility_ok = accessibility_probe.as_ref().map(|output| output.status.success()).unwrap_or(false);
-        let screen_ok = screen_probe.as_ref().map(|status| status.success()).unwrap_or(false);
-        return computer_result(
-            accessibility_ok && screen_ok,
-            "request-permissions",
-            if accessibility_ok && screen_ok {
-                "Computer Use permissions are already available. Chris Studio can capture the screen and request approved keyboard or pointer actions.".to_string()
-            } else {
-                "Chris Studio requested macOS Accessibility and Screen Recording access. Enable Chris Studio in both Privacy & Security panels, then fully quit and reopen the app.".to_string()
-            },
-            None,
-        );
+        let accessibility_ok = macos_accessibility_authorized();
+        let mut screen_ok = macos_screen_capture_authorized();
+        if !screen_ok {
+            screen_ok = request_macos_screen_capture_access();
+        }
+        if !accessibility_ok {
+            let _ = Command::new("/usr/bin/open")
+                .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+                .spawn();
+        } else if !screen_ok {
+            let _ = Command::new("/usr/bin/open")
+                .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
+                .spawn();
+        }
+        let message = match (accessibility_ok, screen_ok) {
+            (true, true) => "Computer Use permissions are active for this Chris Studio process.".to_string(),
+            (false, true) => "Screen Recording is active, but Accessibility control is unavailable. Enable Chris Studio under Privacy & Security > Accessibility, then fully quit and reopen the app.".to_string(),
+            (true, false) => "Accessibility is active, but Screen Recording is unavailable. Enable Chris Studio under Privacy & Security > Screen & System Audio Recording, then fully quit and reopen the app.".to_string(),
+            (false, false) => "Accessibility and Screen Recording are unavailable. Enable Chris Studio in both Privacy & Security panels, then fully quit and reopen the app.".to_string(),
+        };
+        return computer_result(accessibility_ok && screen_ok, "request-permissions", message, None);
     }
     #[cfg(not(target_os = "macos"))]
     computer_result(false, "request-permissions", "Computer Use permission requests are currently implemented for macOS builds.".to_string(), None)
@@ -2320,7 +2441,11 @@ fn computer_request_permissions() -> ComputerActionResult {
 fn computer_open_privacy_settings() -> ComputerActionResult {
     #[cfg(target_os = "macos")]
     {
-        let url = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility";
+        let url = if macos_screen_capture_authorized() {
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+        } else {
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+        };
         match Command::new("/usr/bin/open").arg(url).spawn() {
             Ok(_) => computer_result(true, "open-privacy-settings", "Opened macOS Privacy & Security settings.".to_string(), None),
             Err(_) => computer_result(false, "open-privacy-settings", "Could not open macOS Privacy & Security settings.".to_string(), None),

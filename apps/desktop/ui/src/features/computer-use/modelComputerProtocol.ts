@@ -15,6 +15,7 @@ export interface ModelComputerObservation {
   action: ModelComputerActionId;
   ok: boolean;
   detail: string;
+  target?: string;
 }
 
 const ALLOWED_APPS = new Set(['TextEdit', 'Notes', 'Safari', 'Finder', 'Terminal', 'System Settings']);
@@ -61,6 +62,9 @@ export function parseModelComputerAction(content: string, visionAvailable: boole
 
   if (action === 'open' && (!result.app || !ALLOWED_APPS.has(result.app))) {
     throw new Error('The model requested an application outside the allowlist.');
+  }
+  if (action === 'capture' && !visionAvailable) {
+    throw new Error('Screen capture is not useful to a model that cannot receive images. Choose an open, type, key, ask or done action instead.');
   }
   if (action === 'click') {
     if (!visionAvailable) throw new Error('Coordinate clicking requires a vision-capable model.');

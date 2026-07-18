@@ -16,14 +16,14 @@ export async function clickPointer(x: number, y: number, confirmed: boolean): Pr
   return await invoke<ComputerActionResult>('computer_click', { x, y, confirmed });
 }
 
-export async function typeText(text: string, confirmed: boolean): Promise<ComputerActionResult> {
+export async function typeText(text: string, confirmed: boolean, app?: string): Promise<ComputerActionResult> {
   if (!isDesktopRuntime()) return unavailable('keyboard-type');
-  return await invoke<ComputerActionResult>('computer_type_text', { text, confirmed });
+  return await invoke<ComputerActionResult>('computer_type_text', { text, confirmed, app: app || null });
 }
 
-export async function pressKey(key: string, confirmed: boolean): Promise<ComputerActionResult> {
+export async function pressKey(key: string, confirmed: boolean, app?: string): Promise<ComputerActionResult> {
   if (!isDesktopRuntime()) return unavailable('keyboard-key');
-  return await invoke<ComputerActionResult>('computer_press_key', { key, confirmed });
+  return await invoke<ComputerActionResult>('computer_press_key', { key, confirmed, app: app || null });
 }
 
 export async function openApplication(app: string, confirmed: boolean): Promise<ComputerActionResult> {

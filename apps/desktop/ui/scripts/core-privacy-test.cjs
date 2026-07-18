@@ -81,6 +81,10 @@ try {
     throw new Error('Persistence defense wrote an unredacted value');
   }
 
+  const renamed = store.renameConversation('conversation-1', 'Manual acceptance renamed');
+  if (!renamed || renamed.title !== 'Manual acceptance renamed') throw new Error('Conversation rename was not persisted.');
+  if (store.loadConversations()[0]?.title !== 'Manual acceptance renamed') throw new Error('Renamed conversation was not reloaded.');
+
   global.window.localStorage.setItem('tokenfence.conversations.v160', '{broken api_key=DEMO_SECRET_1234567890abcdef');
   store.loadConversations();
   const corruptBackup = Array.from(global.window.localStorage.map.entries())

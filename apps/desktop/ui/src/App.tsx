@@ -193,6 +193,7 @@ function ChrisStudioApp() {
             activeConversationId={active === 'workspace' ? openConversationId : undefined}
             onOpen={(id) => { setOpenConversationId(id); setActive('workspace'); }}
             onViewAll={() => setActive('history')}
+            onDelete={(id) => { if (id === openConversationId) startNew(); }}
           />
 
           <nav className="app-nav" aria-label="Primary navigation">

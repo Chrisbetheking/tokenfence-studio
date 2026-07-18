@@ -235,12 +235,29 @@ export async function sendProviderChatStream(
         return;
       }
       if (payload.kind === 'error') {
+        const code = payload.errorCode || 'PROVIDER_STREAM_ERROR';
+        // A few OpenAI-compatible gateways deliver the full assistant body and
+        // then close the chunked connection without a clean terminal frame.
+        // The Rust worker already salvages this case, but keep the renderer
+        // defensive so a complete visible answer is never converted into a
+        // red failure card by a late STREAM_READ_ERROR event.
+        if (code === 'STREAM_READ_ERROR' && streamedContent.trim()) {
+          callbacks.onStatus?.({ ...payload, kind: 'done', errorCode: undefined, errorMessage: undefined });
+          finish({
+            ok: true,
+            status: 200,
+            content: streamedContent,
+            model: resolvedModel,
+            latencyMs: Date.now() - startedAt,
+          });
+          return;
+        }
         finish({
           ok: false,
           status: 0,
           content: streamedContent || undefined,
           model: resolvedModel,
-          errorCode: payload.errorCode || 'PROVIDER_STREAM_ERROR',
+          errorCode: code,
           errorMessage: payload.errorMessage || 'The provider stream failed.',
           latencyMs: Date.now() - startedAt,
         });

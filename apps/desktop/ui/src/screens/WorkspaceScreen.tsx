@@ -233,6 +233,18 @@ export function WorkspaceScreen({
   }, [openConversationId]);
 
   useEffect(() => {
+    const syncRenamedConversation = (event: Event) => {
+      const detail = (event as CustomEvent<{ id?: string; title?: string; updatedAt?: string }>).detail;
+      if (!detail?.id || !detail.title) return;
+      setConversation((current) => current && current.id === detail.id
+        ? { ...current, title: detail.title as string, updatedAt: detail.updatedAt || current.updatedAt }
+        : current);
+    };
+    window.addEventListener('chris-studio:conversation-renamed', syncRenamedConversation);
+    return () => window.removeEventListener('chris-studio:conversation-renamed', syncRenamedConversation);
+  }, []);
+
+  useEffect(() => {
     if (newSessionNonce === 0) return;
     setConversation(null);
     setPrompt('');

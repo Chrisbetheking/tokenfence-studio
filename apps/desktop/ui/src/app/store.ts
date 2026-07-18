@@ -313,6 +313,24 @@ export function saveConversation(conversation: Conversation): void {
   window.dispatchEvent(new CustomEvent('tokenfence:history-updated'));
 }
 
+export function renameConversation(id: string, nextTitle: string): Conversation | undefined {
+  const title = scanText(nextTitle.trim(), loadSettings().customSensitiveTerms).redactedText.slice(0, 120);
+  if (!title) return undefined;
+  const all = loadConversations();
+  const existing = all.find((item) => item.id === id);
+  if (!existing) return undefined;
+  const updated: Conversation = { ...existing, title, updatedAt: new Date().toISOString() };
+  const next = [updated, ...all.filter((item) => item.id !== id)]
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .slice(0, 300);
+  safeWrite(KEYS.conversations, next);
+  window.dispatchEvent(new CustomEvent('tokenfence:history-updated'));
+  window.dispatchEvent(new CustomEvent('chris-studio:conversation-renamed', {
+    detail: { id, title, updatedAt: updated.updatedAt },
+  }));
+  return updated;
+}
+
 export function deleteConversation(id: string): void {
   safeWrite(KEYS.conversations, loadConversations().filter((item) => item.id !== id));
   window.dispatchEvent(new CustomEvent('tokenfence:history-updated'));

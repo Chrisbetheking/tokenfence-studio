@@ -37,6 +37,10 @@ assert.throws(
   /vision-capable/i,
 );
 assert.throws(
+  () => parseModelComputerAction('{"action":"capture","reason":"Inspect"}', false),
+  /cannot receive images/i,
+);
+assert.throws(
   () => parseModelComputerAction('{"action":"open","app":"Unknown App","reason":"No"}', true),
   /allowlist/i,
 );
@@ -84,6 +88,24 @@ assert.match(computerScreen, /runModelAgent/);
 assert.match(computerScreen, /maxSteps = 8/);
 assert.match(computerScreen, /Emergency stop/);
 assert.match(computerScreen, /window\.confirm/);
+assert.match(computerScreen, /missingCompletionRequirements/);
+assert.match(computerScreen, /focusedApplication/);
+assert.match(computerScreen, /typeText\(input\?\.text \?\? text, true, input\?\.app\)/);
+
+const recentConversations = fs.readFileSync(path.join(uiRoot, 'src/components/RecentConversations.tsx'), 'utf8');
+assert.match(recentConversations, /renameConversation/);
+assert.match(recentConversations, /recent-conversation-editor/);
+assert.match(recentConversations, /event\.key === 'Enter'/);
+assert.doesNotMatch(recentConversations, /window\.prompt/);
+
+const historyScreen = fs.readFileSync(path.join(uiRoot, 'src/screens/HistoryScreen.tsx'), 'utf8');
+assert.match(historyScreen, /history-title-editor/);
+assert.match(historyScreen, /renameConversation/);
+assert.doesNotMatch(historyScreen, /window\.prompt/);
+
+const computerClient = fs.readFileSync(path.join(uiRoot, 'src/features/computer/computerClient.ts'), 'utf8');
+assert.match(computerClient, /typeText\(text: string, confirmed: boolean, app\?: string\)/);
+assert.match(computerClient, /computer_type_text[\s\S]*app: app \|\| null/);
 
 const rust = fs.readFileSync(path.join(repoRoot, 'apps/desktop/src-tauri/src/main.rs'), 'utf8');
 assert.match(rust, /"stream": true/);
@@ -96,6 +118,16 @@ assert.match(rust, /Ok\(true\)/);
 assert.match(rust, /tauri::async_runtime::spawn_blocking/);
 assert.match(rust, /fn provider_stream_cancel/);
 assert.match(rust, /provider_chat_stream,\s*provider_stream_cancel/s);
+assert.match(rust, /CGPreflightScreenCaptureAccess/);
+assert.match(rust, /macos_accessibility_authorized/);
+assert.match(rust, /Opened TextEdit with a new blank document/);
+assert.match(rust, /activate_approved_application\(app\.as_deref\(\)\)/);
+assert.match(rust, /fn computer_type_text\(text: String, confirmed: bool, app: Option<String>\)/);
+assert.match(rust, /process \"TextEdit\"[\s\S]*keystroke \"n\" using command down/);
+assert.match(rust, /"cmd\+w" =>/);
+assert.match(rust, /status: if screen_ok \{ "ready" \}/);
+assert.match(rust, /status: if accessibility_ok \{ "ready" \}/);
+assert.match(rust, /Err\(_\) if !output\.trim\(\)\.is_empty\(\)/);
 
 
 const css = fs.readFileSync(path.join(uiRoot, 'src/index.css'), 'utf8');

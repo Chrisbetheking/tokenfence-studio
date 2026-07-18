@@ -49,6 +49,27 @@ const APP_OPTIONS = [
   { value: 'System Settings', en: 'System Settings', zh: '系统设置' },
 ];
 
+function completionRequirements(goal: string): Array<{ action: ModelComputerAction['action']; target?: string; label: string }> {
+  const normalized = goal.toLowerCase();
+  const requirements: Array<{ action: ModelComputerAction['action']; target?: string; label: string }> = [];
+  if (/textedit|text edit|文本编辑|文本编辑器/.test(normalized)) requirements.push({ action: 'open', target: 'TextEdit', label: 'open TextEdit' });
+  if (/输入|键入|type|write|填入/.test(normalized)) requirements.push({ action: 'type', label: 'type the requested text' });
+  return requirements;
+}
+
+function missingCompletionRequirements(goal: string, observations: ModelComputerObservation[]): string[] {
+  const missing = completionRequirements(goal).filter((requirement) => !observations.some((observation) =>
+    observation.ok
+      && observation.action === requirement.action
+      && (!requirement.target || observation.target === requirement.target),
+  )).map((requirement) => requirement.label);
+  const effectSucceeded = observations.some((observation) => observation.ok && ['open', 'type', 'key', 'click'].includes(observation.action));
+  if (!effectSucceeded) missing.push('execute at least one desktop-changing action');
+  const last = observations[observations.length - 1];
+  if (last && !last.ok) missing.push('recover from the most recent failed action');
+  return Array.from(new Set(missing));
+}
+
 function actionLabel(language: Language, action?: ModelComputerAction): string {
   if (!action) return copy(language, 'Waiting for a model plan', '等待模型生成下一步');
   const labels: Record<ModelComputerAction['action'], [string, string]> = {
@@ -100,8 +121,8 @@ export function ComputerScreen({ language }: { language: Language }) {
     const result = action === 'capture' ? await captureScreen(true)
       : action === 'open' ? await openApplication(input?.app ?? application, true)
       : action === 'click' ? await clickPointer(input?.x ?? x, input?.y ?? y, true)
-      : action === 'type' ? await typeText(input?.text ?? text, true)
-      : await pressKey(input?.key ?? key, true);
+      : action === 'type' ? await typeText(input?.text ?? text, true, input?.app)
+      : await pressKey(input?.key ?? key, true, input?.app);
     if (result.screenshotDataUrl) setScreenshot(result.screenshotDataUrl);
     record(result.action, result.message, result.ok);
     return result;
@@ -135,6 +156,7 @@ export function ComputerScreen({ language }: { language: Language }) {
     setBusyAction('capture');
     try {
       const result = await requestComputerPermissions();
+      setCapabilities(await getComputerCapabilities());
       toast.show(result.message, result.ok ? 'success' : 'warning');
     } catch (error) {
       toast.show(error instanceof Error ? error.message : String(error), 'error');
@@ -176,6 +198,7 @@ export function ComputerScreen({ language }: { language: Language }) {
     setAgentStatus('planning');
     const observations: ModelComputerObservation[] = [];
     let currentScreenshot = screenshot;
+    let focusedApplication: string | undefined;
     const maxSteps = 8;
     logAgent('info', copy(language, `Starting a bounded ${maxSteps}-step session with ${profile.displayName}.`, `正在使用 ${profile.displayName} 启动最多 ${maxSteps} 步的有限会话。`));
     if (!definition.capabilities.vision) {
@@ -189,7 +212,7 @@ export function ComputerScreen({ language }: { language: Language }) {
         if (definition.capabilities.vision) {
           const capture = await performAction('capture');
           if (capture.ok && capture.screenshotDataUrl) currentScreenshot = capture.screenshotDataUrl;
-          observations.push({ action: 'capture', ok: capture.ok, detail: capture.message });
+          observations.push({ action: 'capture', ok: capture.ok, detail: capture.message, target: 'screen' });
           logAgent(capture.ok ? 'success' : 'warning', capture.message);
         }
 
@@ -211,6 +234,14 @@ export function ComputerScreen({ language }: { language: Language }) {
         logAgent('info', `${actionLabel(language, next)} — ${next.reason}`);
 
         if (next.action === 'done') {
+          const missing = missingCompletionRequirements(goal, observations);
+          if (missing.length) {
+            const detail = `Completion rejected: ${missing.join(', ')}.`;
+            observations.push({ action: 'done', ok: false, detail, target: 'completion-check' });
+            logAgent('warning', copy(language, detail, `暂不能结束：${missing.join('、')}。`));
+            setAgentStatus('planning');
+            continue;
+          }
           setAgentStatus('completed');
           logAgent('success', next.message || copy(language, 'The model marked the goal complete.', '模型已确认目标完成。'));
           toast.show(copy(language, 'Computer Use goal completed.', '电脑操作目标已完成。'), 'success');
@@ -233,7 +264,7 @@ export function ComputerScreen({ language }: { language: Language }) {
             `是否批准模型选择的这一项操作？\n\n${actionLabel(language, next)}\n${next.reason}`,
           ));
           if (!confirmed) {
-            observations.push({ action: next.action, ok: false, detail: 'User denied this action.' });
+            observations.push({ action: next.action, ok: false, detail: 'User denied this action.', target: next.app || next.key || next.action });
             logAgent('warning', copy(language, 'The user denied the proposed action.', '用户拒绝了模型提出的操作。'));
             setAgentStatus('stopped');
             return;
@@ -244,9 +275,15 @@ export function ComputerScreen({ language }: { language: Language }) {
         const result = next.action === 'capture' ? await performAction('capture')
           : next.action === 'open' ? await performAction('open', { app: next.app })
           : next.action === 'click' ? await performAction('click', { x: next.x, y: next.y })
-          : next.action === 'type' ? await performAction('type', { text: next.text })
-          : await performAction('key', { key: next.key });
-        observations.push({ action: next.action, ok: result.ok, detail: result.message });
+          : next.action === 'type' ? await performAction('type', { text: next.text, app: focusedApplication })
+          : await performAction('key', { key: next.key, app: focusedApplication });
+        if (result.ok && next.action === 'open' && next.app) focusedApplication = next.app;
+        observations.push({
+          action: next.action,
+          ok: result.ok,
+          detail: result.message,
+          target: next.action === 'open' ? next.app : next.action === 'key' ? next.key : next.action === 'type' ? 'typed-text' : next.action,
+        });
         logAgent(result.ok ? 'success' : 'error', result.message);
         if (!result.ok) {
           setAgentStatus('planning');

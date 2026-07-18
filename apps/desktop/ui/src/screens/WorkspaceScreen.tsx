@@ -632,6 +632,13 @@ ${typeResult.message}`, !typeResult.ok);
       // entry and hide all live stream deltas behind the workspace home state.
       if (settings.localHistoryEnabled) saveConversation(pending);
 
+      // The request has now passed every preflight gate and is durably queued in
+      // the conversation. Clear the composer immediately instead of keeping the
+      // submitted text visible for the entire Planner → Executor → Reviewer run.
+      // Preflight failures above intentionally retain the draft.
+      setPrompt('');
+      window.setTimeout(() => composerInput.current?.focus(), 0);
+
       const requestMessages: Pick<ChatMessage, 'role' | 'content'>[] = pending.messages
         .slice(-settings.conversationContextLimit)
         .map(({ role, content }) => ({ role, content }));
@@ -779,7 +786,8 @@ ${errorMessage}` : errorMessage;
         id: makeId('usage'), createdAt: nowIso(), provider: assistantProvider, model: assistantModel,
         inputTokens: projectedBudgetTokens, outputTokens: Math.ceil(assistantContent.length / 4), savedTokens: optimization.savedTokens,
       });
-      setPrompt('');
+      // Do not clear the composer again here. It was cleared when the request
+      // was accepted, and the user may already be drafting the next message.
       setAttachments([]);
       setIncludeVisionImages(false);
       setReviewedHash(null);

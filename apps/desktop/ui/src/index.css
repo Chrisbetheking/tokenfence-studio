@@ -1015,7 +1015,7 @@ input:focus, textarea:focus, select:focus { border-color: color-mix(in srgb, var
   border-color: color-mix(in srgb, var(--success) 50%, var(--border-subtle));
 }
 
-/* v2.3.0-alpha.1 multi-model Agent collaboration */
+/* v2.3.0-alpha.2 composer acceptance fix */
 .agent-collaboration-config {
   display: grid;
   gap: 14px;

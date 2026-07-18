@@ -85,6 +85,30 @@ assert.match(agents, /Allow one revision/);
 assert.match(runtime, /will not silently route this role elsewhere/);
 assert.match(runtime, /ask for explicit approval/i);
 
+const providerReadyGuard = workspace.indexOf('if (!providerReady)');
+const pendingPersistence = workspace.indexOf('if (settings.localHistoryEnabled) saveConversation(pending);');
+const immediateComposerClear = workspace.indexOf("setPrompt('');", pendingPersistence);
+const requestMessageAssembly = workspace.indexOf('const requestMessages:', pendingPersistence);
+assert.ok(providerReadyGuard >= 0 && providerReadyGuard < pendingPersistence, 'Provider/preflight failures must retain the unsent draft.');
+assert.ok(
+  pendingPersistence >= 0
+    && immediateComposerClear > pendingPersistence
+    && requestMessageAssembly > immediateComposerClear,
+  'The composer must clear immediately after the request is accepted and persisted, before the model workflow starts.',
+);
+assert.match(
+  workspace.slice(pendingPersistence, requestMessageAssembly),
+  /setPrompt\(''\);[\s\S]*composerInput\.current\?\.focus\(\)/,
+  'Accepted sends should clear and refocus the composer.',
+);
+const usageRecording = workspace.indexOf('recordTokenUsage({', requestMessageAssembly);
+const sendCatch = workspace.indexOf('    } catch (error) {', usageRecording);
+assert.ok(usageRecording >= 0 && sendCatch > usageRecording);
+assert.doesNotMatch(
+  workspace.slice(usageRecording, sendCatch),
+  /setPrompt\(''\)/,
+  'Completing the response must not erase a new draft typed while the Agent was running.',
+);
 
 async function runWorkflowTest() {
   const runtime = require(path.join(buildRoot, 'features/agent-runtime/runtimeStore.js'));
@@ -142,7 +166,7 @@ async function runWorkflowTest() {
 }
 
 runWorkflowTest().then(() => {
-  console.log('v2.3 multi-model Agent collaboration tests passed');
+  console.log('v2.3 multi-model Agent collaboration and composer acceptance tests passed');
 }).catch((error) => {
   console.error(error);
   process.exitCode = 1;

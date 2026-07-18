@@ -129,7 +129,7 @@ try {
   for (const script of compiledModuleTests) runNodeScript(script);
   for (const script of remainingTests) runNodeScript(script);
   console.log("CHRIS_STUDIO_V2_2_CORE_TEST_SUITE_PASSED");
-  console.log("CHRIS_STUDIO_V2_3_ALPHA1_COLLABORATION_PASSED");
+  console.log("CHRIS_STUDIO_V2_3_ALPHA2_COMPOSER_CLEAR_PASSED");
 } finally {
   fs.rmSync(buildRoot, { recursive: true, force: true });
 }

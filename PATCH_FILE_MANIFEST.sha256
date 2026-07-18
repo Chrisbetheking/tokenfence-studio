@@ -1,10 +1,5 @@
-452797be760aa439b27343d81831e982a571f732e367c62b5608b0366d936a31  apps/desktop/src-tauri/src/main.rs
-a71db9c617dea8ec8d92b28903e418cbcbd5bad1d7c80d3ddb419f0dca282616  apps/desktop/ui/scripts/run-core-tests.cjs
-d3c84e7ee4f292f15fab1e856ff518d5b737a62d0b7391ecf6e0762074dff456  apps/desktop/ui/scripts/v2-2-codex-streaming-test.cjs
-77321b86c3f68297f9d567b3dd4f4d16b0e97d52fafb5607d24f3c34609de416  apps/desktop/ui/scripts/v2-2-live-stream-computer-contract-test.cjs
-ca0524238cb276a899502c084f61750c602238e0655ca7ec24bcebace808d402  apps/desktop/ui/src/features/computer-use/modelComputerAgent.ts
-06a79e98e1123eb2e7a4aa4568f885eb2b42576360ef9ebd96bcb89abb0cf408  apps/desktop/ui/src/features/computer-use/sessionGuard.ts
-3b63d1630e7c5b2a6e0247f9689e9ac93ea2a1dbacf2b23f7480e18009034119  apps/desktop/ui/src/features/computer/computerClientReliable.ts
-ed67bed845af1232a7919eb68a14810df6c0b6ed97c430db94e41eab621ddf69  apps/desktop/ui/src/index.css
-ce10b1d89b919162b5c4196fbac958074a0fb225e19bae3228647bc049bbdcc8  apps/desktop/ui/src/screens/ComputerScreen.tsx
-c25ca45aa28f48aa376ce10eed1f44f653eb45ef5a6415361665020c8cba66ea  apps/desktop/ui/src/screens/WorkspaceScreen.tsx
+303cbe19df9c3374080c1448bc03ecbc16ade7b1043e4d233b5b85edf5aa4a56  ./.github/workflows/tokenfence-macos.yml
+e3d5c7fbf4e474b0f6f6fa5c90d95a20141526d35ee1f04cb0378512e4310c9a  ./UPLOAD_V2.2.0_INTEL_DMG_FIX.zh-CN.md
+7e550ef73adc2162f248a3fa811bad4f28bc67e0873866645f04ee9018b23cd0  ./VALIDATION_REPORT_v2.2.0_INTEL_DMG_FIX.zh-CN.md
+2abfb8c1a423835cd50c9147b41c737d55ee04afff82016700becbea81c046d1  ./scripts/package-macos-release.sh
+37e9a163a2d8062c7a98b94cfa9bcde8c1c70fb0575ac42010a614b850b13f75  ./scripts/verify-macos-bundle-workflow.cjs

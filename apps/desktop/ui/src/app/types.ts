@@ -38,6 +38,7 @@ export type ProcessorId = 'text-reader' | 'pdf-extractor' | 'docx-reader' | 'she
 export type WorkspaceMode = 'chat' | 'agent';
 export type AgentCollaborationMode = 'single' | 'plan-execute-review';
 export type AgentRole = 'planner' | 'executor' | 'reviewer';
+export type AgentResumeStage = AgentRole | 'revision';
 export type AgentRunPhase = 'idle' | 'planning' | 'executing' | 'reviewing' | 'revising' | 'completed' | 'partial' | 'failed' | 'cancelled';
 export type SkillPermission =
   | 'network'
@@ -80,6 +81,15 @@ export interface AgentRoleReceipt {
   message?: string;
 }
 
+export interface AgentResumeAttempt {
+  stage: AgentResumeStage;
+  previousRunId: string;
+  startedAt: string;
+  finishedAt?: string;
+  status: 'running' | 'completed' | 'failed' | 'cancelled';
+  message?: string;
+}
+
 export interface AgentRunReceipt {
   id: string;
   mode: AgentCollaborationMode;
@@ -91,6 +101,11 @@ export interface AgentRunReceipt {
   reviewSummary?: string;
   reviewVerdict?: 'pass' | 'revise' | 'unavailable';
   errorMessage?: string;
+  resumeStage?: AgentResumeStage;
+  resumedFromRunId?: string;
+  resumeAttempts?: AgentResumeAttempt[];
+  inputAttachmentCount?: number;
+  inputVisionAttachmentCount?: number;
 }
 
 export interface ChatMessage {

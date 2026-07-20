@@ -40,7 +40,7 @@ import { providerDefinition } from '../app/providerRegistry';
 import { skillPrompt } from '../app/skills';
 import { formatSafePayload, maxRisk, scanPayload } from '../features/safety/scanner';
 import { sendProviderChatStream } from '../features/providers/providerClientReliable';
-import { runCollaborativeAgent } from '../features/agent-runtime/collaborativeRun';
+import { canResumeAgentRun, resumeCollaborativeAgent, runCollaborativeAgent } from '../features/agent-runtime/collaborativeRun';
 import { CHRIS_STUDIO_SYSTEM_PROMPT, identityReply, isIdentityQuestion } from '../app/identity';
 import { captureScreen, clickPointer, openApplication, pressKey, requestComputerPermissions, typeText } from '../features/computer/computerClientReliable';
 import { chooseProjectFolder, projectGitDiff, projectGitStatus, runProjectPreset } from '../features/projects/projectClient';
@@ -138,7 +138,26 @@ function agentRoleLabel(language: Language, role: AgentRunReceipt['roles'][numbe
   return copy(language, 'Executor', '执行');
 }
 
-function AgentRunPanel({ receipt, language, compact = false }: { receipt: AgentRunReceipt; language: Language; compact?: boolean }) {
+function agentResumeStageLabel(language: Language, stage: NonNullable<AgentRunReceipt['resumeStage']>): string {
+  if (stage === 'planner') return copy(language, 'restart planning', '重新规划');
+  if (stage === 'executor') return copy(language, 'resume execution', '继续执行');
+  if (stage === 'reviewer') return copy(language, 'retry review', '重试审查');
+  return copy(language, 'resume revision', '继续修订');
+}
+
+function AgentRunPanel({
+  receipt,
+  language,
+  compact = false,
+  onResume,
+  resumeBusy = false,
+}: {
+  receipt: AgentRunReceipt;
+  language: Language;
+  compact?: boolean;
+  onResume?: () => void;
+  resumeBusy?: boolean;
+}) {
   return (
     <section className={`agent-run-panel phase-${receipt.phase} ${compact ? 'compact' : ''}`}>
       <header className="agent-run-panel-head">
@@ -161,6 +180,18 @@ function AgentRunPanel({ receipt, language, compact = false }: { receipt: AgentR
       )}
       {receipt.reviewSummary && <details className="agent-review-summary" open={receipt.phase === 'partial' || receipt.phase === 'failed'}><summary>{copy(language, 'Review receipt', '审查回执')} · {receipt.reviewVerdict || '—'}</summary><pre>{receipt.reviewSummary}</pre></details>}
       {receipt.errorMessage && <p className="agent-run-error">{receipt.errorMessage}</p>}
+      {receipt.resumedFromRunId && <p className="agent-resume-note"><Icon name="history" />{copy(language, `Recovered from checkpoint ${receipt.resumedFromRunId.slice(-8)}.`, `已从检查点 ${receipt.resumedFromRunId.slice(-8)} 恢复。`)}</p>}
+      {onResume && receipt.resumeStage && canResumeAgentRun(receipt) && (
+        <div className="agent-resume-actions">
+          <button type="button" className="button secondary" onClick={onResume} disabled={resumeBusy}>
+            <Icon name="refresh" />
+            {resumeBusy
+              ? copy(language, 'Recovering…', '恢复中…')
+              : agentResumeStageLabel(language, receipt.resumeStage)}
+          </button>
+          <small>{copy(language, 'Completed roles are reused. The configured model is never silently replaced.', '已完成角色不会重跑，且绝不会静默更换已配置模型。')}</small>
+        </div>
+      )}
     </section>
   );
 }
@@ -226,6 +257,7 @@ export function WorkspaceScreen({
   const [streamingContent, setStreamingContent] = useState('');
   const [streamingReasoning, setStreamingReasoning] = useState('');
   const [liveAgentRun, setLiveAgentRun] = useState<AgentRunReceipt | null>(null);
+  const [resumeTargetId, setResumeTargetId] = useState<string | null>(null);
   const streamAbort = useRef<AbortController | null>(null);
   const [toolPreview, setToolPreview] = useState('');
   const [fileBusy, setFileBusy] = useState(false);
@@ -819,6 +851,186 @@ ${errorMessage}` : errorMessage;
     }
   };
 
+  const resumeAgentMessage = async (message: ChatMessage) => {
+    const previousReceipt = message.agentRun;
+    if (!conversation || !previousReceipt?.resumeStage || !canResumeAgentRun(previousReceipt) || sending) return;
+
+    const stage = previousReceipt.resumeStage;
+    if (
+      previousReceipt.inputVisionAttachmentCount
+      && previousReceipt.inputVisionAttachmentCount > 0
+      && (stage === 'executor' || stage === 'revision')
+    ) {
+      toast.show(copy(
+        language,
+        'This checkpoint used vision images. Reattach the images and start a new Agent run so visual evidence is not silently dropped.',
+        '该检查点使用了视觉图片。请重新添加图片并启动新的 Agent，避免恢复时静默丢失视觉证据。',
+      ), 'warning');
+      return;
+    }
+
+    const agent = agents.find((entry) => entry.id === conversation.agentId)
+      ?? agents.find((entry) => entry.id === activeAgentId)
+      ?? activeAgent;
+    if (!agent) {
+      toast.show(copy(language, 'The original Agent profile is unavailable.', '原始 Agent 配置已不可用。'), 'error');
+      return;
+    }
+
+    const plannerRole = previousReceipt.roles.find((entry) => entry.role === 'planner');
+    const executorRole = previousReceipt.roles.find((entry) => entry.role === 'executor');
+    const reviewerRole = previousReceipt.roles.find((entry) => entry.role === 'reviewer');
+    const lockedAgent: AgentProfile = {
+      ...agent,
+      collaborationMode: 'plan-execute-review',
+      plannerProviderProfileId: plannerRole?.providerProfileId,
+      executorProviderProfileId: executorRole?.providerProfileId,
+      reviewerProviderProfileId: reviewerRole?.providerProfileId,
+    };
+    const defaultProfile = profiles.find((entry) => entry.id === executorRole?.providerProfileId)
+      ?? effectiveProvider;
+
+    const approved = window.confirm(copy(
+      language,
+      `Resume this Agent from the ${stage} checkpoint? Completed roles will not run again, and the original configured role models will remain locked.`,
+      `从“${agentResumeStageLabel(language, stage)}”检查点继续吗？已完成角色不会重跑，原先配置的角色模型将保持锁定。`,
+    ));
+    if (!approved) return;
+
+    const messageIndex = conversation.messages.findIndex((entry) => entry.id === message.id);
+    if (messageIndex < 0) return;
+    const contextMessages: Pick<ChatMessage, 'role' | 'content'>[] = conversation.messages
+      .slice(0, messageIndex)
+      .slice(-settings.conversationContextLimit)
+      .map(({ role, content }) => ({ role, content }));
+    contextMessages.unshift({ role: 'system', content: CHRIS_STUDIO_SYSTEM_PROMPT });
+    contextMessages.unshift({
+      role: 'system',
+      content: `You are operating inside Chris Studio as the ${lockedAgent.name} agent.
+${lockedAgent.description}
+Permission mode: ${lockedAgent.permissionMode}.
+${skillPrompt(lockedAgent.skillIds, loadCustomSkills())}
+This is an explicit user-approved checkpoint recovery. Reuse completed role receipts and never claim a native or external action without a real Chris Studio tool receipt.`,
+    });
+    const lastUserRequest = [...contextMessages].reverse().find((entry) => entry.role === 'user')?.content ?? '';
+    const resumedKnowledgeHits = searchKnowledge(loadKnowledgeIndex(), lastUserRequest, 5);
+    if (resumedKnowledgeHits.length) {
+      contextMessages.unshift({
+        role: 'system',
+        content: `Relevant local knowledge reloaded for checkpoint recovery. Cite source labels when used and ignore unrelated chunks.
+
+${formatKnowledgeContext(resumedKnowledgeHits)}`,
+      });
+    }
+
+    setSending(true);
+    setResumeTargetId(message.id);
+    setStreamingContent('');
+    setStreamingReasoning('');
+    setLiveAgentRun(previousReceipt);
+    setRequestStage('provider');
+    setRequestStartedAt(Date.now());
+
+    let streamed = '';
+    let reasoning = '';
+    try {
+      const abortController = new AbortController();
+      streamAbort.current = abortController;
+      const result = await resumeCollaborativeAgent({
+        previousReceipt,
+        existingDraft: stage === 'reviewer' || stage === 'revision' ? message.content : '',
+        agent: lockedAgent,
+        profiles,
+        defaultProfile,
+        messages: contextMessages,
+        timeoutMs: settings.requestTimeoutMs,
+        attachments: [],
+        includeVisionImages: false,
+        signal: abortController.signal,
+        callbacks: {
+          onReceipt: (receipt) => setLiveAgentRun(receipt),
+          onExecutorDelta: (delta) => {
+            streamed += delta;
+            setStreamingContent(streamed);
+          },
+          onExecutorReasoning: (delta) => {
+            reasoning += delta;
+            setStreamingReasoning(reasoning);
+          },
+          onResetExecutor: () => {
+            streamed = '';
+            reasoning = '';
+            setStreamingContent('');
+            setStreamingReasoning('');
+          },
+        },
+      });
+      streamAbort.current = null;
+
+      let content = result.content || streamed || message.content;
+      const failed = !result.ok && result.receipt.phase !== 'cancelled';
+      if (!result.ok) {
+        const recoveryMessage = result.receipt.phase === 'cancelled'
+          ? copy(language, 'Agent checkpoint recovery stopped.', 'Agent 检查点恢复已停止。')
+          : copy(
+            language,
+            `Checkpoint recovery failed: ${result.errorMessage || 'Unknown error.'}`,
+            `检查点恢复失败：${result.errorMessage || '未知错误。'}`,
+          );
+        content = content.trim() ? `${content.trim()}
+
+${recoveryMessage}` : recoveryMessage;
+      }
+
+      const updatedMessage: ChatMessage = {
+        ...message,
+        content,
+        provider: result.executorProfile.displayName,
+        model: result.executorProfile.model,
+        failed,
+        agentRun: result.receipt,
+      };
+      const updatedConversation: Conversation = {
+        ...conversation,
+        updatedAt: nowIso(),
+        messages: conversation.messages.map((entry) => entry.id === message.id ? updatedMessage : entry),
+      };
+      setConversation(updatedConversation);
+      if (settings.localHistoryEnabled) saveConversation(updatedConversation);
+      recordTokenUsage({
+        id: makeId('usage'),
+        createdAt: nowIso(),
+        provider: result.executorProfile.displayName,
+        model: result.executorProfile.model,
+        inputTokens: Math.ceil(contextMessages.reduce((total, entry) => total + entry.content.length, 0) / 4),
+        outputTokens: Math.ceil(content.length / 4),
+        savedTokens: 0,
+      });
+      toast.show(
+        result.receipt.phase === 'completed'
+          ? copy(language, 'Agent checkpoint recovery completed.', 'Agent 检查点恢复完成。')
+          : copy(language, 'Agent checkpoint updated. Review the remaining issue.', 'Agent 检查点已更新，请查看剩余问题。'),
+        result.receipt.phase === 'completed' ? 'success' : 'warning',
+      );
+    } catch (error) {
+      toast.show(copy(
+        language,
+        `Checkpoint recovery could not start: ${error instanceof Error ? error.message : 'Unknown error.'}`,
+        `无法启动检查点恢复：${error instanceof Error ? error.message : '未知错误。'}`,
+      ), 'error');
+    } finally {
+      setSending(false);
+      setResumeTargetId(null);
+      setRequestStage('idle');
+      setRequestStartedAt(null);
+      streamAbort.current = null;
+      setStreamingContent('');
+      setStreamingReasoning('');
+      setLiveAgentRun(null);
+      window.setTimeout(() => composerInput.current?.focus(), 0);
+    }
+  };
+
   const submit = () => {
     if (!hasInput || sending || fileBusy) return;
     if (isReviewed) {
@@ -892,7 +1104,7 @@ ${errorMessage}` : errorMessage;
                 <article key={message.id} className={`message-bubble ${message.role} ${message.failed ? 'failed' : ''}`}>
                   <header><span>{message.role === 'user' ? copy(language, 'Protected request', '受保护请求') : message.provider}</span><small>{new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</small></header>
                   <div>{message.content}</div>
-                  {message.agentRun && <AgentRunPanel receipt={message.agentRun} language={language} compact />}
+                  {message.agentRun && <AgentRunPanel receipt={message.agentRun} language={language} compact onResume={() => { void resumeAgentMessage(message); }} resumeBusy={sending || resumeTargetId === message.id} />}
                   {message.model && <footer>{message.model}</footer>}
                 </article>
               ))}

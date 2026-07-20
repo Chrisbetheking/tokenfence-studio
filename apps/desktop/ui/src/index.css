@@ -1097,3 +1097,38 @@ input:focus, textarea:focus, select:focus { border-color: color-mix(in srgb, var
   .agent-collaboration-head > label,
   .agent-collaboration-foot > label { flex-basis: auto; width: 100%; }
 }
+
+.agent-resume-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 8px;
+}
+.agent-resume-note svg { flex: 0 0 auto; }
+.agent-resume-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.agent-resume-actions .button {
+  min-height: 30px;
+  padding: 6px 10px;
+  font-size: 8px;
+  white-space: nowrap;
+}
+.agent-resume-actions small {
+  color: var(--faint);
+  font-size: 7px;
+  line-height: 1.45;
+  text-align: right;
+}
+.agent-run-panel.compact .agent-resume-actions {
+  align-items: flex-start;
+  flex-direction: column;
+}
+.agent-run-panel.compact .agent-resume-actions small { text-align: left; }

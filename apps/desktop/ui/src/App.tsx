@@ -230,7 +230,7 @@ function ChrisStudioApp() {
         </div>
         <div className="sidebar-foot">
           <div className="secure-foot"><Icon name="lock" size={14} /><span>{copy(language, 'Local safety layer', '本地安全层')}</span></div>
-          <small>v2.3.0-alpha.2 · macOS</small>
+          <small>v2.3.0-alpha.3 · macOS</small>
         </div>
       </aside>
 

@@ -107,7 +107,14 @@ assert.match(projects, /Reviewer model is unavailable[\s\S]*will not switch mode
 
 const workflow = fs.readFileSync(path.join(repoRoot, '.github/workflows/tokenfence-macos.yml'), 'utf8');
 assert.match(workflow, /tauri build --bundles app --ci/);
+assert.match(workflow, /cargo generate-lockfile --manifest-path apps\/desktop\/src-tauri\/Cargo\.toml/);
+assert.match(workflow, /cargo check --locked --manifest-path apps\/desktop\/src-tauri\/Cargo\.toml/);
 assert.match(workflow, /cargo test --locked --manifest-path apps\/desktop\/src-tauri\/Cargo\.toml project_change_tests/);
+assert.ok(
+  workflow.indexOf('cargo generate-lockfile --manifest-path apps/desktop/src-tauri/Cargo.toml') <
+    workflow.indexOf('cargo check --locked --manifest-path apps/desktop/src-tauri/Cargo.toml'),
+  'Rust lockfile synchronization must run before locked native checks.',
+);
 assert.match(workflow, /prerelease: \$\{\{ contains\(inputs\.version, '-'\) \}\}/);
 assert.match(workflow, /make_latest: \$\{\{ !contains\(inputs\.version, '-'\) && inputs\.make_latest \}\}/);
 

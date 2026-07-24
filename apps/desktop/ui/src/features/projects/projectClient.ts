@@ -1,5 +1,7 @@
 import { invoke } from '@tauri-apps/api/tauri';
 import type {
+  ProjectChangeSessionResult,
+  ProjectRecoveredChangeSession,
   ProjectCommandResult,
   ProjectFileContent,
   ProjectFileNode,
@@ -49,6 +51,22 @@ export async function clonePublicRepository(url: string): Promise<ProjectWorkspa
 
 export async function applyReviewedPatch(patch: string, confirmed: boolean): Promise<ProjectCommandResult> {
   return await invoke<ProjectCommandResult>('project_apply_patch', { patch, confirmed });
+}
+
+export async function applyProjectChangeSession(patch: string, confirmed: boolean): Promise<ProjectChangeSessionResult> {
+  return await invoke<ProjectChangeSessionResult>('project_apply_change_session', { patch, confirmed });
+}
+
+export async function loadLatestProjectChangeSession(): Promise<ProjectRecoveredChangeSession | null> {
+  return await invoke<ProjectRecoveredChangeSession | null>('project_latest_change_session');
+}
+
+export async function rollbackProjectChangeSession(sessionId: string, paths: string[], confirmed: boolean): Promise<ProjectChangeSessionResult> {
+  return await invoke<ProjectChangeSessionResult>('project_rollback_change_session', { sessionId, paths, confirmed });
+}
+
+export async function acceptProjectChangeSession(sessionId: string, paths: string[], confirmed: boolean): Promise<ProjectChangeSessionResult> {
+  return await invoke<ProjectChangeSessionResult>('project_accept_change_session', { sessionId, paths, confirmed });
 }
 
 export async function createGitBranch(branch: string, confirmed: boolean): Promise<ProjectCommandResult> {

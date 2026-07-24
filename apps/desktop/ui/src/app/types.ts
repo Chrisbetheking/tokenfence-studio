@@ -385,6 +385,55 @@ export interface ProjectCommandResult {
   errorMessage?: string;
 }
 
+export interface ProjectCodingPlan {
+  summary: string;
+  steps: string[];
+  filesToRead: string[];
+  checks: string[];
+  risks: string[];
+}
+
+export interface ProjectPatchFileSummary {
+  path: string;
+  oldPath?: string;
+  newPath?: string;
+  action: 'add' | 'modify' | 'delete' | 'rename';
+  additions: number;
+  deletions: number;
+  patch: string;
+}
+
+export interface ProjectChangeFileReceipt {
+  path: string;
+  action: 'add' | 'modify' | 'delete';
+  existedBefore: boolean;
+  backupPath?: string;
+  afterPath?: string;
+  status: 'applied' | 'accepted' | 'rolled-back' | 'rollback-blocked' | 'failed';
+  errorMessage?: string;
+}
+
+export interface ProjectChangeSessionResult {
+  ok: boolean;
+  sessionId?: string;
+  status: 'applied' | 'partially-rolled-back' | 'rolled-back' | 'accepted' | 'failed';
+  files: ProjectChangeFileReceipt[];
+  patchArchive?: string;
+  errorMessage?: string;
+}
+
+export interface ProjectRecoveredChangeSession {
+  session: ProjectChangeSessionResult;
+  patch: string;
+}
+
+export interface ProjectCodingReview {
+  verdict: 'pass' | 'revise' | 'block';
+  summary: string;
+  issues: string[];
+  tested: string[];
+}
+
 export interface GitHubConnectionInfo {
   ok: boolean;
   login?: string;

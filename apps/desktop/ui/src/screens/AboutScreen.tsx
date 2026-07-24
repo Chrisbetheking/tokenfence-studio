@@ -7,7 +7,7 @@ import chrisStudioLogo from '../assets/chris-studio-logo.png';
 import { CHRIS_STUDIO_CONTACT } from '../app/identity';
 
 const copy = (language: Language, en: string, zh: string) => language === 'zh-CN' ? zh : en;
-const fallback: PlatformInfo = { appVersion: '2.1.0', os: 'Loading…', arch: 'Loading…', secureStore: 'Loading…', desktopRuntime: true };
+const fallback: PlatformInfo = { appVersion: '2.3.0-alpha.4', os: 'Loading…', arch: 'Loading…', secureStore: 'Loading…', desktopRuntime: true };
 export function AboutScreen({ language }: { language: Language }) {
   const [platform, setPlatform] = useState<PlatformInfo>(fallback);
   useEffect(() => { void getPlatformInfo().then(setPlatform); }, []);

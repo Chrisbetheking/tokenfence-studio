@@ -22,6 +22,15 @@ function synchronizeAppText(source, version) {
   return next;
 }
 
+function synchronizeAboutVersion(source, version) {
+  const replacement = `const fallback: PlatformInfo = { appVersion: '${version}',`;
+  const next = source.replace(/const fallback: PlatformInfo = \{ appVersion: '[^']+',/, replacement);
+  if (next === source && !source.includes(replacement)) {
+    throw new Error('Cannot synchronize About fallback version.');
+  }
+  return next;
+}
+
 function synchronizeReliabilityAppText(source) {
   let next = source;
   const importStatement = "import { ReliabilityDock } from './components/ReliabilityDock';";
@@ -148,6 +157,10 @@ function main() {
   syncFile(path.join(UI_ROOT, 'src/App.tsx'), (source) =>
     synchronizeReliabilityAppText(synchronizeAppText(source, version)));
   syncFile(
+    path.join(UI_ROOT, 'src/screens/AboutScreen.tsx'),
+    (source) => synchronizeAboutVersion(source, version),
+  );
+  syncFile(
     path.join(UI_ROOT, 'src/screens/WorkspaceScreen.tsx'),
     synchronizeWorkspaceRuntimeAdapters,
   );
@@ -167,6 +180,7 @@ if (require.main === module) {
 
 module.exports = {
   synchronizeAppText,
+  synchronizeAboutVersion,
   synchronizeReliabilityAppText,
   synchronizeWorkspaceRuntimeAdapters,
   synchronizeComputerScreenRuntimeAdapter,

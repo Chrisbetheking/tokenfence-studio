@@ -268,6 +268,51 @@ struct ProjectCommandResult {
     error_message: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ProjectChangeFileReceipt {
+    path: String,
+    action: String,
+    existed_before: bool,
+    backup_path: Option<String>,
+    after_path: Option<String>,
+    status: String,
+    error_message: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectChangeSessionResult {
+    ok: bool,
+    session_id: Option<String>,
+    status: String,
+    files: Vec<ProjectChangeFileReceipt>,
+    patch_archive: Option<String>,
+    error_message: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectRecoveredChangeSession {
+    session: ProjectChangeSessionResult,
+    patch: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectChangeManifest {
+    session_id: String,
+    status: String,
+    patch_archive: String,
+    files: Vec<ProjectChangeFileReceipt>,
+}
+
+#[derive(Debug, Clone)]
+struct ProjectPatchTarget {
+    path: String,
+    action: String,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct GitHubConnectionInfo {
@@ -1502,7 +1547,7 @@ fn truncate_output(value: &[u8]) -> String {
 fn ignored_project_name(name: &str) -> bool {
     matches!(
         name,
-        ".git" | "node_modules" | "target" | "dist" | "build" | ".next" | ".cache" | ".idea" | ".vscode" | ".tokenfence"
+        ".git" | "node_modules" | "target" | "dist" | "build" | ".next" | ".cache" | ".idea" | ".vscode" | ".tokenfence" | ".chris-studio"
     ) || name.starts_with(".DS_Store")
 }
 
@@ -1578,8 +1623,8 @@ fn clean_relative_path(value: &str) -> Result<PathBuf, String> {
             _ => return Err("Parent traversal is not allowed in project paths.".to_string()),
         }
     }
-    if path.components().any(|component| component.as_os_str() == ".git") {
-        return Err("Direct writes inside .git are blocked.".to_string());
+    if path.components().any(|component| matches!(component.as_os_str().to_str(), Some(".git" | ".chris-studio" | ".tokenfence"))) {
+        return Err("Direct writes inside protected repository metadata are blocked.".to_string());
     }
     Ok(path)
 }
@@ -1594,8 +1639,11 @@ fn resolve_project_path(root: &Path, relative: &str, require_existing: bool) -> 
         }
         Ok((canonical, clean))
     } else {
-        let parent = joined.parent().ok_or_else(|| "The project file has no parent folder.".to_string())?;
-        let canonical_parent = parent.canonicalize().map_err(|_| "The parent folder does not exist.".to_string())?;
+        let mut existing_ancestor = joined.parent().ok_or_else(|| "The project file has no parent folder.".to_string())?;
+        while !existing_ancestor.exists() {
+            existing_ancestor = existing_ancestor.parent().ok_or_else(|| "The project file has no existing scoped parent folder.".to_string())?;
+        }
+        let canonical_parent = existing_ancestor.canonicalize().map_err(|_| "The nearest existing parent folder could not be opened.".to_string())?;
         if !canonical_parent.starts_with(root) {
             return Err("The requested file is outside the approved project folder.".to_string());
         }
@@ -1831,6 +1879,812 @@ fn command_result_from_output(preset: &str, command: &str, started: Instant, out
         stderr: truncate_output(&output.stderr),
         exit_code: output.status.code(),
         duration_ms: started.elapsed().as_millis(),
+        error_message: None,
+    }
+}
+
+
+fn project_change_failure(message: impl Into<String>) -> ProjectChangeSessionResult {
+    ProjectChangeSessionResult {
+        ok: false,
+        session_id: None,
+        status: "failed".to_string(),
+        files: vec![],
+        patch_archive: None,
+        error_message: Some(message.into()),
+    }
+}
+
+fn normalize_git_patch_path(value: &str) -> Result<Option<String>, String> {
+    let trimmed = value.trim();
+    if trimmed == "/dev/null" {
+        return Ok(None);
+    }
+    if trimmed.starts_with('"') || trimmed.ends_with('"') || trimmed.contains('\\') {
+        return Err("Quoted, escaped or platform-specific patch paths are not supported in reviewed sessions.".to_string());
+    }
+    let relative = trimmed.strip_prefix("a/").or_else(|| trimmed.strip_prefix("b/")).unwrap_or(trimmed);
+    let clean = clean_relative_path(relative)?;
+    Ok(Some(clean.to_string_lossy().to_string()))
+}
+
+fn parse_project_patch_targets(patch: &str) -> Result<Vec<ProjectPatchTarget>, String> {
+    if patch.trim().is_empty() || patch.len() > 1_000_000 {
+        return Err("Provide a reviewed unified diff smaller than 1 MB.".to_string());
+    }
+    if !patch.trim_start().starts_with("diff --git ") {
+        return Err("The reviewed patch must begin with a diff --git section and cannot contain traditional patch preambles.".to_string());
+    }
+    if patch.contains("GIT binary patch") || patch.contains("Binary files ") || patch.contains("Subproject commit ") {
+        return Err("Binary files and submodule changes are blocked in reviewed project sessions.".to_string());
+    }
+    if patch.lines().any(|line| {
+        line.starts_with("rename from ")
+            || line.starts_with("rename to ")
+            || line.starts_with("copy from ")
+            || line.starts_with("copy to ")
+            || line.starts_with("old mode ")
+            || line.starts_with("new mode ")
+    }) {
+        return Err("Renames, copies and file-mode changes are not supported in this reviewed session. Generate add/modify/delete changes instead.".to_string());
+    }
+
+    let lines = patch.lines().collect::<Vec<_>>();
+    let mut targets: Vec<ProjectPatchTarget> = vec![];
+    let mut index = 0_usize;
+    while index < lines.len() {
+        let Some(header) = lines[index].strip_prefix("diff --git ") else {
+            index += 1;
+            continue;
+        };
+        let parts = header.split_whitespace().collect::<Vec<_>>();
+        if parts.len() != 2 {
+            return Err("Patch paths containing spaces or unsupported quoting cannot be applied safely.".to_string());
+        }
+        let header_old = normalize_git_patch_path(parts[0])?;
+        let header_new = normalize_git_patch_path(parts[1])?;
+        let mut old_marker_seen = false;
+        let mut new_marker_seen = false;
+        let mut old_marker: Option<String> = None;
+        let mut new_marker: Option<String> = None;
+        let mut declared_action: Option<&str> = None;
+        let mut in_hunk = false;
+        index += 1;
+        while index < lines.len() && !lines[index].starts_with("diff --git ") {
+            let line = lines[index];
+            if line.starts_with("@@") {
+                in_hunk = true;
+            }
+            if !in_hunk {
+                if let Some(value) = line.strip_prefix("--- ") {
+                    if old_marker_seen {
+                        return Err("A reviewed patch section contains multiple old-file headers.".to_string());
+                    }
+                    old_marker_seen = true;
+                    old_marker = normalize_git_patch_path(value)?;
+                } else if let Some(value) = line.strip_prefix("+++ ") {
+                    if new_marker_seen {
+                        return Err("A reviewed patch section contains multiple new-file headers.".to_string());
+                    }
+                    new_marker_seen = true;
+                    new_marker = normalize_git_patch_path(value)?;
+                } else if let Some(mode) = line.strip_prefix("new file mode ") {
+                    if mode != "100644" && mode != "100755" {
+                        return Err("Symlinks, submodules and unsupported new-file modes are blocked.".to_string());
+                    }
+                    declared_action = Some("add");
+                } else if let Some(mode) = line.strip_prefix("deleted file mode ") {
+                    if mode != "100644" && mode != "100755" {
+                        return Err("Symlinks, submodules and unsupported deleted-file modes are blocked.".to_string());
+                    }
+                    declared_action = Some("delete");
+                } else if let Some(index_metadata) = line.strip_prefix("index ") {
+                    let tokens = index_metadata.split_whitespace().collect::<Vec<_>>();
+                    if let Some(mode) = tokens.get(1) {
+                        if *mode != "100644" && *mode != "100755" {
+                            return Err("Symlink, submodule and unsupported index modes are blocked.".to_string());
+                        }
+                    }
+                }
+            }
+            index += 1;
+        }
+        if !old_marker_seen || !new_marker_seen {
+            return Err("Every reviewed patch section must contain exactly one --- and +++ file header.".to_string());
+        }
+        let action = match (&old_marker, &new_marker) {
+            (None, Some(_)) => "add",
+            (Some(_), None) => "delete",
+            (Some(_), Some(_)) => "modify",
+            (None, None) => return Err("A patch section cannot add and delete /dev/null at the same time.".to_string()),
+        };
+        if declared_action.is_some() && declared_action != Some(action) {
+            return Err("The declared file mode does not match the patch file headers.".to_string());
+        }
+        match action {
+            "add" => {
+                if new_marker != header_new {
+                    return Err("The new-file path does not match its diff --git header.".to_string());
+                }
+                if header_old != header_new {
+                    return Err("The add-file diff header must use the same scoped path on both sides.".to_string());
+                }
+            }
+            "delete" => {
+                if old_marker != header_old {
+                    return Err("The deleted-file path does not match its diff --git header.".to_string());
+                }
+                if header_old != header_new {
+                    return Err("The delete-file diff header must use the same scoped path on both sides.".to_string());
+                }
+            }
+            _ => {
+                if old_marker != header_old || new_marker != header_new || header_old != header_new {
+                    return Err("Modified-file paths must match their diff --git header and cannot rename files.".to_string());
+                }
+            }
+        }
+        let path = new_marker.or(old_marker).ok_or_else(|| "The patch section has no project file path.".to_string())?;
+        targets.push(ProjectPatchTarget { path, action: action.to_string() });
+    }
+    if targets.is_empty() {
+        return Err("The reviewed text does not contain any diff --git file sections.".to_string());
+    }
+    if targets.len() > 50 {
+        return Err("A single reviewed session is limited to 50 files.".to_string());
+    }
+    let mut unique = HashSet::new();
+    for target in &targets {
+        if !unique.insert(target.path.clone()) {
+            return Err(format!("The patch contains duplicate sections for {}.", target.path));
+        }
+    }
+    Ok(targets)
+}
+
+
+#[cfg(test)]
+mod project_change_tests {
+    use super::*;
+
+    const MODIFY_PATCH: &str = "diff --git a/src/a.ts b/src/a.ts\nindex 1111111..2222222 100644\n--- a/src/a.ts\n+++ b/src/a.ts\n@@ -1 +1 @@\n-old\n+new\n";
+
+    #[test]
+    fn accepts_scoped_regular_text_modification() {
+        let targets = parse_project_patch_targets(MODIFY_PATCH).expect("regular patch should parse");
+        assert_eq!(targets.len(), 1);
+        assert_eq!(targets[0].path, "src/a.ts");
+        assert_eq!(targets[0].action, "modify");
+    }
+
+    #[test]
+    fn rejects_traditional_patch_preambles() {
+        let patch = format!("This is an unreviewed preamble.\n{}", MODIFY_PATCH);
+        assert!(parse_project_patch_targets(&patch).is_err());
+    }
+
+    #[test]
+    fn rejects_mismatched_or_protected_file_headers() {
+        let patch = "diff --git a/src/a.ts b/src/a.ts\nindex 1111111..2222222 100644\n--- a/src/a.ts\n+++ b/.git/config\n@@ -1 +1 @@\n-old\n+new\n";
+        assert!(parse_project_patch_targets(patch).is_err());
+    }
+
+    #[test]
+    fn rejects_symlink_mode_and_duplicate_sections() {
+        let symlink = "diff --git a/src/link b/src/link\nnew file mode 120000\nindex 0000000..2222222\n--- /dev/null\n+++ b/src/link\n@@ -0,0 +1 @@\n+../outside\n";
+        assert!(parse_project_patch_targets(symlink).is_err());
+        let duplicate = format!("{}\n{}", MODIFY_PATCH, MODIFY_PATCH);
+        assert!(parse_project_patch_targets(&duplicate).is_err());
+    }
+
+    #[test]
+    fn git_numstat_exposes_hidden_traditional_sections() {
+        let directory = std::env::temp_dir().join(format!("chris-studio-patch-paths-{}", project_transaction_id()));
+        fs::create_dir_all(&directory).expect("temporary patch directory should be created");
+        let patch_path = directory.join("mixed.diff");
+        let mixed_patch = format!(
+            "{}--- a/src/b.ts\n+++ b/src/b.ts\n@@ -1 +1 @@\n-before\n+after\n",
+            MODIFY_PATCH,
+        );
+        fs::write(&patch_path, mixed_patch).expect("mixed patch should be written");
+        let paths = git_reported_project_patch_paths(&directory, &patch_path).expect("Git should report every parsed path");
+        assert_eq!(paths, HashSet::from(["src/a.ts".to_string(), "src/b.ts".to_string()]));
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn detects_active_transaction_manifests() {
+        let root = std::env::temp_dir().join(format!("chris-studio-active-session-{}", project_transaction_id()));
+        let session_dir = project_transaction_root(&root).join("123");
+        fs::create_dir_all(&session_dir).expect("transaction folder should be created");
+        let manifest = ProjectChangeManifest {
+            session_id: "123".to_string(),
+            status: "applied".to_string(),
+            patch_archive: session_dir.join("change.diff").to_string_lossy().to_string(),
+            files: vec![ProjectChangeFileReceipt {
+                path: "src/a.ts".to_string(),
+                action: "modify".to_string(),
+                existed_before: true,
+                backup_path: None,
+                after_path: None,
+                status: "applied".to_string(),
+                error_message: None,
+            }],
+        };
+        write_project_change_manifest(&session_dir.join("manifest.json"), &manifest).expect("manifest should be written");
+        assert!(project_has_active_change_session(&root).expect("active transaction should be detected"));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn blocks_internal_metadata_paths() {
+        assert!(clean_relative_path(".git/config").is_err());
+        assert!(clean_relative_path(".chris-studio/session.json").is_err());
+        assert!(clean_relative_path(".tokenfence/patch.diff").is_err());
+        assert!(clean_relative_path("src/../outside.ts").is_err());
+    }
+}
+
+fn git_reported_project_patch_paths(root: &Path, patch_archive: &Path) -> Result<HashSet<String>, String> {
+    let output = Command::new("git")
+        .args(["apply", "--numstat"])
+        .arg(patch_archive)
+        .current_dir(root)
+        .output()
+        .map_err(|_| "Git is not installed or could not inspect the reviewed patch paths.".to_string())?;
+    if !output.status.success() {
+        return Err(truncate_output(&output.stderr));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut paths = HashSet::new();
+    for line in stdout.lines().filter(|line| !line.trim().is_empty()) {
+        let columns = line.splitn(3, '\t').collect::<Vec<_>>();
+        if columns.len() != 3
+            || columns[2].contains(" => ")
+            || columns[2].contains('{')
+            || columns[2].contains('}')
+        {
+            return Err("Git reported an unsupported, renamed or ambiguous patch path.".to_string());
+        }
+        let clean = clean_relative_path(columns[2])?;
+        paths.insert(clean.to_string_lossy().to_string());
+    }
+    if paths.is_empty() {
+        return Err("Git did not report any changed project paths for the reviewed patch.".to_string());
+    }
+    Ok(paths)
+}
+
+fn project_transaction_root(root: &Path) -> PathBuf {
+    root.join(".git").join("chris-studio").join("transactions")
+}
+
+fn project_has_active_change_session(root: &Path) -> Result<bool, String> {
+    let transaction_root = project_transaction_root(root);
+    if !transaction_root.is_dir() {
+        return Ok(false);
+    }
+    let entries = fs::read_dir(&transaction_root)
+        .map_err(|_| "The project transaction directory could not be read.".to_string())?;
+    for entry in entries.flatten() {
+        if !entry.path().is_dir() {
+            continue;
+        }
+        let raw = match fs::read(entry.path().join("manifest.json")) {
+            Ok(raw) => raw,
+            Err(_) => continue,
+        };
+        let manifest = match serde_json::from_slice::<ProjectChangeManifest>(&raw) {
+            Ok(manifest) => manifest,
+            Err(_) => continue,
+        };
+        let pending = manifest.files.iter().any(|file| file.status == "applied" || file.status == "rollback-blocked");
+        if pending && (manifest.status == "applied" || manifest.status == "partially-rolled-back") {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn project_transaction_id() -> String {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos()
+        .to_string()
+}
+
+fn valid_project_transaction_id(value: &str) -> bool {
+    !value.is_empty() && value.len() <= 40 && value.chars().all(|character| character.is_ascii_digit() || character == '-')
+}
+
+fn write_project_change_manifest(path: &Path, manifest: &ProjectChangeManifest) -> Result<(), String> {
+    let payload = serde_json::to_vec_pretty(manifest).map_err(|_| "The project transaction manifest could not be serialized.".to_string())?;
+    fs::write(path, payload).map_err(|_| "The project transaction manifest could not be written.".to_string())
+}
+
+fn load_project_change_manifest(root: &Path, session_id: &str) -> Result<(PathBuf, PathBuf, ProjectChangeManifest), String> {
+    if !valid_project_transaction_id(session_id) {
+        return Err("The project transaction identifier is invalid.".to_string());
+    }
+    let session_dir = project_transaction_root(root).join(session_id);
+    let manifest_path = session_dir.join("manifest.json");
+    let raw = fs::read(&manifest_path).map_err(|_| "The project transaction manifest could not be found.".to_string())?;
+    let manifest = serde_json::from_slice::<ProjectChangeManifest>(&raw).map_err(|_| "The project transaction manifest is invalid.".to_string())?;
+    if manifest.session_id != session_id {
+        return Err("The project transaction manifest does not match the requested session.".to_string());
+    }
+    Ok((session_dir, manifest_path, manifest))
+}
+
+fn project_file_matches_after_state(root: &Path, session_dir: &Path, receipt: &ProjectChangeFileReceipt) -> Result<bool, String> {
+    let clean = clean_relative_path(&receipt.path)?;
+    let destination = root.join(&clean);
+    if receipt.action == "delete" {
+        return Ok(!destination.exists());
+    }
+    let after = session_dir.join("after").join(&clean);
+    if !after.is_file() || !destination.is_file() {
+        return Ok(false);
+    }
+    let destination_metadata = fs::symlink_metadata(&destination).map_err(|_| format!("{} could not be inspected before rollback.", receipt.path))?;
+    if destination_metadata.file_type().is_symlink() || !destination_metadata.is_file() {
+        return Ok(false);
+    }
+    let expected = fs::read(after).map_err(|_| format!("The post-write snapshot for {} could not be read.", receipt.path))?;
+    let current = fs::read(destination).map_err(|_| format!("{} could not be read before rollback.", receipt.path))?;
+    Ok(expected == current)
+}
+
+fn snapshot_project_change_after(root: &Path, session_dir: &Path, files: &mut [ProjectChangeFileReceipt]) -> Vec<String> {
+    let after_dir = session_dir.join("after");
+    let mut errors = vec![];
+    let mut total_bytes = 0_u64;
+    for receipt in files.iter_mut() {
+        let clean = match clean_relative_path(&receipt.path) {
+            Ok(clean) => clean,
+            Err(message) => {
+                errors.push(message);
+                continue;
+            }
+        };
+        let destination = root.join(&clean);
+        if receipt.action == "delete" {
+            if destination.exists() {
+                errors.push(format!("{} still exists after the delete patch.", receipt.path));
+            }
+            receipt.after_path = None;
+            continue;
+        }
+        let metadata = match fs::symlink_metadata(&destination) {
+            Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => metadata,
+            _ => {
+                errors.push(format!("{} is not a regular file after patch application.", receipt.path));
+                continue;
+            }
+        };
+        total_bytes = total_bytes.saturating_add(metadata.len());
+        if metadata.len() > 6_000_000 || total_bytes > 30_000_000 {
+            errors.push(format!("{} exceeds the protected post-write snapshot limit.", receipt.path));
+            continue;
+        }
+        let snapshot = after_dir.join(&clean);
+        if let Some(parent) = snapshot.parent() {
+            if fs::create_dir_all(parent).is_err() {
+                errors.push(format!("The post-write snapshot folder for {} could not be created.", receipt.path));
+                continue;
+            }
+        }
+        match fs::copy(&destination, &snapshot) {
+            Ok(_) => receipt.after_path = Some(snapshot.to_string_lossy().to_string()),
+            Err(_) => errors.push(format!("The post-write snapshot for {} could not be created.", receipt.path)),
+        }
+    }
+    errors
+}
+
+fn restore_project_change_file(root: &Path, session_dir: &Path, receipt: &ProjectChangeFileReceipt, verify_after_state: bool) -> Result<(), String> {
+    let clean = clean_relative_path(&receipt.path)?;
+    let destination = root.join(&clean);
+    if verify_after_state && !project_file_matches_after_state(root, session_dir, receipt)? {
+        return Err(format!("{} changed after the Agent write. Rollback was blocked to avoid overwriting newer user edits.", receipt.path));
+    }
+    if receipt.existed_before {
+        let backup_path = session_dir.join("before").join(&clean);
+        if !backup_path.is_file() {
+            return Err(format!("The backup for {} is missing.", receipt.path));
+        }
+        if let Some(parent) = destination.parent() {
+            fs::create_dir_all(parent).map_err(|_| format!("The parent directory for {} could not be restored.", receipt.path))?;
+        }
+        fs::copy(backup_path, destination).map_err(|_| format!("{} could not be restored from backup.", receipt.path))?;
+    } else if destination.exists() {
+        if !destination.is_file() {
+            return Err(format!("The new path {} is no longer a regular file and was not removed.", receipt.path));
+        }
+        fs::remove_file(destination).map_err(|_| format!("The newly created file {} could not be removed.", receipt.path))?;
+    }
+    Ok(())
+}
+
+fn restore_project_change_files(
+    root: &Path,
+    session_dir: &Path,
+    files: &mut [ProjectChangeFileReceipt],
+    selected: Option<&HashSet<String>>,
+    verify_after_state: bool,
+) -> Vec<String> {
+    let mut errors = vec![];
+    for receipt in files.iter_mut() {
+        if selected.map(|paths| !paths.contains(&receipt.path)).unwrap_or(false) {
+            continue;
+        }
+        if receipt.status == "rolled-back" || receipt.status == "accepted" || receipt.status == "failed" {
+            continue;
+        }
+        match restore_project_change_file(root, session_dir, receipt, verify_after_state) {
+            Ok(()) => {
+                receipt.status = "rolled-back".to_string();
+                receipt.error_message = None;
+            }
+            Err(message) => {
+                receipt.status = "rollback-blocked".to_string();
+                receipt.error_message = Some(message.clone());
+                errors.push(message);
+            }
+        }
+    }
+    errors
+}
+
+#[tauri::command]
+fn project_apply_change_session(patch: String, confirmed: bool, state: State<'_, AppState>) -> ProjectChangeSessionResult {
+    if !confirmed {
+        return project_change_failure("Explicit approval is required before applying a project change session.");
+    }
+    let root = match current_project_root(&state) {
+        Ok(root) => root,
+        Err(message) => return project_change_failure(message),
+    };
+    if !root.join(".git").is_dir() {
+        return project_change_failure("Reviewed patch sessions currently require a Git repository so changes can be checked before writing.");
+    }
+    match project_has_active_change_session(&root) {
+        Ok(false) => {}
+        Ok(true) => return project_change_failure("Resolve the current applied project transaction before starting another one."),
+        Err(message) => return project_change_failure(message),
+    }
+    let targets = match parse_project_patch_targets(&patch) {
+        Ok(targets) => targets,
+        Err(message) => return project_change_failure(message),
+    };
+
+    let session_id = project_transaction_id();
+    let session_dir = project_transaction_root(&root).join(&session_id);
+    let before_dir = session_dir.join("before");
+    if fs::create_dir_all(&before_dir).is_err() {
+        return project_change_failure("The protected project transaction directory could not be created.");
+    }
+    let patch_archive = session_dir.join("change.diff");
+    if fs::write(&patch_archive, patch.as_bytes()).is_err() {
+        return project_change_failure("The reviewed patch could not be archived before application.");
+    }
+
+    let declared_paths = targets.iter().map(|target| target.path.clone()).collect::<HashSet<_>>();
+    match git_reported_project_patch_paths(&root, &patch_archive) {
+        Ok(reported_paths) if reported_paths == declared_paths => {}
+        Ok(_) => {
+            let _ = fs::remove_dir_all(&session_dir);
+            return project_change_failure("The paths Git would apply do not exactly match the reviewed diff --git sections.");
+        }
+        Err(message) => {
+            let _ = fs::remove_dir_all(&session_dir);
+            return project_change_failure(message);
+        }
+    }
+
+    let mut total_backup_bytes = 0_u64;
+    let mut files: Vec<ProjectChangeFileReceipt> = vec![];
+    for target in targets {
+        let existed_before = root.join(&target.path).exists();
+        let (source, clean) = match resolve_project_path(&root, &target.path, existed_before) {
+            Ok(value) => value,
+            Err(message) => return project_change_failure(message),
+        };
+        let mut backup_path = None;
+        if existed_before {
+            let scoped_source = root.join(&clean);
+            let metadata = match fs::symlink_metadata(&scoped_source) {
+                Ok(metadata) => metadata,
+                Err(_) => return project_change_failure(format!("{} could not be inspected before backup.", target.path)),
+            };
+            if metadata.file_type().is_symlink() || !metadata.is_file() {
+                return project_change_failure(format!("{} is not a regular project file.", target.path));
+            }
+            if metadata.len() > 5_000_000 {
+                return project_change_failure(format!("{} exceeds the 5 MB transactional file limit.", target.path));
+            }
+            total_backup_bytes = total_backup_bytes.saturating_add(metadata.len());
+            if total_backup_bytes > 25_000_000 {
+                return project_change_failure("The reviewed session exceeds the 25 MB total backup limit.");
+            }
+            let backup = before_dir.join(&clean);
+            if let Some(parent) = backup.parent() {
+                if fs::create_dir_all(parent).is_err() {
+                    return project_change_failure(format!("The backup folder for {} could not be created.", target.path));
+                }
+            }
+            if fs::copy(&source, &backup).is_err() {
+                return project_change_failure(format!("{} could not be backed up.", target.path));
+            }
+            backup_path = Some(backup.to_string_lossy().to_string());
+        } else if target.action != "add" {
+            return project_change_failure(format!("{} does not exist, but the patch does not declare it as a new file.", target.path));
+        }
+        files.push(ProjectChangeFileReceipt {
+            path: target.path,
+            action: target.action,
+            existed_before,
+            backup_path,
+            after_path: None,
+            status: "applied".to_string(),
+            error_message: None,
+        });
+    }
+
+    let manifest_path = session_dir.join("manifest.json");
+    let mut manifest = ProjectChangeManifest {
+        session_id: session_id.clone(),
+        status: "prepared".to_string(),
+        patch_archive: patch_archive.to_string_lossy().to_string(),
+        files,
+    };
+    if let Err(message) = write_project_change_manifest(&manifest_path, &manifest) {
+        return project_change_failure(message);
+    }
+
+    let check = Command::new("git")
+        .args(["apply", "--check", "--whitespace=nowarn"])
+        .arg(&patch_archive)
+        .current_dir(&root)
+        .output();
+    match check {
+        Ok(output) if output.status.success() => {}
+        Ok(output) => {
+            manifest.status = "failed".to_string();
+            for file in manifest.files.iter_mut() {
+                file.status = "failed".to_string();
+                file.error_message = Some("Patch validation failed before any project file was written.".to_string());
+            }
+            let _ = write_project_change_manifest(&manifest_path, &manifest);
+            return ProjectChangeSessionResult {
+                ok: false,
+                session_id: Some(session_id),
+                status: "failed".to_string(),
+                files: manifest.files,
+                patch_archive: Some(patch_archive.to_string_lossy().to_string()),
+                error_message: Some(truncate_output(&output.stderr)),
+            };
+        }
+        Err(_) => {
+            manifest.status = "failed".to_string();
+            for file in manifest.files.iter_mut() {
+                file.status = "failed".to_string();
+                file.error_message = Some("Git could not validate the reviewed patch.".to_string());
+            }
+            let _ = write_project_change_manifest(&manifest_path, &manifest);
+            return ProjectChangeSessionResult {
+                ok: false,
+                session_id: Some(session_id),
+                status: "failed".to_string(),
+                files: manifest.files,
+                patch_archive: Some(patch_archive.to_string_lossy().to_string()),
+                error_message: Some("Git is not installed or could not validate the reviewed patch.".to_string()),
+            };
+        },
+    }
+
+    let applied = Command::new("git")
+        .args(["apply", "--whitespace=nowarn"])
+        .arg(&patch_archive)
+        .current_dir(&root)
+        .output();
+    match applied {
+        Ok(output) if output.status.success() => {
+            let snapshot_errors = snapshot_project_change_after(&root, &session_dir, &mut manifest.files);
+            if !snapshot_errors.is_empty() {
+                let mut restore_errors = restore_project_change_files(&root, &session_dir, &mut manifest.files, None, false);
+                manifest.status = "failed".to_string();
+                let _ = write_project_change_manifest(&manifest_path, &manifest);
+                let mut errors = snapshot_errors;
+                errors.append(&mut restore_errors);
+                return ProjectChangeSessionResult {
+                    ok: false,
+                    session_id: Some(session_id),
+                    status: "failed".to_string(),
+                    files: manifest.files,
+                    patch_archive: Some(patch_archive.to_string_lossy().to_string()),
+                    error_message: Some(errors.join("\n")),
+                };
+            }
+            manifest.status = "applied".to_string();
+            let _ = write_project_change_manifest(&manifest_path, &manifest);
+            ProjectChangeSessionResult {
+                ok: true,
+                session_id: Some(session_id),
+                status: "applied".to_string(),
+                files: manifest.files,
+                patch_archive: Some(patch_archive.to_string_lossy().to_string()),
+                error_message: None,
+            }
+        }
+        Ok(output) => {
+            let restore_errors = restore_project_change_files(&root, &session_dir, &mut manifest.files, None, false);
+            manifest.status = "failed".to_string();
+            let _ = write_project_change_manifest(&manifest_path, &manifest);
+            let mut message = truncate_output(&output.stderr);
+            if !restore_errors.is_empty() {
+                message.push_str("\nRollback warnings:\n");
+                message.push_str(&restore_errors.join("\n"));
+            }
+            ProjectChangeSessionResult {
+                ok: false,
+                session_id: Some(session_id),
+                status: "failed".to_string(),
+                files: manifest.files,
+                patch_archive: Some(patch_archive.to_string_lossy().to_string()),
+                error_message: Some(message),
+            }
+        }
+        Err(_) => {
+            let restore_errors = restore_project_change_files(&root, &session_dir, &mut manifest.files, None, false);
+            manifest.status = "failed".to_string();
+            let _ = write_project_change_manifest(&manifest_path, &manifest);
+            ProjectChangeSessionResult {
+                ok: false,
+                session_id: Some(session_id),
+                status: "failed".to_string(),
+                files: manifest.files,
+                patch_archive: Some(patch_archive.to_string_lossy().to_string()),
+                error_message: Some(if restore_errors.is_empty() {
+                    "Git could not apply the reviewed patch.".to_string()
+                } else {
+                    format!("Git could not apply the reviewed patch. Rollback warnings: {}", restore_errors.join("; "))
+                }),
+            }
+        }
+    }
+}
+
+
+#[tauri::command]
+fn project_latest_change_session(state: State<'_, AppState>) -> Result<Option<ProjectRecoveredChangeSession>, String> {
+    let root = current_project_root(&state)?;
+    let transaction_root = project_transaction_root(&root);
+    if !transaction_root.is_dir() {
+        return Ok(None);
+    }
+    let mut session_ids = fs::read_dir(&transaction_root)
+        .map_err(|_| "The project transaction directory could not be read.".to_string())?
+        .flatten()
+        .filter_map(|entry| {
+            let id = entry.file_name().to_string_lossy().to_string();
+            if entry.path().is_dir() && valid_project_transaction_id(&id) { Some(id) } else { None }
+        })
+        .collect::<Vec<_>>();
+    session_ids.sort_by(|left, right| {
+        let left_number = left.parse::<u128>().unwrap_or_default();
+        let right_number = right.parse::<u128>().unwrap_or_default();
+        right_number.cmp(&left_number)
+    });
+    for session_id in session_ids {
+        let (session_dir, _, manifest) = match load_project_change_manifest(&root, &session_id) {
+            Ok(value) => value,
+            Err(_) => continue,
+        };
+        let pending = manifest.files.iter().any(|file| file.status == "applied" || file.status == "rollback-blocked");
+        if !pending || (manifest.status != "applied" && manifest.status != "partially-rolled-back") {
+            continue;
+        }
+        let patch = fs::read_to_string(session_dir.join("change.diff"))
+            .map_err(|_| "The pending transaction patch archive could not be read.".to_string())?;
+        let patch_archive = manifest.patch_archive.clone();
+        return Ok(Some(ProjectRecoveredChangeSession {
+            session: ProjectChangeSessionResult {
+                ok: true,
+                session_id: Some(session_id),
+                status: manifest.status,
+                files: manifest.files,
+                patch_archive: Some(patch_archive),
+                error_message: None,
+            },
+            patch,
+        }));
+    }
+    Ok(None)
+}
+
+#[tauri::command]
+fn project_rollback_change_session(session_id: String, paths: Vec<String>, confirmed: bool, state: State<'_, AppState>) -> ProjectChangeSessionResult {
+    if !confirmed {
+        return project_change_failure("Explicit approval is required before rolling back project files.");
+    }
+    let root = match current_project_root(&state) {
+        Ok(root) => root,
+        Err(message) => return project_change_failure(message),
+    };
+    let (session_dir, manifest_path, mut manifest) = match load_project_change_manifest(&root, &session_id) {
+        Ok(value) => value,
+        Err(message) => return project_change_failure(message),
+    };
+    if manifest.status != "applied" && manifest.status != "partially-rolled-back" {
+        return project_change_failure("Only an active project transaction can be rolled back.");
+    }
+    let selected = if paths.is_empty() {
+        None
+    } else {
+        let requested = paths.into_iter().collect::<HashSet<_>>();
+        if requested.iter().any(|path| !manifest.files.iter().any(|file| &file.path == path && (file.status == "applied" || file.status == "rollback-blocked"))) {
+            return project_change_failure("One or more requested rollback files are not active in this project transaction.");
+        }
+        Some(requested)
+    };
+    let errors = restore_project_change_files(&root, &session_dir, &mut manifest.files, selected.as_ref(), true);
+    let active = manifest.files.iter().any(|file| file.status == "applied" || file.status == "rollback-blocked");
+    manifest.status = if active { "partially-rolled-back".to_string() } else { "rolled-back".to_string() };
+    let _ = write_project_change_manifest(&manifest_path, &manifest);
+    ProjectChangeSessionResult {
+        ok: errors.is_empty(),
+        session_id: Some(session_id),
+        status: manifest.status.clone(),
+        files: manifest.files,
+        patch_archive: Some(manifest.patch_archive),
+        error_message: if errors.is_empty() { None } else { Some(errors.join("\n")) },
+    }
+}
+
+#[tauri::command]
+fn project_accept_change_session(session_id: String, paths: Vec<String>, confirmed: bool, state: State<'_, AppState>) -> ProjectChangeSessionResult {
+    if !confirmed {
+        return project_change_failure("Explicit approval is required before accepting project changes.");
+    }
+    let root = match current_project_root(&state) {
+        Ok(root) => root,
+        Err(message) => return project_change_failure(message),
+    };
+    let (_, manifest_path, mut manifest) = match load_project_change_manifest(&root, &session_id) {
+        Ok(value) => value,
+        Err(message) => return project_change_failure(message),
+    };
+    if manifest.status != "applied" && manifest.status != "partially-rolled-back" {
+        return project_change_failure("Only an active project transaction can be accepted.");
+    }
+    let selected = paths.into_iter().collect::<HashSet<_>>();
+    if !selected.is_empty() && selected.iter().any(|path| !manifest.files.iter().any(|file| &file.path == path && file.status == "applied")) {
+        return project_change_failure("One or more requested files are not active applied files in this project transaction.");
+    }
+    for file in manifest.files.iter_mut() {
+        if (selected.is_empty() || selected.contains(&file.path)) && file.status == "applied" {
+            file.status = "accepted".to_string();
+        }
+    }
+    let pending = manifest.files.iter().any(|file| file.status == "applied");
+    let rollback_blocked = manifest.files.iter().any(|file| file.status == "rollback-blocked");
+    manifest.status = if pending {
+        "applied".to_string()
+    } else if rollback_blocked {
+        "partially-rolled-back".to_string()
+    } else {
+        "accepted".to_string()
+    };
+    let _ = write_project_change_manifest(&manifest_path, &manifest);
+    ProjectChangeSessionResult {
+        ok: true,
+        session_id: Some(session_id),
+        status: manifest.status.clone(),
+        files: manifest.files,
+        patch_archive: Some(manifest.patch_archive),
         error_message: None,
     }
 }
@@ -2604,6 +3458,10 @@ fn main() {
             project_git_status,
             project_git_diff,
             project_apply_patch,
+            project_apply_change_session,
+            project_latest_change_session,
+            project_rollback_change_session,
+            project_accept_change_session,
             project_git_create_branch,
             project_git_commit,
             project_git_push,

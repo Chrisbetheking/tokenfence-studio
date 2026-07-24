@@ -1,12 +1,18 @@
 const assert = require('node:assert/strict');
 const {
   synchronizeAppText,
+  synchronizeAboutVersion,
   synchronizeChatWorkspaceText,
 } = require('./sync-product-metadata.cjs');
 
 assert.equal(
   synchronizeAppText('<small>v2.1.0 · macOS</small>', '2.2.0'),
   '<small>v2.2.0 · macOS</small>',
+);
+
+assert.equal(
+  synchronizeAboutVersion("const fallback: PlatformInfo = { appVersion: '2.1.0', os: 'Loading…' };", '2.3.0-alpha.4'),
+  "const fallback: PlatformInfo = { appVersion: '2.3.0-alpha.4', os: 'Loading…' };",
 );
 
 const fixture = String.raw`const zhPatterns = /\u5F00\u53D1\u8005/;

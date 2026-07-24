@@ -18,6 +18,7 @@ const sourceFiles = [
   "src/features/agent-runtime/collaborativeRun.ts",
   "src/features/agent-runtime/runtimeStore.ts",
   "src/features/agent-runtime/rollbackPlan.ts",
+  "src/features/projects/projectChangeSession.ts",
   "src/features/providers/providerTelemetry.ts",
   "src/features/providers/providerClient.ts",
   "src/features/providers/providerClientReliable.ts",
@@ -33,6 +34,7 @@ const compiledModuleTests = [
   "scripts/v2-2-codex-streaming-test.cjs",
   "scripts/v2-2-provider-stream-session-test.cjs",
   "scripts/v2-3-collaboration-test.cjs",
+  "scripts/v2-3-project-change-session-test.cjs",
 ];
 
 // core-privacy-test.cjs is intentionally last among tests that consume the
@@ -110,6 +112,7 @@ function compileCoreModules() {
     "features/agent-runtime/collaborativeRun.js",
     "features/agent-runtime/runtimeStore.js",
     "features/agent-runtime/rollbackPlan.js",
+    "features/projects/projectChangeSession.js",
     "features/providers/providerTelemetry.js",
     "features/providers/providerClient.js",
     "features/computer-use/sessionGuard.js",
@@ -130,6 +133,7 @@ try {
   for (const script of remainingTests) runNodeScript(script);
   console.log("CHRIS_STUDIO_V2_2_CORE_TEST_SUITE_PASSED");
   console.log("CHRIS_STUDIO_V2_3_ALPHA3_CHECKPOINT_RECOVERY_PASSED");
+  console.log("CHRIS_STUDIO_V2_3_ALPHA4_TRANSACTIONAL_CODING_PASSED");
 } finally {
   fs.rmSync(buildRoot, { recursive: true, force: true });
 }

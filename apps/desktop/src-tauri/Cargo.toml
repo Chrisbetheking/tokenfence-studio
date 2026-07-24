@@ -1,6 +1,6 @@
 [package]
 name = "chris-studio"
-version = "2.3.0-alpha.3"
+version = "2.3.0-alpha.4"
 description = "Chris Studio — Safe AI Workspace"
 authors = ["Chris Studio Contributors"]
 license = "MIT"
